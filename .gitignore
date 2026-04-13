@@ -1,0 +1,10 @@
+# Root-level secrets and local junk (do not publish)
+client_secret*.json
+*.pem
+composer.phar
+composer-setup.php
+.DS_Store
+Thumbs.db
+
+# Optional: large/generated assets at repo root
+ChatGPT*.png

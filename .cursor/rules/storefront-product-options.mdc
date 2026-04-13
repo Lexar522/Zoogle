@@ -1,0 +1,11 @@
+---
+description: ZOOGLE — домен «товар + опції», без назв Animal / animal_ у коді додатку
+alwaysApply: true
+---
+
+# Каталог і вітрина
+
+- У PHP/Blade/JS додатку використовувати **Product** / **ProductVariant**, таблиці **`products`** / **`product_variants`**, у кошику та формах поле **`product_id`** (не `listing_id`, не `animal_*`).
+- Позиція замовлення: **`order_items.product_id`** + **`option_value_ids`**; id внутрішнього SKU у замовлення не зберігається.
+- Допускається лише в старих **міграціях** імена `animal_listings` / `animal_variants` до перейменувальної міграції; у `app/` їх не додавати.
+- Допоміжні класи `CatalogProductsTable` / `CatalogProductVariantsTable` — лише для сумісності до/після `migrate` (перехід зі старих імен таблиць).
