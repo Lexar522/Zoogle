@@ -3,7 +3,7 @@
     $title = (string) ($item['title'] ?? ($item['product']->title ?? 'Позиція'));
     $titleUrl = $item['title_url'] ?? null;
 @endphp
-<article class="cart-drawer__line @if ($isBundle) cart-drawer__line--bundle @endif" data-cart-line-key="{{ $item['key'] }}">
+<article class="cart-drawer__line @if ($isBundle) cart-drawer__line--bundle @endif @if (filled($titleUrl)) cart-drawer__line--linked @endif" data-cart-line-key="{{ $item['key'] }}">
     <div class="cart-drawer__line-media">
         @if ($item['photo'])
             <img src="{{ asset('storage/' . $item['photo']) }}" alt="{{ $title }}">
@@ -15,9 +15,7 @@
     <div class="cart-drawer__line-main">
         <div class="cart-drawer__line-header">
             @if (filled($titleUrl))
-                <a href="{{ $titleUrl }}" class="cart-drawer__line-title">
-                    {{ $title }}
-                </a>
+                <a href="{{ $titleUrl }}" class="cart-drawer__line-title">{{ $title }}</a>
             @else
                 <span class="cart-drawer__line-title">{{ $title }}</span>
             @endif
@@ -42,23 +40,8 @@
                     @endforeach
                 </div>
             @endif
-        @elseif (! empty($item['option_swatches'] ?? []) || ! empty($item['option_badges'] ?? []))
-            <div class="cart-drawer__options">
-                @foreach ($item['option_swatches'] ?? [] as $option)
-                    <span class="cart-drawer__option-swatch" title="{{ $option['label'] }}">
-                        <span class="cart-drawer__option-swatch-dot" @if (! empty($option['color_hex'])) style="background: {{ $option['color_hex'] }};" @endif>
-                            @if (! empty($option['swatch_image']))
-                                <img src="{{ asset('storage/' . $option['swatch_image']) }}" alt="{{ $option['label'] }}">
-                            @endif
-                        </span>
-                        <span class="cart-drawer__option-swatch-label">{{ $option['value_name'] }}</span>
-                    </span>
-                @endforeach
-
-                @foreach ($item['option_badges'] ?? [] as $option)
-                    <span class="cart-drawer__option-badge" title="{{ $option['label'] }}">{{ $option['label'] }}</span>
-                @endforeach
-            </div>
+        @else
+            @include('cart.partials.options-display', ['item' => $item])
         @endif
 
         <div class="cart-drawer__line-pricing">
@@ -94,4 +77,12 @@
             </form>
         </div>
     </div>
+    @if (filled($titleUrl))
+        <a
+            href="{{ $titleUrl }}"
+            class="cart-drawer__line-hit"
+            tabindex="-1"
+            aria-hidden="true"
+        ></a>
+    @endif
 </article>

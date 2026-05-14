@@ -64,6 +64,9 @@ class OptionValue extends Model
                 return;
             }
 
+            $value->pickup_only_subtree = false;
+            $value->defer_online_payment = false;
+
             $parentExistsInSameGroup = self::query()
                 ->whereKey((int) $value->parent_id)
                 ->where('option_group_id', $groupId)
@@ -86,12 +89,16 @@ class OptionValue extends Model
         'slug',
         'sort_order',
         'is_active',
+        'pickup_only_subtree',
+        'defer_online_payment',
     ];
 
     protected $casts = [
         'price' => 'decimal:2',
         'is_active' => 'boolean',
         'sort_order' => 'integer',
+        'pickup_only_subtree' => 'boolean',
+        'defer_online_payment' => 'boolean',
     ];
 
     public function group(): BelongsTo

@@ -1,6 +1,7 @@
 @extends('layouts.shop')
 
 @section('title', 'Кошик — ZOOGLE')
+@section('robots', 'noindex,follow')
 
 @section('content')
     <div class="card">

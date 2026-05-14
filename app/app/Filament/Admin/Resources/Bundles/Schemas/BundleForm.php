@@ -119,7 +119,7 @@ class BundleForm
                                 ->imageEditor()
                                 ->imageEditorViewportWidth(480)
                                 ->imageEditorViewportHeight(480)
-                                ->helperText('Порядок мініатюр = порядок у галереї на сайті.')
+                                ->helperText('Формати: JPEG (.jpg, .jpeg), PNG, WebP, GIF. Дочекайтесь мініатюр перед збереженням. Порядок мініатюр = порядок у галереї на сайті.')
                         ),
                     ]),
                 Section::make('Опції комплекту')
@@ -394,7 +394,7 @@ class BundleForm
                                                 ->imageEditor()
                                                 ->imageEditorViewportWidth(480)
                                                 ->imageEditorViewportHeight(480)
-                                                ->helperText('Мініатюри зверху; олівець — кадр 1:1.')
+                                                ->helperText('Формати: JPEG (.jpg, .jpeg), PNG, WebP, GIF. Дочекайтесь мініатюр перед збереженням. Мініатюри зверху; олівець — кадр 1:1.')
                                         ),
                                     ])
                                     ->columns(1),
@@ -448,7 +448,7 @@ class BundleForm
                                                 ->imageEditor()
                                                 ->imageEditorViewportWidth(480)
                                                 ->imageEditorViewportHeight(480)
-                                                ->helperText('Мініатюри зверху; олівець — кадр 1:1.')
+                                                ->helperText('Формати: JPEG (.jpg, .jpeg), PNG, WebP, GIF. Дочекайтесь мініатюр перед збереженням. Мініатюри зверху; олівець — кадр 1:1.')
                                                 ->visible(function (Get $get): bool {
                                                     $groupId = (int) ($get('../../option_group_id') ?? 0);
                                                     if ($groupId <= 0) {

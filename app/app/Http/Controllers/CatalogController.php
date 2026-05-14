@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Bundle;
+use App\Models\BundleItem;
 use App\Models\OptionGroup;
 use App\Models\OptionValue;
 use App\Models\Product;
+use App\Models\ProductCareArticle;
 use App\Services\BundlePricingService;
 use App\Services\ProductShowPageService;
 use App\Services\VariantPricingService;
@@ -22,6 +24,12 @@ use Illuminate\Support\Facades\Schema as DbSchema;
 
 class CatalogController extends Controller
 {
+    /** @var list<string> */
+    private const CATALOG_SORTS = ['newest', 'title_asc', 'title_desc', 'price_asc', 'price_desc', 'popular'];
+
+    /** @var list<int> */
+    private const CATALOG_PER_PAGES = [12, 16, 24, 48];
+
     public function __construct(
         private readonly ProductShowPageService $productShowPage,
         private readonly VariantPricingService $variantPricing,
@@ -37,6 +45,16 @@ class CatalogController extends Controller
         }
 
         return view('catalog.index', $data);
+    }
+
+    /**
+     * Дані навігації каталогу (дерево категорій, фільтри) без завантаження списку товарів.
+     *
+     * @return array<string, mixed>
+     */
+    public function navigationFilters(Request $request): array
+    {
+        return $this->catalogNavigationFilters($request);
     }
 
     /**
@@ -56,12 +74,22 @@ class CatalogController extends Controller
      *     hasListingSubcategory: bool,
      *     categoryValues: Collection,
      *     categoryTree: array,
-     *     filters: array{q: string, category: int, on_sale: bool}
+     *     filters: array{q: string, category: int, on_sale: bool, sort: string, per_page: int}
      * }
      */
     private function catalogNavigationFilters(Request $request): array
     {
         $search = trim((string) $request->string('q'));
+
+        $sort = (string) $request->string('sort', 'newest');
+        if (! in_array($sort, self::CATALOG_SORTS, true)) {
+            $sort = 'newest';
+        }
+
+        $perPage = (int) $request->integer('per_page', 24);
+        if (! in_array($perPage, self::CATALOG_PER_PAGES, true)) {
+            $perPage = 24;
+        }
         $categoryGroupId = OptionGroup::systemCategoryGroupIdForCatalog();
         $hasParentColumn = DbSchema::hasColumn('option_values', 'parent_id');
         $hasListingCategoryParent = DbSchema::hasColumn(CatalogProductsTable::name(), 'category_parent_value_id');
@@ -192,6 +220,8 @@ class CatalogController extends Controller
                 'q' => $search,
                 'category' => $categoryValueId,
                 'on_sale' => $onSaleOnly,
+                'sort' => $sort,
+                'per_page' => $perPage,
             ],
         ];
     }
@@ -210,6 +240,7 @@ class CatalogController extends Controller
         int $selectedRootCategoryId,
         bool $hasListingCategoryParent,
         bool $hasListingSubcategory,
+        int $categoryGroupId,
     ): void {
         if ($categoryFilterValueIds === []) {
             return;
@@ -222,7 +253,8 @@ class CatalogController extends Controller
                 $categoryValueId,
                 $categoryFilterValueIds,
                 $selectedIsParentCategory,
-                $rootId
+                $rootId,
+                $categoryGroupId,
             ): void {
                 $outer->where(function (Builder $byColumns) use (
                     $categoryValueId,
@@ -236,56 +268,123 @@ class CatalogController extends Controller
                         return;
                     }
 
+                    // Листова категорія: лише явний category_value_id (або збіг у variant_options нижче).
+                    // Без orWhereNull — інакше «уся група» з NULL підкатегорією потрапляє в кожну дочірню (аксесуари + тварини тощо).
                     $byColumns
                         ->where('category_parent_value_id', $rootId)
-                        ->where(function (Builder $v) use ($categoryFilterValueIds): void {
-                            $v->whereIn('category_value_id', $categoryFilterValueIds)
-                                ->orWhereNull('category_value_id');
-                        });
+                        ->whereIn('category_value_id', $categoryFilterValueIds);
                 });
 
-                $driver = DB::connection()->getDriverName();
-                $outer->orWhere(function (Builder $json) use ($categoryFilterValueIds, $driver): void {
-                    if ($driver === 'mysql') {
-                        $json->where(function (Builder $nested) use ($categoryFilterValueIds): void {
-                            foreach ($categoryFilterValueIds as $valueId) {
-                                $nested->orWhereRaw(
-                                    "JSON_SEARCH(COALESCE(variant_options, JSON_ARRAY()), 'one', CAST(? as CHAR), NULL, '$[*].option_value_ids[*]') IS NOT NULL",
-                                    [$valueId]
-                                );
-                            }
-                        });
-                    } else {
-                        $json->where(function (Builder $nested) use ($categoryFilterValueIds): void {
-                            foreach ($categoryFilterValueIds as $valueId) {
-                                $nested->orWhere('variant_options', 'like', '%"option_value_ids":['.$valueId.'%')
-                                    ->orWhere('variant_options', 'like', '%"option_value_ids":%'.$valueId.'%');
-                            }
-                        });
-                    }
+                $outer->orWhere(function (Builder $json) use ($categoryFilterValueIds, $categoryGroupId): void {
+                    $this->applyCatalogVariantOptionsJsonCategoryFilter($json, $categoryFilterValueIds, $categoryGroupId);
                 });
             });
 
             return;
         }
 
-        if (DB::connection()->getDriverName() === 'mysql') {
-            $query->where(function (Builder $nested) use ($categoryFilterValueIds): void {
+        $this->applyCatalogVariantOptionsJsonCategoryFilter($query, $categoryFilterValueIds, $categoryGroupId);
+    }
+
+    /**
+     * Збіг у variant_options лише в рядку групи «Категорія» (option_group_id = системна група каталогу).
+     * Інакше JSON_SEARCH знаходить id у будь-якій групі опцій і в каталозі з’являються зайві товари (наприклад «Єнот» у «аксесуарах для собак»).
+     *
+     * @param  list<int>  $categoryFilterValueIds
+     */
+    private function applyCatalogVariantOptionsJsonCategoryFilter(
+        Builder $builder,
+        array $categoryFilterValueIds,
+        int $categoryGroupId,
+    ): void {
+        if ($categoryGroupId <= 0) {
+            $builder->where(function (Builder $nested) use ($categoryFilterValueIds): void {
+                $this->applyCatalogVariantOptionsJsonLegacyFilter($nested, $categoryFilterValueIds);
+            });
+
+            return;
+        }
+
+        $driver = DB::connection()->getDriverName();
+
+        if ($driver === 'mysql') {
+            $builder->where(function (Builder $nested) use ($categoryFilterValueIds, $categoryGroupId): void {
+                $ors = [];
+                $bindings = [(int) $categoryGroupId];
                 foreach ($categoryFilterValueIds as $valueId) {
-                    $nested->orWhereRaw(
+                    $ors[] = 'JSON_CONTAINS(COALESCE(jt.oids, JSON_ARRAY()), CAST(? AS JSON), \'$\')';
+                    $bindings[] = (int) $valueId;
+                }
+                $sql = 'EXISTS (
+                    SELECT 1 FROM JSON_TABLE(
+                        COALESCE(variant_options, JSON_ARRAY()),
+                        \'$[*]\' COLUMNS(
+                            gid INT PATH \'$.option_group_id\',
+                            oids JSON PATH \'$.option_value_ids\'
+                        )
+                    ) AS jt
+                    WHERE jt.gid = ? AND ('.implode(' OR ', $ors).')
+                )';
+                $nested->whereRaw($sql, $bindings);
+            });
+
+            return;
+        }
+
+        if ($driver === 'sqlite') {
+            $builder->where(function (Builder $nested) use ($categoryFilterValueIds, $categoryGroupId): void {
+                $placeholders = implode(',', array_fill(0, count($categoryFilterValueIds), '?'));
+                $bindings = [(int) $categoryGroupId];
+                foreach ($categoryFilterValueIds as $valueId) {
+                    $bindings[] = (int) $valueId;
+                }
+                $sql = 'EXISTS (
+                    SELECT 1 FROM json_each(COALESCE(variant_options, \'[]\')) AS je
+                    WHERE json_type(je.value) = \'object\'
+                    AND json_extract(je.value, \'$.option_group_id\') = ?
+                    AND EXISTS (
+                        SELECT 1 FROM json_each(
+                            COALESCE(json_extract(je.value, \'$.option_value_ids\'), \'[]\')
+                        ) AS vid
+                        WHERE CAST(vid.value AS INTEGER) IN ('.$placeholders.')
+                    )
+                )';
+                $nested->whereRaw($sql, $bindings);
+            });
+
+            return;
+        }
+
+        $builder->where(function (Builder $nested) use ($categoryFilterValueIds): void {
+            $this->applyCatalogVariantOptionsJsonLegacyFilter($nested, $categoryFilterValueIds);
+        });
+    }
+
+    /**
+     * @param  list<int>  $categoryFilterValueIds
+     */
+    private function applyCatalogVariantOptionsJsonLegacyFilter(Builder $nested, array $categoryFilterValueIds): void
+    {
+        $driver = DB::connection()->getDriverName();
+        if ($driver === 'mysql') {
+            $nested->where(function (Builder $q) use ($categoryFilterValueIds): void {
+                foreach ($categoryFilterValueIds as $valueId) {
+                    $q->orWhereRaw(
                         "JSON_SEARCH(COALESCE(variant_options, JSON_ARRAY()), 'one', CAST(? as CHAR), NULL, '$[*].option_value_ids[*]') IS NOT NULL",
                         [$valueId]
                     );
                 }
             });
-        } else {
-            $query->where(function (Builder $nested) use ($categoryFilterValueIds): void {
-                foreach ($categoryFilterValueIds as $valueId) {
-                    $nested->orWhere('variant_options', 'like', '%"option_value_ids":['.$valueId.'%')
-                        ->orWhere('variant_options', 'like', '%"option_value_ids":%'.$valueId.'%');
-                }
-            });
+
+            return;
         }
+
+        $nested->where(function (Builder $q) use ($categoryFilterValueIds): void {
+            foreach ($categoryFilterValueIds as $valueId) {
+                $q->orWhere('variant_options', 'like', '%"option_value_ids":['.$valueId.'%')
+                    ->orWhere('variant_options', 'like', '%"option_value_ids":%'.$valueId.'%');
+            }
+        });
     }
 
     private function makeProductCatalogQuery(
@@ -297,6 +396,7 @@ class CatalogController extends Controller
         int $selectedRootCategoryId,
         bool $hasListingCategoryParent,
         bool $hasListingSubcategory,
+        int $categoryGroupId,
     ): Builder {
         return Product::query()
             ->whereIn('product_type', OptionGroup::catalogListingProductTypes())
@@ -320,7 +420,8 @@ class CatalogController extends Controller
                 $selectedIsParentCategory,
                 $selectedRootCategoryId,
                 $hasListingCategoryParent,
-                $hasListingSubcategory
+                $hasListingSubcategory,
+                $categoryGroupId
             ): void {
                 $this->applyCatalogCategoryFilterToQuery(
                     $q,
@@ -330,6 +431,7 @@ class CatalogController extends Controller
                     $selectedRootCategoryId,
                     $hasListingCategoryParent,
                     $hasListingSubcategory,
+                    $categoryGroupId,
                 );
             });
     }
@@ -343,6 +445,7 @@ class CatalogController extends Controller
         int $selectedRootCategoryId,
         bool $hasListingCategoryParent,
         bool $hasListingSubcategory,
+        int $categoryGroupId,
     ): Builder {
         return Bundle::query()
             ->where('is_visible', true)
@@ -366,7 +469,8 @@ class CatalogController extends Controller
                 $selectedIsParentCategory,
                 $selectedRootCategoryId,
                 $hasListingCategoryParent,
-                $hasListingSubcategory
+                $hasListingSubcategory,
+                $categoryGroupId
             ): void {
                 $this->applyCatalogCategoryFilterToQuery(
                     $q,
@@ -376,8 +480,77 @@ class CatalogController extends Controller
                     $selectedRootCategoryId,
                     $hasListingCategoryParent,
                     $hasListingSubcategory,
+                    $categoryGroupId,
                 );
             });
+    }
+
+    /**
+     * @param  Collection<int, array{type: string, id: int, sort_at: int, title: string, price_sort: float, popularity: int}>  $rows
+     */
+    private function sortCatalogRows(Collection $rows, string $sort): Collection
+    {
+        $cmpTitle = static function (array $a, array $b): int {
+            $t = strcasecmp($a['title'] ?? '', $b['title'] ?? '');
+
+            return $t !== 0 ? $t : ($a['id'] <=> $b['id']);
+        };
+
+        $cmpNewest = static function (array $a, array $b): int {
+            return [$b['sort_at'], $b['id'], $b['type'] ?? '']
+                <=> [$a['sort_at'], $a['id'], $a['type'] ?? ''];
+        };
+
+        $cmpPrice = static function (array $a, array $b): int {
+            $p = ($a['price_sort'] ?? 0.0) <=> ($b['price_sort'] ?? 0.0);
+
+            return $p !== 0 ? $p : ($a['id'] <=> $b['id']);
+        };
+
+        $cmpPopular = static function (array $a, array $b) use ($cmpNewest): int {
+            $pop = ($b['popularity'] ?? 0) <=> ($a['popularity'] ?? 0);
+
+            return $pop !== 0 ? $pop : $cmpNewest($a, $b);
+        };
+
+        $sorted = match ($sort) {
+            'title_asc' => $rows->sort($cmpTitle),
+            'title_desc' => $rows->sort(fn (array $a, array $b): int => $cmpTitle($b, $a)),
+            'price_asc' => $rows->sort($cmpPrice),
+            'price_desc' => $rows->sort(fn (array $a, array $b): int => -$cmpPrice($a, $b)),
+            'popular' => $rows->sort($cmpPopular),
+            default => $rows->sort($cmpNewest),
+        };
+
+        return $sorted->values();
+    }
+
+    /**
+     * Наближена сума комплекту: SUM(qty * product.price) по bundle_items.
+     */
+    private function bundleSortPriceSelectExpression(): string
+    {
+        $bundleTable = (new Bundle)->getTable();
+        $bundleItemsTable = (new BundleItem)->getTable();
+        $productsTable = (new Product)->getTable();
+        $driver = DB::connection()->getDriverName();
+        $mul = $driver === 'sqlite'
+            ? "({$bundleItemsTable}.qty * CAST({$productsTable}.price AS REAL))"
+            : "({$bundleItemsTable}.qty * CAST({$productsTable}.price AS DECIMAL(14, 4)))";
+
+        return "(SELECT COALESCE(SUM({$mul}), 0) FROM {$bundleItemsTable} INNER JOIN {$productsTable} ON {$productsTable}.id = {$bundleItemsTable}.product_id WHERE {$bundleItemsTable}.bundle_id = {$bundleTable}.id)";
+    }
+
+    /**
+     * Сума лайків (product_favorites) усіх товарів, що входять у комплект, для сортування «Популярні».
+     */
+    private function bundleCatalogPopularitySelectExpression(): string
+    {
+        $bundleTable = (new Bundle)->getTable();
+        $bundleItemsTable = (new BundleItem)->getTable();
+        $pf = 'product_favorites';
+
+        return "(SELECT COUNT(*) FROM {$pf} pf WHERE EXISTS (SELECT 1 FROM {$bundleItemsTable} bi WHERE bi.bundle_id = {$bundleTable}.id AND bi.product_id = pf.product_id))";
     }
 
     /**
@@ -410,6 +583,37 @@ class CatalogController extends Controller
         $nav = $this->catalogNavigationFilters($request);
         extract($nav);
 
+        $shouldShowCatalogGrid = $categoryValueId > 0 || $search !== '' || $onSaleOnly;
+
+        $sort = $filters['sort'] ?? 'newest';
+        $perPage = (int) ($filters['per_page'] ?? 24);
+
+        if (! $shouldShowCatalogGrid) {
+            $page = max(1, (int) $request->integer('page', 1));
+            $emptyListings = new LengthAwarePaginator(
+                collect(),
+                0,
+                $perPage,
+                $page,
+                [
+                    'path' => $request->url(),
+                    'query' => $request->query(),
+                    'pageName' => 'page',
+                ],
+            );
+
+            return [
+                'listings' => $emptyListings,
+                'listingQuotes' => [],
+                'bundleQuotes' => [],
+                'categoryValues' => $categoryValues,
+                'categoryTree' => $categoryTree,
+                'filters' => $filters,
+                'favoriteProductIds' => $this->favoriteProductIdsForUser(),
+                'showCatalogGrid' => false,
+            ];
+        }
+
         $productQuery = $this->makeProductCatalogQuery(
             $search,
             $onSaleOnly,
@@ -419,6 +623,7 @@ class CatalogController extends Controller
             $selectedRootCategoryId,
             $hasListingCategoryParent,
             $hasListingSubcategory,
+            $categoryGroupId,
         );
         $bundleQuery = $this->makeBundleCatalogQuery(
             $search,
@@ -429,35 +634,52 @@ class CatalogController extends Controller
             $selectedRootCategoryId,
             $hasListingCategoryParent,
             $hasListingSubcategory,
+            $categoryGroupId,
         );
 
+        $bundleTable = (new Bundle)->getTable();
+
+        // select() після withCount() затирає підзапит лічильника — популярність була завжди 0.
         $productRows = (clone $productQuery)
-            ->select(['id', 'published_at', 'created_at'])
+            ->select(['id', 'title', 'price', 'published_at', 'created_at'])
+            ->withCount('favoritedByUsers')
             ->get()
             ->map(fn (Product $product): array => [
                 'type' => 'product',
                 'id' => (int) $product->id,
                 'sort_at' => (int) (($product->published_at ?? $product->created_at)?->getTimestamp() ?? 0),
+                'title' => (string) $product->title,
+                'price_sort' => (float) $product->price,
+                'popularity' => (int) ($product->favorited_by_users_count ?? 0),
             ]);
 
+        $sortPriceSql = $this->bundleSortPriceSelectExpression();
+        $popularitySql = $this->bundleCatalogPopularitySelectExpression();
+
         $bundleRows = (clone $bundleQuery)
-            ->select(['id', 'created_at'])
+            ->select([
+                "{$bundleTable}.id",
+                "{$bundleTable}.title",
+                "{$bundleTable}.created_at",
+            ])
+            ->selectRaw("{$sortPriceSql} as sort_price")
+            ->selectRaw("{$popularitySql} as catalog_popularity")
             ->get()
             ->map(fn (Bundle $bundle): array => [
                 'type' => 'bundle',
                 'id' => (int) $bundle->id,
                 'sort_at' => (int) ($bundle->created_at?->getTimestamp() ?? 0),
+                'title' => (string) $bundle->title,
+                'price_sort' => (float) ($bundle->sort_price ?? 0.0),
+                'popularity' => (int) ($bundle->catalog_popularity ?? 0),
             ]);
 
-        $catalogRows = $productRows
-            ->concat($bundleRows)
-            ->sort(function (array $left, array $right): int {
-                return [$right['sort_at'], $right['id'], $right['type']]
-                    <=> [$left['sort_at'], $left['id'], $left['type']];
-            })
-            ->values();
+        $catalogRows = $this->sortCatalogRows(
+            $productRows->concat($bundleRows),
+            is_string($sort) ? $sort : 'newest'
+        );
 
-        $listings = $this->paginateCatalogRows($catalogRows, $request);
+        $listings = $this->paginateCatalogRows($catalogRows, $request, $perPage);
         $pageRows = collect($listings->items());
 
         $productIds = $pageRows
@@ -475,6 +697,7 @@ class CatalogController extends Controller
 
         $products = Product::query()
             ->whereIn('id', $productIds)
+            ->withCount('favoritedByUsers')
             ->get()
             ->keyBy(fn (Product $product): int => (int) $product->id);
         $bundles = Bundle::query()
@@ -507,17 +730,6 @@ class CatalogController extends Controller
             $bundleQuotes[(int) $bundle->id] = $this->bundlePricing->quote($bundle);
         }
 
-        $favoriteProductIds = [];
-        $authUser = Auth::user();
-        if ($authUser !== null) {
-            $productTable = (new Product)->getTable();
-            $favoriteProductIds = $authUser->favoriteProducts()
-                ->pluck($productTable.'.id')
-                ->map(fn ($id): int => (int) $id)
-                ->values()
-                ->all();
-        }
-
         return [
             'listings' => $listings,
             'listingQuotes' => $listingQuotes,
@@ -525,20 +737,80 @@ class CatalogController extends Controller
             'categoryValues' => $categoryValues,
             'categoryTree' => $categoryTree,
             'filters' => $filters,
-            'favoriteProductIds' => $favoriteProductIds,
+            'favoriteProductIds' => $this->favoriteProductIdsForUser(),
+            'showCatalogGrid' => true,
         ];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function favoriteProductIdsForUser(): array
+    {
+        $authUser = Auth::user();
+        if ($authUser === null) {
+            return [];
+        }
+
+        $productTable = (new Product)->getTable();
+
+        return $authUser->favoriteProducts()
+            ->pluck($productTable.'.id')
+            ->map(fn ($id): int => (int) $id)
+            ->values()
+            ->all();
     }
 
     public function show(Request $request, string $slug): View
     {
         $nav = $this->catalogNavigationFilters($request);
 
-        $listing = Product::query()
+        $listing = $this->storefrontProductBySlug($slug);
+        $listing->loadCount('favoritedByUsers');
+
+        return view('catalog.show', array_merge(
+            $this->productShowPage->buildViewData($request, $listing, $nav),
+            ['favoriteProductIds' => $this->favoriteProductIdsForUser()],
+        ));
+    }
+
+    public function careIndex(Request $request, string $slug): View
+    {
+        $nav = $this->catalogNavigationFilters($request);
+        $listing = $this->storefrontProductBySlug($slug);
+        $careArticles = $listing->publishedCareArticles()->get();
+
+        abort_if($careArticles->isEmpty(), 404);
+
+        return view('catalog.care-index', array_merge($nav, [
+            'listing' => $listing,
+            'careArticles' => $careArticles,
+        ]));
+    }
+
+    public function careShow(Request $request, string $slug, string $articleSlug): View
+    {
+        $nav = $this->catalogNavigationFilters($request);
+        $listing = $this->storefrontProductBySlug($slug);
+        $careArticles = $listing->publishedCareArticles()->get();
+        $article = $careArticles
+            ->first(fn (ProductCareArticle $row): bool => (string) $row->slug === $articleSlug);
+
+        abort_if(! $article, 404);
+
+        return view('catalog.care-show', array_merge($nav, [
+            'listing' => $listing,
+            'article' => $article,
+            'careArticles' => $careArticles,
+        ]));
+    }
+
+    private function storefrontProductBySlug(string $slug): Product
+    {
+        return Product::query()
             ->where('slug', $slug)
             ->whereIn('product_type', OptionGroup::catalogListingProductTypes())
             ->where('is_available', true)
             ->firstOrFail();
-
-        return view('catalog.show', $this->productShowPage->buildViewData($request, $listing, $nav));
     }
 }

@@ -200,10 +200,38 @@ class OptionGroupForm
                         ->label('Слаг')
                         ->required(),
                 ],
+                self::categoryRootCheckoutTogglesForRepeaterItem(),
                 $hasParentColumn ? self::categorySubtreeBelowRoot() : [],
             ))
             ->columns(2)
             ->columnSpanFull();
+    }
+
+    /**
+     * Поля доставки/оплати тільки для **кореневої** рубрики (елемент repeater'а «Категорії»).
+     * Підкатегорії нижче в дереві ці прапорці не показують (і при збереженні в моделі скидаються).
+     *
+     * @return list<Component>
+     */
+    private static function categoryRootCheckoutTogglesForRepeaterItem(): array
+    {
+        if (! DbSchema::hasColumn('option_values', 'parent_id')
+            || ! DbSchema::hasColumn('option_values', 'pickup_only_subtree')) {
+            return [];
+        }
+
+        return [
+            Toggle::make('pickup_only_subtree')
+                ->label('Уся гілка: лише самовивіз (без Нової Пошти)')
+                ->helperText('Коренева рубрика: усі товари в цій гілці — лише самовивіз; Нова Пошта на чекауті недоступна.')
+                ->default(false)
+                ->columnSpanFull(),
+            Toggle::make('defer_online_payment')
+                ->label('Відкласти онлайн-оплату до узгодження з менеджером')
+                ->helperText('Коренева рубрика: на чекауті не буде LiqPay; після дзвінка менеджер у картці замовлення вмикає оплату, клієнт — з акаунта.')
+                ->default(false)
+                ->columnSpanFull(),
+        ];
     }
 
     /**

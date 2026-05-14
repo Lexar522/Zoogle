@@ -15,7 +15,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'google_id', 'avatar'])]
+#[Fillable(['name', 'first_name', 'last_name', 'phone', 'email', 'password', 'google_id', 'avatar'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser
 {
@@ -50,5 +50,17 @@ class User extends Authenticatable implements FilamentUser
     public function favoriteProducts(): BelongsToMany
     {
         return $this->belongsToMany(Product::class, 'product_favorites')->withTimestamps();
+    }
+
+    /**
+     * Повне ім’я для оформлення замовлення: ім’я + прізвище з профілю, інакше поле name.
+     */
+    public function checkoutDisplayName(): string
+    {
+        $first = trim((string) ($this->first_name ?? ''));
+        $last = trim((string) ($this->last_name ?? ''));
+        $combined = trim($first.' '.$last);
+
+        return $combined !== '' ? $combined : trim((string) $this->name);
     }
 }

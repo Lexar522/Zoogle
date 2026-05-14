@@ -2,10 +2,11 @@
 
 namespace App\Filament\Admin\Resources\Orders\Tables;
 
+use App\Filament\Admin\Resources\Orders\OrderResource;
 use App\Models\Order;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
+use Filament\Actions\Action;
+use Filament\Support\Enums\FontWeight;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -18,24 +19,33 @@ class OrdersTable
             ->columns([
                 TextColumn::make('number')
                     ->label('Номер')
-                    ->searchable(),
+                    ->searchable()
+                    ->weight(FontWeight::Bold)
+                    ->description(fn (Order $record): string => trim((string) $record->customer_name) !== ''
+                        ? trim((string) $record->customer_name)
+                        : 'Без імені'),
                 TextColumn::make('status')
-                    ->label('Статус')
+                    ->label('Стан')
+                    ->formatStateUsing(fn (?string $state): string => Order::statusLabels()[$state ?? ''] ?? (string) $state)
                     ->badge()
-                    ->searchable(),
-                TextColumn::make('payment_status')
-                    ->label('Оплата')
-                    ->badge()
-                    ->searchable(),
-                TextColumn::make('customer_name')
-                    ->label("Ім'я")
+                    ->color(fn (?string $state): string => match ($state) {
+                        Order::STATUS_NEW => 'info',
+                        Order::STATUS_PAID => 'success',
+                        Order::STATUS_PROCESSING => 'warning',
+                        Order::STATUS_SHIPPED => 'primary',
+                        Order::STATUS_COMPLETED => 'gray',
+                        Order::STATUS_CANCELLED => 'danger',
+                        default => 'gray',
+                    })
+                    ->description(fn (Order $record): string => 'Оплата: '.$record->paymentStatusLabel())
                     ->searchable(),
                 TextColumn::make('customer_phone')
                     ->label('Телефон')
                     ->searchable(),
                 TextColumn::make('customer_email')
                     ->label('Email')
-                    ->searchable(),
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('customer_address')
                     ->label('Адреса')
                     ->searchable()
@@ -44,6 +54,7 @@ class OrdersTable
                     ->label('Доставка')
                     ->formatStateUsing(fn (?string $state): string => Order::deliveryTypeLabels()[$state ?? ''] ?? (string) $state)
                     ->badge()
+                    ->color('gray')
                     ->searchable(),
                 TextColumn::make('delivery_city')
                     ->label('Місто')
@@ -63,7 +74,8 @@ class OrdersTable
                 TextColumn::make('paid_at')
                     ->label('Оплачено')
                     ->dateTime()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('created_at')
                     ->label('Створено запис')
                     ->dateTime()
@@ -90,17 +102,18 @@ class OrdersTable
                     ->label('Оплата')
                     ->options([
                         'pending' => 'Очікує оплату',
+                        'partial' => 'Частково сплачено',
                         'paid' => 'Оплачено',
                         'failed' => 'Помилка оплати',
                     ]),
             ])
+            ->defaultSort('placed_at', 'desc')
+            ->recordUrl(fn (Order $record): string => OrderResource::getUrl('edit', ['record' => $record]))
             ->recordActions([
-                EditAction::make(),
-            ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
+                Action::make('edit')
+                    ->label('Відкрити')
+                    ->icon(Heroicon::PencilSquare)
+                    ->url(fn (Order $record): string => OrderResource::getUrl('edit', ['record' => $record])),
             ]);
     }
 }

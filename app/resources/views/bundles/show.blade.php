@@ -10,19 +10,28 @@
     $priceTotal = (float) ($quote['total'] ?? 0);
     $categoryBreadcrumb = is_array($categoryBreadcrumb ?? null) ? $categoryBreadcrumb : [];
     $breadcrumbQueryBase = is_array($breadcrumbQueryBase ?? null) ? $breadcrumbQueryBase : [];
+    $bundleSeoDescription = trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($bundle->short_description ?: $bundle->description))));
+    if ($bundleSeoDescription === '') {
+        $bundleSeoDescription = 'Комплект '.$bundle->title.' у зоомагазині ZOOGLE: прозора ціна, склад набору та швидке оформлення замовлення.';
+    }
 @endphp
+
+@section('meta_description', \Illuminate\Support\Str::limit($bundleSeoDescription, 155, ''))
+@section('canonical_url', route('bundles.show', $bundle->slug))
+@section('og_type', 'product')
+@section('og_title', $bundle->title.' — ZOOGLE')
+@section('og_description', \Illuminate\Support\Str::limit($bundleSeoDescription, 155, ''))
+@if (count($galleryPhotos))
+    @section('og_image', asset('storage/'.$galleryPhotos[0]))
+@endif
 
 @push('styles')
 <style>
     .bundle-page {
-        background: #fff;
         color: #202124;
         width: min(80vw, 100%);
         margin: clamp(6px, 1vw, 14px) auto clamp(12px, 2vw, 28px);
-        padding: clamp(20px, 3vw, 44px);
-        border-radius: 20px;
-        border: 1px solid #e8eaed;
-        box-shadow: 0 2px 10px rgba(60, 64, 67, 0.08);
+        padding: 0;
     }
     .bundle-page a { color: #1a73e8; text-decoration: none; }
     .bundle-page a:hover { color: #174ea6; }
@@ -46,10 +55,13 @@
         gap: .45rem;
         margin: 0 0 1rem;
     }
+    .bundle-category-chain .btn {
+        border-radius: 20px;
+    }
     .bundle-grid {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
-        gap: clamp(24px, 3vw, 48px);
+        grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr);
+        gap: clamp(12px, 1.6vw, 22px);
         align-items: start;
     }
     @media (max-width: 980px) {
@@ -57,9 +69,74 @@
             grid-template-columns: 1fr;
         }
     }
+    .bundle-main-column {
+        min-width: 0;
+        display: grid;
+        gap: clamp(12px, 1.4vw, 18px);
+    }
+    .bundle-gallery-card,
+    .bundle-summary-card,
+    .bundle-description-card,
+    .bundle-section {
+        border-radius: 20px;
+        border: 1px solid #e8eaed;
+        background: #fff;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+        transition:
+            transform .32s cubic-bezier(0.22, 1, 0.36, 1),
+            box-shadow .32s cubic-bezier(0.22, 1, 0.36, 1),
+            border-color .32s ease;
+        will-change: transform, box-shadow;
+    }
+    @media (hover: hover) and (pointer: fine) {
+        .bundle-gallery-card:hover,
+        .bundle-summary-card:hover,
+        .bundle-description-card:hover,
+        .bundle-section:hover {
+            transform: translateY(-3px);
+            border-color: #dbe4ee;
+            box-shadow: 0 18px 42px rgba(15, 23, 42, 0.13);
+        }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .bundle-gallery-card,
+        .bundle-summary-card,
+        .bundle-description-card,
+        .bundle-section {
+            transition: box-shadow .24s ease, border-color .24s ease;
+            will-change: auto;
+        }
+
+        .bundle-gallery-card:hover,
+        .bundle-summary-card:hover,
+        .bundle-description-card:hover,
+        .bundle-section:hover {
+            transform: none;
+        }
+    }
+    .bundle-gallery-card {
+        padding: clamp(12px, 1.6vw, 18px);
+    }
+    .bundle-summary-column {
+        min-width: 0;
+    }
+    .bundle-summary-card {
+        padding: clamp(20px, 2.6vw, 34px);
+    }
+    @media (min-width: 1024px) {
+        .bundle-summary-column {
+            position: sticky;
+            top: clamp(16px, calc(var(--header-sticky-offset, 0px) + 12px), 96px);
+            align-self: start;
+        }
+        .bundle-summary-card {
+            max-height: calc(100vh - clamp(16px, calc(var(--header-sticky-offset, 0px) + 12px), 96px) - 16px);
+            overflow-y: auto;
+        }
+    }
     .bundle-gallery-main {
         background: #f1f3f4;
-        border-radius: 12px;
+        border-radius: 20px;
         border: 1px solid #e8eaed;
         aspect-ratio: 1;
         overflow: hidden;
@@ -219,9 +296,15 @@
         color: #202124;
     }
     .bundle-description {
-        margin-top: 18px;
-        padding-top: 18px;
-        border-top: 1px solid #e8eaed;
+        margin: 0;
+    }
+    .bundle-description-card {
+        padding: clamp(18px, 2.4vw, 30px);
+    }
+    .bundle-description-card__title {
+        margin: 0 0 12px;
+        font-size: 18px;
+        color: #202124;
     }
     .bundle-actions {
         display: flex;
@@ -234,7 +317,7 @@
         align-items: center;
         justify-content: center;
         width: 100%;
-        max-width: 320px;
+        max-width: none;
         padding: 14px 20px;
         border-radius: 12px;
         border: none;
@@ -252,9 +335,8 @@
         box-shadow: 0 6px 18px rgba(239, 56, 41, 0.45);
     }
     .bundle-section {
-        margin-top: 30px;
-        padding-top: 26px;
-        border-top: 1px solid #e8eaed;
+        margin-top: 22px;
+        padding: clamp(18px, 2.4vw, 30px);
     }
     .bundle-section__title {
         margin: 0 0 18px;
@@ -365,7 +447,7 @@
         justify-content: center;
         align-self: flex-end;
         padding: 10px 14px;
-        border-radius: 10px;
+        border-radius: 20px;
         border: 1px solid #dadce0;
         background: #fff;
         color: #1a73e8 !important;
@@ -376,6 +458,100 @@
     .bundle-item__link:hover {
         border-color: #1a73e8;
         background: #f8fbff;
+    }
+
+    @media (max-width: 768px) {
+        .bundle-page {
+            width: 100%;
+            margin: 0 auto 18px;
+            padding: 0 12px;
+        }
+
+        .bundle-breadcrumb {
+            margin-bottom: 14px;
+            font-size: 12px;
+        }
+
+        .bundle-grid {
+            gap: 12px;
+        }
+
+        .bundle-main-column {
+            gap: 12px;
+        }
+
+        .bundle-gallery-card,
+        .bundle-summary-card,
+        .bundle-description-card,
+        .bundle-section {
+            border-radius: 18px;
+        }
+
+        .bundle-gallery-card {
+            padding: 10px;
+        }
+
+        .bundle-summary-card,
+        .bundle-description-card,
+        .bundle-section {
+            padding: 16px;
+        }
+
+        .bundle-title {
+            font-size: clamp(1.35rem, 7vw, 1.75rem);
+        }
+
+        .bundle-gallery-main {
+            border-radius: 16px;
+        }
+
+        .bundle-thumbs {
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            padding-bottom: 4px;
+            scrollbar-width: thin;
+        }
+
+        .bundle-thumbs button {
+            width: 58px;
+            height: 58px;
+            flex: 0 0 auto;
+        }
+
+        .bundle-price-box {
+            padding: 16px;
+            border-radius: 16px;
+        }
+
+        .bundle-price__current {
+            font-size: 1.72rem;
+        }
+
+        .bundle-actions .btn-product {
+            max-width: none;
+            min-height: 48px;
+            border-radius: 20px;
+        }
+
+        .bundle-section {
+            margin-top: 16px;
+        }
+
+        .bundle-item {
+            gap: 12px;
+            padding: 12px;
+            border-radius: 16px;
+        }
+
+        .bundle-item__pricing {
+            gap: 6px;
+        }
+
+        .bundle-item__link {
+            width: 100%;
+            min-height: 42px;
+            align-self: stretch;
+        }
     }
 </style>
 @endpush
@@ -415,27 +591,42 @@
         @endif
 
         <div class="bundle-grid">
-            <div>
-                <div class="bundle-gallery-main">
-                    @if (count($galleryPhotos))
-                        <img src="{{ asset('storage/' . $galleryPhotos[0]) }}" alt="{{ $bundle->title }}" id="bundle-main-img">
-                    @else
-                        <div class="bundle-gallery-placeholder">Немає фото комплекту</div>
+            <div class="bundle-main-column">
+                <div class="bundle-gallery-card">
+                    <div class="bundle-gallery-main">
+                        @if (count($galleryPhotos))
+                            <img src="{{ asset('storage/' . $galleryPhotos[0]) }}" alt="{{ $bundle->title }}" id="bundle-main-img">
+                        @else
+                            <div class="bundle-gallery-placeholder">Немає фото комплекту</div>
+                        @endif
+                    </div>
+
+                    @if (count($galleryPhotos) > 1)
+                        <div class="bundle-thumbs" aria-label="Мініатюри комплекту">
+                            @foreach ($galleryPhotos as $photo)
+                                <button type="button" class="{{ $loop->first ? 'active' : '' }}" data-src="{{ asset('storage/' . $photo) }}" aria-label="Фото {{ $loop->iteration }}">
+                                    <img src="{{ asset('storage/' . $photo) }}" alt="">
+                                </button>
+                            @endforeach
+                        </div>
                     @endif
                 </div>
 
-                @if (count($galleryPhotos) > 1)
-                    <div class="bundle-thumbs" aria-label="Мініатюри комплекту">
-                        @foreach ($galleryPhotos as $photo)
-                            <button type="button" class="{{ $loop->first ? 'active' : '' }}" data-src="{{ asset('storage/' . $photo) }}" aria-label="Фото {{ $loop->iteration }}">
-                                <img src="{{ asset('storage/' . $photo) }}" alt="">
-                            </button>
-                        @endforeach
+                @if (filled($bundle->short_description) || filled($bundle->description))
+                    <div class="bundle-description bundle-description-card">
+                        <h2 class="bundle-description-card__title">Опис комплекту</h2>
+                        @if (filled($bundle->short_description))
+                            <p class="bundle-short bundle-short--lead">{{ $bundle->short_description }}</p>
+                        @endif
+                        @if (filled($bundle->description))
+                            <div>{!! nl2br(e($bundle->description)) !!}</div>
+                        @endif
                     </div>
                 @endif
             </div>
 
-            <div>
+            <div class="bundle-summary-column">
+                <div class="bundle-summary-card">
                 <p class="bundle-eyebrow">Комплект</p>
                 <h1 class="bundle-title">{{ $bundle->title }}</h1>
 
@@ -484,17 +675,7 @@
                         <button class="btn-product" type="submit">Додати комплект у кошик</button>
                     </form>
                 </div>
-
-                @if (filled($bundle->short_description) || filled($bundle->description))
-                    <div class="bundle-description">
-                        @if (filled($bundle->short_description))
-                            <p class="bundle-short bundle-short--lead">{{ $bundle->short_description }}</p>
-                        @endif
-                        @if (filled($bundle->description))
-                            <div>{!! nl2br(e($bundle->description)) !!}</div>
-                        @endif
-                    </div>
-                @endif
+                </div>
             </div>
         </div>
 

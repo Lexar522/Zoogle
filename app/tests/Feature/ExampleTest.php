@@ -14,6 +14,7 @@ class ExampleTest extends TestCase
     {
         $response = $this->get('/');
 
-        $response->assertRedirect(route('catalog.index'));
+        $response->assertOk();
+        $response->assertSee('Хіти продажів', false);
     }
 }

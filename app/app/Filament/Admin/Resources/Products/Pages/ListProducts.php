@@ -24,4 +24,9 @@ class ListProducts extends ListRecords
     {
         return Width::Full;
     }
+
+    public function sortProductsTableByPriceDesc(): void
+    {
+        $this->sortTable('variant_price', 'desc');
+    }
 }

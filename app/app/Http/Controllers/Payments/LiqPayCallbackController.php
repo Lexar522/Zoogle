@@ -4,10 +4,10 @@ namespace App\Http\Controllers\Payments;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Services\Payments\ApplyApprovedOrderPayment;
 use App\Services\Payments\LiqPayClient;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class LiqPayCallbackController extends Controller
@@ -21,7 +21,15 @@ class LiqPayCallbackController extends Controller
             abort(400, 'Invalid signature');
         }
 
-        $orderId = (int) ($payload['order_id'] ?? 0);
+        $rawOrderId = (string) ($payload['order_id'] ?? '');
+        $paymentLeg = null;
+        if (preg_match('/^(\d+)-(imm|def)$/', $rawOrderId, $m)) {
+            $orderId = (int) $m[1];
+            $paymentLeg = $m[2] === 'imm' ? 'immediate' : 'deferred';
+        } else {
+            $orderId = (int) $rawOrderId;
+        }
+
         $order = Order::query()->find($orderId);
         if (! $order) {
             Log::warning('LiqPay callback: order not found', ['order_id' => $orderId]);
@@ -32,34 +40,18 @@ class LiqPayCallbackController extends Controller
         $status = (string) ($payload['status'] ?? '');
         $amount = isset($payload['amount']) ? (float) $payload['amount'] : null;
 
-        DB::transaction(function () use ($order, $payload, $status, $amount): void {
-            $order->refresh();
-            $order->payment_last_callback_at = now();
-            if (! empty($payload['payment_id'])) {
-                $order->payment_external_id = (string) $payload['payment_id'];
-            }
+        $order->payment_last_callback_at = now();
+        if (! empty($payload['payment_id'])) {
+            $order->payment_external_id = (string) $payload['payment_id'];
+        }
+        $order->save();
 
-            $paidStatuses = ['success', 'sandbox'];
-            if (in_array($status, $paidStatuses, true)) {
-                if ($amount !== null && abs($amount - (float) $order->total) > 0.02) {
-                    Log::warning('LiqPay callback: amount mismatch', [
-                        'order_id' => $order->id,
-                        'expected' => $order->total,
-                        'got' => $amount,
-                    ]);
-                } else {
-                    if ($order->payment_status !== 'paid') {
-                        $order->payment_status = 'paid';
-                        $order->paid_at = now();
-                    }
-                    if ($order->status === 'new') {
-                        $order->status = Order::STATUS_PAID;
-                    }
-                }
-            }
+        $paidStatuses = ['success', 'sandbox'];
+        if (! in_array($status, $paidStatuses, true)) {
+            return response('OK', 200);
+        }
 
-            $order->save();
-        });
+        app(ApplyApprovedOrderPayment::class)->apply($order->fresh(), $paymentLeg, $amount);
 
         return response('OK', 200);
     }

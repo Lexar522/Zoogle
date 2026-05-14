@@ -6,6 +6,7 @@ use App\Filament\Admin\Schemas\CatalogCategoryCascadeFields;
 use App\Models\OptionGroup;
 use App\Models\OptionValue;
 use App\Models\Product;
+use App\Models\ProductCareArticle;
 use App\Support\CatalogCategoryTree;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\ColorPicker;
@@ -15,6 +16,7 @@ use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TagsInput;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Grid;
@@ -34,6 +36,10 @@ class ProductForm
         return $upload
             ->itemPanelAspectRatio('1:1')
             ->imagePreviewHeight('88')
+            // Менше залежність від бекенд-метаданих по кожному файлу; разом із коректним URL public disk зменшує зависання FilePond («Waiting for size»).
+            ->fetchFileInformation(false)
+            // Один активний upload за раз — менше конфліктів через блокування PHP-сесії на паралельних Livewire-запитах.
+            ->maxParallelUploads(1)
             ->placeholder(
                 'Перетягніть зображення сюди<br><span class="filepond--label-action">Обрати файли</span>'
             )
@@ -127,20 +133,84 @@ class ProductForm
                                 ->disk('public')
                                 ->directory(fn (?Product $record): string => 'products/'.($record?->id ?? 'draft').'/photos')
                                 ->maxFiles(20)
-                                ->imageAspectRatio('1:1')
+                                // Без imageAspectRatio: інакше FilePond часто вимагає зберегти кадр через олівець, і без цього не відпускає форму.
                                 ->imageEditor()
                                 ->imageEditorViewportWidth(480)
                                 ->imageEditorViewportHeight(480)
-                                ->helperText('Порядок мініатюр = порядок у галереї на сайті. Олівець — кадр 1:1.')
+                                ->helperText('Формати: JPEG (.jpg, .jpeg), PNG, WebP, GIF. Бажане кадрування 1:1 — через олівець (необов’язково). Дочекайтесь мініатюр перед збереженням.')
                         ),
+                    ]),
+                Section::make('Поради по догляду')
+                    ->description('Статті відкриватимуться з кнопки на сторінці товару. Для відео вставте посилання YouTube у текст статті.')
+                    ->schema([
+                        Repeater::make('careArticles')
+                            ->relationship()
+                            ->label('Статті')
+                            ->defaultItems(0)
+                            ->addActionLabel('Додати статтю')
+                            ->orderColumn('sort_order')
+                            ->reorderable()
+                            ->collapsible()
+                            ->collapsed(true)
+                            ->itemLabel(fn (array $state): ?string => filled($state['title'] ?? null) ? (string) $state['title'] : 'Нова стаття')
+                            ->schema([
+                                Grid::make([
+                                    'default' => 1,
+                                    'md' => 2,
+                                ])
+                                    ->schema([
+                                        TextInput::make('title')
+                                            ->label('Заголовок')
+                                            ->required()
+                                            ->maxLength(255)
+                                            ->live(onBlur: true)
+                                            ->afterStateUpdated(fn (?string $state, Set $set) => $set('slug', Str::slug((string) $state))),
+                                        TextInput::make('slug')
+                                            ->label('Слаг')
+                                            ->maxLength(255)
+                                            ->helperText('Використовується в URL статті. Якщо лишити порожнім, згенерується з назви.'),
+                                    ]),
+                                Textarea::make('excerpt')
+                                    ->label('Короткий вступ')
+                                    ->rows(2)
+                                    ->maxLength(500)
+                                    ->helperText('Показується у списку порад і на картці статті.'),
+                                RichEditor::make('body')
+                                    ->label('Текст статті')
+                                    ->fileAttachments(true)
+                                    ->fileAttachmentsDisk('public')
+                                    ->fileAttachmentsDirectory(fn (?Product $record): string => 'products/'.($record?->id ?? 'draft').'/care-articles')
+                                    ->dehydrateStateUsing(fn (mixed $state): ?string => ProductCareArticle::normalizeRichEditorValueForStorage($state))
+                                    ->extraAttributes(['style' => 'min-height: 18rem'])
+                                    ->helperText('Можна форматувати текст, вставляти фото та YouTube-посилання. На сайті YouTube-посилання стане відеоплеєром.'),
+                                Grid::make([
+                                    'default' => 1,
+                                    'md' => 3,
+                                ])
+                                    ->schema([
+                                        TextInput::make('sort_order')
+                                            ->label('Порядок')
+                                            ->numeric()
+                                            ->minValue(0)
+                                            ->default(0),
+                                        Toggle::make('is_published')
+                                            ->label('Опубліковано')
+                                            ->default(true),
+                                        DateTimePicker::make('published_at')
+                                            ->label('Дата публікації')
+                                            ->helperText('Порожньо — показувати одразу.'),
+                                    ]),
+                            ]),
                     ]),
                 Section::make('Опції товару')
                     ->description('Оберіть тип опції з довідника, відмітьте значення галочками або додайте нові.')
                     ->schema([
                         Repeater::make('variant_options')
                             ->label('Групи опцій')
-                            ->helperText('Перетягуйте групи мишкою: цей порядок буде на сторінці товару.')
+                            ->helperText('Перетягуйте групи мишкою: цей порядок буде на сторінці товару. Якщо опції не потрібні (лише одна варіація) — нічого не додавайте.')
                             ->reorderable()
+                            ->defaultItems(0)
+                            ->addActionLabel('Додати групу опцій')
                             ->collapsible()
                             ->collapsed(true)
                             ->itemLabel(function (array $state): ?string {
@@ -162,7 +232,7 @@ class ProductForm
                             ->schema([
                                 Select::make('option_value_type')
                                     ->label('Формат значення')
-                                    ->required()
+                                    ->required(fn (Get $get): bool => (int) ($get('option_group_id') ?? 0) > 0)
                                     ->default('text')
                                     ->options([
                                         'text' => 'Текст',
@@ -194,8 +264,7 @@ class ProductForm
                                     }),
                                 Select::make('option_group_id')
                                     ->label('Група опцій')
-                                    ->required()
-                                    ->placeholder('Оберіть групу з довідника')
+                                    ->placeholder('Оберіть групу з довідника (або видаліть рядок, якщо зайвий)')
                                     ->options(function (Get $get): array {
                                         $selectedType = $get('option_value_type');
 
@@ -404,11 +473,10 @@ class ProductForm
                                                 ->disk('public')
                                                 ->directory(fn (?Product $record): string => 'products/'.($record?->id ?? 'draft').'/option-value-photos')
                                                 ->maxFiles(20)
-                                                ->imageAspectRatio('1:1')
                                                 ->imageEditor()
                                                 ->imageEditorViewportWidth(480)
                                                 ->imageEditorViewportHeight(480)
-                                                ->helperText('Зверху — мініатюри; знизу — додати фото. Олівець — кадр 1:1 як у головній галереї.')
+                                                ->helperText('Формати: JPEG (.jpg, .jpeg), PNG, WebP, GIF. Кадр 1:1 — за бажанням через олівець.')
                                         ),
                                     ])
                                     ->columns(1),
@@ -459,11 +527,10 @@ class ProductForm
                                                 ->disk('public')
                                                 ->directory(fn (?Product $record): string => 'products/'.($record?->id ?? 'draft').'/option-value-photos')
                                                 ->maxFiles(20)
-                                                ->imageAspectRatio('1:1')
                                                 ->imageEditor()
                                                 ->imageEditorViewportWidth(480)
                                                 ->imageEditorViewportHeight(480)
-                                                ->helperText('Зверху — мініатюри; знизу — додати фото. Олівець — кадр 1:1 як у головній галереї.')
+                                                ->helperText('Формати: JPEG (.jpg, .jpeg), PNG, WebP, GIF. Кадр 1:1 — за бажанням через олівець.')
                                                 ->visible(function (Get $get): bool {
                                                     $groupId = (int) ($get('../../option_group_id') ?? 0);
                                                     if ($groupId <= 0) {
@@ -485,7 +552,7 @@ class ProductForm
                     ->schema([
                         TagsInput::make('search_tags')
                             ->label('Пошукові теги')
-                            ->helperText('Додайте ключові слова для пошуку.'),
+                            ->helperText('Ключові слова для пошуку та для блоку «Схожі товари». Чим більше спільних тегів з іншим товаром — тим вище він у списку; також враховуються слова в назві та збіг тега з чужою назвою (без урахування регістру).'),
                     ]),
             ]);
     }

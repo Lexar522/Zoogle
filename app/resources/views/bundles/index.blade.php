@@ -1,6 +1,10 @@
 @extends('layouts.shop')
 
 @section('title', 'Комплекти — ZOOGLE')
+@section('meta_description', 'Готові комплекти товарів ZOOGLE для домашніх улюбленців: зручні набори, прозора ціна та швидке додавання в кошик.')
+@section('canonical_url', route('bundles.index'))
+@section('og_title', 'Комплекти товарів для тварин — ZOOGLE')
+@section('og_description', 'Готові набори товарів для домашніх улюбленців з прозорою ціною та зручним онлайн-замовленням.')
 
 @section('content')
     <div class="card">

@@ -69,6 +69,16 @@ class Product extends Model
         return $this->hasMany(ProductVariant::class, $fk);
     }
 
+    public function careArticles(): HasMany
+    {
+        return $this->hasMany(ProductCareArticle::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    public function publishedCareArticles(): HasMany
+    {
+        return $this->careArticles()->published();
+    }
+
     /** @return BelongsToMany<User, $this> */
     public function favoritedByUsers(): BelongsToMany
     {
@@ -90,6 +100,53 @@ class Product extends Model
         }
 
         return null;
+    }
+
+    /**
+     * Шляхи файлів у storage для галереї на PDP і картці каталогу (до вибору опцій кольору тощо).
+     * Об’єднує фото картки товару та унікальні фото варіантів (якщо кілька знімків лише на SKU).
+     *
+     * @return list<string>
+     */
+    public function storefrontGalleryStoragePaths(): array
+    {
+        $seen = [];
+        $out = [];
+
+        foreach ($this->normalizePhotoList($this->photos ?? null) as $path) {
+            if (! isset($seen[$path])) {
+                $seen[$path] = true;
+                $out[] = $path;
+            }
+        }
+
+        $variants = $this->relationLoaded('variants')
+            ? $this->variants
+            : $this->variants()->get();
+
+        foreach ($variants as $variant) {
+            foreach ($this->normalizePhotoList($variant->photos ?? null) as $path) {
+                if (! isset($seen[$path])) {
+                    $seen[$path] = true;
+                    $out[] = $path;
+                }
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Повні URL тієї ж галереї, що initialPhotos на сторінці товару.
+     *
+     * @return list<string>
+     */
+    public function storefrontGalleryAssetUrls(): array
+    {
+        return array_map(
+            fn (string $path): string => asset('storage/'.$path),
+            $this->storefrontGalleryStoragePaths()
+        );
     }
 
     public function safeShortDescriptionHtml(): string

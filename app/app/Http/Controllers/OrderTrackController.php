@@ -15,7 +15,10 @@ class OrderTrackController extends Controller
             abort(404);
         }
 
-        $order->load('items');
+        $order->load([
+            'items.product.variants',
+            'items.bundle.items.product.variants',
+        ]);
 
         return view('orders.track', [
             'order' => $order,

@@ -96,6 +96,60 @@ class ShopLogicRegressionTest extends TestCase
 
         $this->get(route('checkout.success', ['order' => $order->id, 'token' => $order->success_token]))
             ->assertOk();
+
+        $this->post(route('checkout.success', ['order' => $order->id, 'token' => $order->success_token]))
+            ->assertOk();
+    }
+
+    public function test_checkout_success_applies_approved_wayforpay_return_payload(): void
+    {
+        config([
+            'services.wayforpay.merchant_account' => 'test_merchant',
+            'services.wayforpay.secret_key' => 'secret',
+            'services.wayforpay.merchant_domain' => 'example.test',
+        ]);
+
+        $order = Order::query()->create([
+            'customer_name' => 'Test User',
+            'customer_phone' => '380000000000',
+            'total' => 1,
+            'status' => Order::STATUS_NEW,
+            'payment_status' => 'pending',
+            'payment_provider' => 'wayforpay',
+            'delivery_type' => Order::DELIVERY_PICKUP,
+        ]);
+
+        $orderReference = $order->id.'-pay-01kqmk8jsj2s3vxn3qrxebva05';
+        $payload = [
+            'merchantAccount' => 'test_merchant',
+            'orderReference' => $orderReference,
+            'amount' => '1.00',
+            'currency' => 'UAH',
+            'authCode' => '123456',
+            'cardPan' => '41****1111',
+            'transactionStatus' => 'Approved',
+            'reasonCode' => '1100',
+        ];
+        $payload['merchantSignature'] = hash_hmac('md5', implode(';', [
+            $payload['merchantAccount'],
+            $payload['orderReference'],
+            $payload['amount'],
+            $payload['currency'],
+            $payload['authCode'],
+            $payload['cardPan'],
+            $payload['transactionStatus'],
+            $payload['reasonCode'],
+        ]), 'secret');
+
+        $this->post(route('checkout.success', ['order' => $order->id, 'token' => $order->success_token]), $payload)
+            ->assertOk()
+            ->assertSee('Оплачено');
+
+        $order->refresh();
+
+        $this->assertSame(Order::STATUS_PAID, $order->status);
+        $this->assertSame('paid', $order->payment_status);
+        $this->assertNotNull($order->paid_at);
     }
 
     /**

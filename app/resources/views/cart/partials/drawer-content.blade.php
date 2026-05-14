@@ -6,8 +6,8 @@
 @if (($summary['is_empty'] ?? true) === true)
     <div class="cart-drawer__empty">
         <h3 class="cart-drawer__empty-title">Кошик порожній</h3>
-        <p class="cart-drawer__empty-text">Додайте товари з каталогу, щоб побачити їх тут.</p>
-        <a href="{{ route('catalog.index') }}" class="cart-drawer__empty-link">Перейти до каталогу</a>
+        <p class="cart-drawer__empty-text">Оберіть товари на головній сторінці або в каталозі — вони з’являться тут.</p>
+        <a href="{{ route('home') }}" class="cart-drawer__empty-link">Повернутись до покупок</a>
     </div>
 @else
     <div class="cart-drawer__lines">

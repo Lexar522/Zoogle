@@ -5,6 +5,7 @@ namespace App\Filament\Admin\Concerns;
 use App\Models\OptionGroup;
 use App\Models\OptionValue;
 use App\Models\Product;
+use App\Models\ProductCareArticle;
 use App\Support\RichTextSanitizer;
 use Filament\Forms\Components\RichEditor\RichContentRenderer;
 use Illuminate\Support\Str;
@@ -91,6 +92,15 @@ trait HandlesListingVariantOptions
             $data['short_description'] = $this->normalizeRichEditorValueForDatabase($data['short_description']);
         }
 
+        if (array_key_exists('careArticles', $data) && is_array($data['careArticles'])) {
+            foreach ($data['careArticles'] as $key => $row) {
+                if (is_array($row) && array_key_exists('body', $row)) {
+                    $row['body'] = ProductCareArticle::normalizeRichEditorValueForStorage($row['body']);
+                    $data['careArticles'][$key] = $row;
+                }
+            }
+        }
+
         return $data;
     }
 
@@ -136,6 +146,20 @@ trait HandlesListingVariantOptions
             $raw = $data[$key];
             if (is_scalar($raw) || $raw instanceof \Stringable) {
                 $data[$key] = RichTextSanitizer::coerceForFilamentRichEditor((string) $raw);
+            }
+        }
+
+        if (array_key_exists('careArticles', $data) && is_array($data['careArticles'])) {
+            foreach ($data['careArticles'] as $key => $row) {
+                if (! is_array($row) || ! array_key_exists('body', $row) || $row['body'] === null) {
+                    continue;
+                }
+
+                $raw = $row['body'];
+                if (is_scalar($raw) || $raw instanceof \Stringable) {
+                    $row['body'] = RichTextSanitizer::coerceForFilamentRichEditor((string) $raw);
+                    $data['careArticles'][$key] = $row;
+                }
             }
         }
 
