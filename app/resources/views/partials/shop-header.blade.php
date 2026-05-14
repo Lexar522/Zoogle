@@ -1,34 +1,24 @@
 @php
-    $forceCompactHeader = request()->routeIs('catalog.show');
+    $forceCompactHeader = false;
 @endphp
-<header class="site-header @if ($forceCompactHeader) site-header--compact @endif" role="banner">
+<header class="site-header @if ($forceCompactHeader) site-header--force-compact @endif" role="banner">
     @php
         $cartSummary = $cartDrawerData['summary'] ?? ['items_count' => 0];
         $cartItemsCount = (int) ($cartSummary['items_count'] ?? 0);
     @endphp
-    <div class="site-header__sticky">
-    <div class="container site-header__stack">
+    <div class="site-header__hero site-header__sticky" data-site-header-hero>
+    <div class="container">
         <div class="site-header__row">
             <div class="site-header__zone site-header__zone--left">
-                <div class="site-header__contacts-google">
-                    <a href="tel:+380994034359" class="site-header__contact-card">
-                        <svg class="site-header__contact-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true">
-                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.08 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72c.12.9.34 1.78.65 2.62a2 2 0 0 1-.45 2.11L8 9.91a16 16 0 0 0 6.09 6.09l1.46-1.26a2 2 0 0 1 2.11-.45c.84.31 1.72.53 2.62.65A2 2 0 0 1 22 16.92z"/>
-                        </svg>
-                        <span class="site-header__contact-value">+38 099 403 43 59</span>
-                    </a>
-                    <a href="mailto:zoogle.ukraine@gmail.com" class="site-header__contact-card">
-                        <svg class="site-header__contact-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true">
-                            <path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>
-                            <path d="m22 6-10 7L2 6"/>
-                        </svg>
-                        <span class="site-header__contact-value">zoogle.ukraine@gmail.com</span>
-                    </a>
-                </div>
+                @if (! empty($hasShopHeaderContacts))
+                    <div class="site-header__contacts-google">
+                        @include('partials.shop-header-contacts')
+                    </div>
+                @endif
             </div>
 
             <div class="site-header__zone site-header__zone--center">
-                <a href="{{ route('catalog.index') }}" class="site-logo" aria-label="ZOOGLE — на головну">
+                <a href="{{ route('home') }}" class="site-logo" aria-label="ZOOGLE — на головну">
                     <img
                         src="{{ asset('images/zoogle-logo-new.png') }}"
                         alt=""
@@ -47,6 +37,12 @@
                     @endif
                     @if (request()->boolean('on_sale'))
                         <input type="hidden" name="on_sale" value="1">
+                    @endif
+                    @if (request()->routeIs('catalog.index') && request()->filled('sort'))
+                        <input type="hidden" name="sort" value="{{ request('sort') }}">
+                    @endif
+                    @if (request()->routeIs('catalog.index') && request()->filled('per_page'))
+                        <input type="hidden" name="per_page" value="{{ request('per_page') }}">
                     @endif
                     <div class="searchbar">
                         <div class="searchbar-wrapper">
@@ -162,6 +158,7 @@
         </div>
     </div>
     </div>
+    @include('partials.shop-header-compact-bar')
     @hasSection('header_bottom')
         <div class="site-header__bottom">
             <div class="site-header__bottom-inner">

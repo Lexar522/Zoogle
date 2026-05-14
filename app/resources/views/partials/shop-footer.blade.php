@@ -30,9 +30,55 @@
             </ul>
         </div>
     </div>
+    <div class="container site-footer__catalog-layout-wrap">
+        <button
+            type="button"
+            class="site-footer__catalog-layout-btn"
+            id="shop-catalog-layout-toggle"
+            aria-pressed="false"
+        >Каталог на телефоні: два стовпчики (натисніть для одного)</button>
+    </div>
     <div class="site-footer__bottom">
         <div class="container site-footer__bottom-inner">
             <span>&copy; {{ date('Y') }} ZOOGLE. Всі права захищені.</span>
         </div>
     </div>
+    <script>
+        (function () {
+            var KEY = 'shopCatalogOneCol';
+            var root = document.documentElement;
+            var btn = document.getElementById('shop-catalog-layout-toggle');
+            function isOneCol() {
+                try {
+                    return localStorage.getItem(KEY) === '1';
+                } catch (e) {
+                    return false;
+                }
+            }
+            function apply() {
+                var on = isOneCol();
+                root.classList.toggle('shop-layout--catalog-one-col', on);
+                if (btn) {
+                    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+                    btn.textContent = on
+                        ? 'Каталог на телефоні: один стовпчик (натисніть для двох)'
+                        : 'Каталог на телефоні: два стовпчики (натисніть для одного)';
+                }
+            }
+            function toggle() {
+                try {
+                    if (isOneCol()) {
+                        localStorage.removeItem(KEY);
+                    } else {
+                        localStorage.setItem(KEY, '1');
+                    }
+                } catch (e) {}
+                apply();
+            }
+            if (btn) {
+                btn.addEventListener('click', toggle);
+            }
+            apply();
+        })();
+    </script>
 </footer>

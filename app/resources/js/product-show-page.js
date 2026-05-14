@@ -29,6 +29,7 @@ function runProductShowPage() {
     const mainVisual = document.getElementById('product-main-visual');
     const badgesEl = document.getElementById('product-stock-badges');
     const thumbsWrap = document.getElementById('product-thumbs');
+    const galleryZone = document.getElementById('product-gallery-zone');
     const breadcrumbSelectedEl = document.getElementById('product-breadcrumb-selected');
     const prefersReducedMotion = typeof window.matchMedia === 'function'
         && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -53,6 +54,183 @@ function runProductShowPage() {
 
     function getMainImg() {
         return mainVisual ? mainVisual.querySelector('#product-main-img') : null;
+    }
+
+    let mainImageTransitionToken = 0;
+
+    function urlsEqual(a, b) {
+        try {
+            return new URL(a, window.location.href).href === new URL(b, window.location.href).href;
+        } catch {
+            return String(a) === String(b);
+        }
+    }
+
+    /**
+     * Плавна зміна головного фото лише при animate (кілька фото в галереї) і без prefers-reduced-motion.
+     */
+    function setMainImageSrc(img, newSrc, { animate } = {}) {
+        if (!img || !newSrc) {
+            return;
+        }
+        if (urlsEqual(img.src, newSrc)) {
+            return;
+        }
+        mainImageTransitionToken += 1;
+        const token = mainImageTransitionToken;
+        const shouldAnimate = Boolean(animate) && !prefersReducedMotion;
+
+        if (!shouldAnimate) {
+            img.src = newSrc;
+            img.style.opacity = '';
+            return;
+        }
+
+        const fadeIn = () => {
+            if (token !== mainImageTransitionToken) {
+                return;
+            }
+            requestAnimationFrame(() => {
+                if (token !== mainImageTransitionToken) {
+                    return;
+                }
+                img.style.opacity = '1';
+            });
+        };
+
+        const afterLoad = () => {
+            img.removeEventListener('load', afterLoad);
+            img.removeEventListener('error', afterErr);
+            fadeIn();
+        };
+
+        const afterErr = () => {
+            img.removeEventListener('load', afterLoad);
+            img.removeEventListener('error', afterErr);
+            fadeIn();
+        };
+
+        const swapSrcAfterFadeOut = () => {
+            if (token !== mainImageTransitionToken) {
+                return;
+            }
+            img.addEventListener('load', afterLoad);
+            img.addEventListener('error', afterErr);
+            img.src = newSrc;
+            if (img.complete && img.naturalWidth > 0) {
+                img.removeEventListener('load', afterLoad);
+                img.removeEventListener('error', afterErr);
+                fadeIn();
+            }
+        };
+
+        let fadeFallbackId = 0;
+        let fadeOutHandled = false;
+
+        const finishFadeOut = () => {
+            if (fadeOutHandled || token !== mainImageTransitionToken) {
+                return;
+            }
+            fadeOutHandled = true;
+            window.clearTimeout(fadeFallbackId);
+            img.removeEventListener('transitionend', onFadeOutEnd);
+            swapSrcAfterFadeOut();
+        };
+
+        const onFadeOutEnd = (e) => {
+            if (e.propertyName !== 'opacity') {
+                return;
+            }
+            if (token !== mainImageTransitionToken) {
+                return;
+            }
+            finishFadeOut();
+        };
+
+        img.addEventListener('transitionend', onFadeOutEnd);
+        fadeFallbackId = window.setTimeout(finishFadeOut, 420);
+
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                if (token !== mainImageTransitionToken) {
+                    return;
+                }
+                img.style.opacity = '0';
+            });
+        });
+    }
+
+    function thumbButtonCount() {
+        return thumbsWrap ? thumbsWrap.querySelectorAll('button[data-src]').length : 0;
+    }
+
+    const GALLERY_AUTOPLAY_MS = 5000;
+    let galleryAutoplayTimerId = null;
+    let galleryPointerInside = false;
+    let galleryFocusInside = false;
+
+    function clearGalleryAutoplayTimer() {
+        if (galleryAutoplayTimerId != null) {
+            window.clearInterval(galleryAutoplayTimerId);
+            galleryAutoplayTimerId = null;
+        }
+    }
+
+    function tickGalleryAutoplay() {
+        if (!thumbsWrap || prefersReducedMotion) {
+            return;
+        }
+        const n = thumbButtonCount();
+        if (n <= 1) {
+            clearGalleryAutoplayTimer();
+            return;
+        }
+        if (galleryPointerInside || galleryFocusInside) {
+            return;
+        }
+        const buttons = thumbsWrap.querySelectorAll('button[data-src]');
+        if (buttons.length <= 1) {
+            return;
+        }
+        const active = thumbsWrap.querySelector('button[data-src].active');
+        let idx = 0;
+        if (active) {
+            idx = Array.prototype.indexOf.call(buttons, active);
+            if (idx < 0) {
+                idx = 0;
+            }
+        }
+        const next = buttons[(idx + 1) % buttons.length];
+        applyThumbToMain(next, { fromAutoplay: true });
+    }
+
+    function restartGalleryAutoplay() {
+        clearGalleryAutoplayTimer();
+        if (prefersReducedMotion) {
+            return;
+        }
+        if (thumbButtonCount() <= 1) {
+            return;
+        }
+        if (galleryPointerInside || galleryFocusInside) {
+            return;
+        }
+        galleryAutoplayTimerId = window.setInterval(tickGalleryAutoplay, GALLERY_AUTOPLAY_MS);
+    }
+
+    function applyThumbToMain(button, opts = {}) {
+        const fromAutoplay = Boolean(opts.fromAutoplay);
+        const src = button && button.dataset ? button.dataset.src : '';
+        const img = getMainImg();
+        if (!src || !thumbsWrap || !img) {
+            return;
+        }
+        thumbsWrap.querySelectorAll('button').forEach((x) => x.classList.remove('active'));
+        button.classList.add('active');
+        setMainImageSrc(img, src, { animate: thumbButtonCount() > 1 });
+        if (!fromAutoplay) {
+            restartGalleryAutoplay();
+        }
     }
 
     function formatMoney(n) {
@@ -332,6 +510,9 @@ function runProductShowPage() {
             thumbsWrap.style.display = photos && photos.length > 1 ? '' : 'none';
         }
         if (!photos || !photos.length) {
+            if (mainVisual) {
+                mainVisual.classList.remove('product-gallery-main--multi-img');
+            }
             const oldImg = getMainImg();
             if (oldImg) {
                 oldImg.remove();
@@ -345,6 +526,7 @@ function runProductShowPage() {
             if (thumbsWrap) {
                 thumbsWrap.innerHTML = '';
             }
+            clearGalleryAutoplayTimer();
             return;
         }
         const first = photos[0];
@@ -356,16 +538,10 @@ function runProductShowPage() {
             img.alt = listingTitle;
             mainVisual.appendChild(img);
         }
-        img.src = first;
-
-        function previewThumb(buttonEl, src) {
-            if (!thumbsWrap || !img) {
-                return;
-            }
-            thumbsWrap.querySelectorAll('button').forEach((x) => x.classList.remove('active'));
-            buttonEl.classList.add('active');
-            img.src = src;
+        if (mainVisual) {
+            mainVisual.classList.toggle('product-gallery-main--multi-img', photos.length > 1);
         }
+        setMainImageSrc(img, first, { animate: false });
 
         if (thumbsWrap) {
             thumbsWrap.innerHTML = '';
@@ -378,14 +554,12 @@ function runProductShowPage() {
                 im.src = src;
                 im.alt = '';
                 b.appendChild(im);
-                b.addEventListener('click', () => previewThumb(b, src));
-                b.addEventListener('mouseenter', () => previewThumb(b, src));
-                b.addEventListener('focus', () => previewThumb(b, src));
                 thumbsWrap.appendChild(b);
             });
         } else if (img) {
-            img.src = first;
+            setMainImageSrc(img, first, { animate: false });
         }
+        restartGalleryAutoplay();
     }
 
     function updateBadges() {
@@ -523,44 +697,176 @@ function runProductShowPage() {
     });
 
     if (thumbsWrap) {
-        thumbsWrap.addEventListener('click', (e) => {
+        const onThumbInteract = (e) => {
             const b = e.target.closest('button[data-src]');
             if (!b || !thumbsWrap.contains(b)) {
                 return;
             }
-            const img = getMainImg();
-            if (!img) {
-                return;
-            }
-            thumbsWrap.querySelectorAll('button').forEach((x) => x.classList.remove('active'));
-            b.classList.add('active');
-            img.src = b.dataset.src;
+            applyThumbToMain(b);
+        };
+        thumbsWrap.addEventListener('click', onThumbInteract);
+        thumbsWrap.addEventListener('mouseover', onThumbInteract);
+        thumbsWrap.addEventListener('focusin', onThumbInteract);
+    }
+
+    if (galleryZone) {
+        galleryZone.addEventListener(
+            'mouseover',
+            (e) => {
+                if (!galleryZone.contains(e.target)) {
+                    return;
+                }
+                const from = e.relatedTarget;
+                if (from && galleryZone.contains(from)) {
+                    return;
+                }
+                galleryPointerInside = true;
+                clearGalleryAutoplayTimer();
+            },
+            true
+        );
+        galleryZone.addEventListener(
+            'mouseout',
+            (e) => {
+                if (!galleryZone.contains(e.target)) {
+                    return;
+                }
+                const to = e.relatedTarget;
+                if (to && galleryZone.contains(to)) {
+                    return;
+                }
+                galleryPointerInside = false;
+                restartGalleryAutoplay();
+            },
+            true
+        );
+        galleryZone.addEventListener('focusin', () => {
+            galleryFocusInside = true;
+            clearGalleryAutoplayTimer();
         });
-        thumbsWrap.addEventListener('mouseover', (e) => {
-            const b = e.target.closest('button[data-src]');
-            if (!b || !thumbsWrap.contains(b)) {
+        galleryZone.addEventListener('focusout', (e) => {
+            if (e.relatedTarget && galleryZone.contains(e.relatedTarget)) {
                 return;
             }
-            const img = getMainImg();
-            if (!img) {
-                return;
-            }
-            thumbsWrap.querySelectorAll('button').forEach((x) => x.classList.remove('active'));
-            b.classList.add('active');
-            img.src = b.dataset.src;
+            galleryFocusInside = false;
+            restartGalleryAutoplay();
         });
-        thumbsWrap.addEventListener('focusin', (e) => {
-            const b = e.target.closest('button[data-src]');
-            if (!b || !thumbsWrap.contains(b)) {
+    }
+
+    const pdpDefersOnlinePayment = Boolean(cfg.pdpDefersOnlinePayment);
+    const cartForm = document.getElementById('product-cart-form');
+    const deferModal = document.getElementById('pdp-defer-payment-modal');
+    let allowDeferModalBypass = false;
+    let deferModalClosing = false;
+
+    /** Уникнути прив’язки fixed до колонки PDP з overflow (або інших предків). */
+    if (deferModal && deferModal.parentElement !== document.body) {
+        document.body.appendChild(deferModal);
+    }
+
+    function setDeferModalOpen(open) {
+        if (!deferModal) {
+            return;
+        }
+        const panel = deferModal.querySelector('.pdp-defer-modal__panel');
+        if (open) {
+            deferModalClosing = false;
+            deferModal.hidden = false;
+            deferModal.setAttribute('aria-hidden', 'false');
+            deferModal.classList.remove('is-visible');
+            requestAnimationFrame(() => {
+                deferModal.classList.add('is-visible');
+            });
+            const toFocus = deferModal.querySelector('.pdp-defer-modal__panel a[href], .pdp-defer-modal__panel button');
+            if (toFocus && typeof toFocus.focus === 'function') {
+                toFocus.focus();
+            }
+            return;
+        }
+
+        if (deferModal.hidden || deferModalClosing) {
+            return;
+        }
+
+        deferModalClosing = true;
+        deferModal.classList.remove('is-visible');
+        const finishClose = () => {
+            deferModalClosing = false;
+            deferModal.hidden = true;
+            deferModal.setAttribute('aria-hidden', 'true');
+        };
+
+        if (!panel) {
+            finishClose();
+            return;
+        }
+
+        let closed = false;
+        const onEnd = (e) => {
+            if (e.target !== panel || (e.propertyName !== 'opacity' && e.propertyName !== 'transform')) {
                 return;
             }
-            const img = getMainImg();
-            if (!img) {
+            closed = true;
+            panel.removeEventListener('transitionend', onEnd);
+            finishClose();
+        };
+        panel.addEventListener('transitionend', onEnd);
+        window.setTimeout(() => {
+            if (!closed) {
+                panel.removeEventListener('transitionend', onEnd);
+                finishClose();
+            }
+        }, 350);
+    }
+
+    if (cartForm && pdpDefersOnlinePayment && deferModal) {
+        cartForm.addEventListener('submit', (e) => {
+            if (allowDeferModalBypass) {
+                allowDeferModalBypass = false;
                 return;
             }
-            thumbsWrap.querySelectorAll('button').forEach((x) => x.classList.remove('active'));
-            b.classList.add('active');
-            img.src = b.dataset.src;
+            e.preventDefault();
+            // Інакше спливаючий submit дійде до document у layout і submitCartForm додасть позицію без згоди з модалкою (подвійне додавання після «Продовжити»).
+            e.stopPropagation();
+            setDeferModalOpen(true);
+        });
+
+        deferModal.querySelectorAll('[data-pdp-defer-close]').forEach((el) => {
+            el.addEventListener('click', () => setDeferModalOpen(false));
+        });
+
+        const continueBtn = deferModal.querySelector('[data-pdp-defer-continue]');
+        if (continueBtn) {
+            continueBtn.addEventListener('click', () => {
+                setDeferModalOpen(false);
+                allowDeferModalBypass = true;
+                if (typeof cartForm.requestSubmit === 'function') {
+                    cartForm.requestSubmit();
+                } else {
+                    cartForm.submit();
+                }
+            });
+        }
+
+        document.addEventListener(
+            'pointerdown',
+            (e) => {
+                if (deferModal.hidden || !deferModal.classList.contains('is-visible')) {
+                    return;
+                }
+                const panel = deferModal.querySelector('.pdp-defer-modal__panel');
+                if (panel && panel.contains(e.target)) {
+                    return;
+                }
+                setDeferModalOpen(false);
+            },
+            true
+        );
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && deferModal && !deferModal.hidden) {
+                setDeferModalOpen(false);
+            }
         });
     }
 

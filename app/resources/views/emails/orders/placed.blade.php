@@ -12,10 +12,21 @@
 @php($dLabel = \App\Models\Order::deliveryTypeLabels()[$order->delivery_type] ?? $order->delivery_type)
 **Доставка:** {{ $dLabel }}
 
-@if ($order->delivery_type === \App\Models\Order::DELIVERY_NOVA_POSHTA)
-{{ $order->delivery_city }} — {{ $order->delivery_branch }}
-@elseif ($order->delivery_type === \App\Models\Order::DELIVERY_COURIER && $order->delivery_address)
-{{ $order->delivery_address }}
+@php($dSum = $order->deliverySummaryText())
+@if ($dSum !== '')
+{{ $dSum }}
+@endif
+
+@if ($order->delivery_type === \App\Models\Order::DELIVERY_PICKUP && ($pickupLine = $order->pickupShopAddressLine()))
+**Самовивіз:** {{ $pickupLine }}
+@endif
+
+@php($courierPos = $order->courierDeliveryMapPosition())
+@if ($courierPos !== null)
+@php($courierMapUrl = 'https://www.openstreetmap.org/?mlat='.$courierPos['lat'].'&mlon='.$courierPos['lng'].'#map=17/'.$courierPos['lat'].'/'.$courierPos['lng'])
+**Точка на карті (кур’єр):** {{ $courierPos['lat'] }}, {{ $courierPos['lng'] }}
+
+{{ $courierMapUrl }}
 @endif
 
 @if ($order->customer_notes)

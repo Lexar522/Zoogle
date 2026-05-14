@@ -58,6 +58,13 @@ return [
         ],
     ],
 
+    'wayforpay' => [
+        'merchant_account' => env('WAYFORPAY_MERCHANT_ACCOUNT'),
+        // У документації WayForPay поле називається merchantSecretKey; підтримуємо обидві назви .env.
+        'secret_key' => env('WAYFORPAY_SECRET_KEY', env('WAYFORPAY_MERCHANT_SECRET_KEY')),
+        'merchant_domain' => env('WAYFORPAY_MERCHANT_DOMAIN'),
+    ],
+
     'liqpay' => [
         'public_key' => env('LIQPAY_PUBLIC_KEY'),
         'private_key' => env('LIQPAY_PRIVATE_KEY'),
@@ -69,6 +76,12 @@ return [
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect' => $googleOAuthRedirect,
         'guzzle' => $googleOAuthGuzzle,
+        /** Ключ Maps JavaScript API для карти на чекауті (окремо від OAuth). Обмежте в Cloud Console по HTTP referrers. */
+        'maps_api_key' => env('GOOGLE_MAPS_API_KEY'),
+    ],
+
+    'nova_poshta' => [
+        'api_key' => env('NOVA_POSHTA_API_KEY'),
     ],
 
 ];

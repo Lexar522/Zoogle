@@ -70,12 +70,15 @@ class ProductVariantsRelationManager extends RelationManager
             FileUpload::make('photos')
                 ->label('Фото варіанта')
                 ->image()
+                ->fetchFileInformation(false)
+                ->maxParallelUploads(1)
                 ->multiple()
                 ->reorderable()
                 ->appendFiles()
                 ->disk('public')
                 ->directory(fn (RelationManager $livewire): string => 'product-variants/'.$livewire->getOwnerRecord()->id.'/photos')
-                ->maxFiles(20),
+                ->maxFiles(20)
+                ->helperText('Формати: JPEG (.jpg, .jpeg), PNG, WebP, GIF. Дочекайтесь мініатюр перед збереженням.'),
 
             Repeater::make('options')
                 ->label('Опції (група -> значення)')

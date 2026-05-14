@@ -9,6 +9,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Schema as DbSchema;
 use Illuminate\Support\Str;
 
@@ -93,6 +94,42 @@ class OptionValueForm
                 Toggle::make('is_active')
                     ->label('Активне')
                     ->default(true),
+                Toggle::make('pickup_only_subtree')
+                    ->label('Уся гілка: лише самовивіз (без Нової Пошти)')
+                    ->helperText('Лише для кореневої категорії. Товари в підкатегоріях можна доставити лише самовивозом з магазину.')
+                    ->default(false)
+                    ->visible(fn (Get $get, ?Model $record): bool => self::isRootCategoryValueForm($get, $record)),
+                Toggle::make('defer_online_payment')
+                    ->label('Відкласти онлайн-оплату до узгодження з менеджером')
+                    ->helperText('На чекауті не буде LiqPay; після дзвінка ви зможете дозволити оплату в картці замовлення. Лише для кореневої категорії.')
+                    ->default(false)
+                    ->visible(fn (Get $get, ?Model $record): bool => self::isRootCategoryValueForm($get, $record)),
             ]);
+    }
+
+    private static function isRootCategoryValueForm(Get $get, ?Model $record): bool
+    {
+        if (! DbSchema::hasColumn('option_values', 'pickup_only_subtree')) {
+            return false;
+        }
+
+        $groupId = (int) ($get('option_group_id') ?? 0);
+        if ($groupId <= 0) {
+            return false;
+        }
+        if (! OptionGroup::query()->whereKey($groupId)->where('slug', 'category')->exists()) {
+            return false;
+        }
+
+        $parentFromForm = $get('parent_id');
+        if ($parentFromForm !== null && (int) $parentFromForm > 0) {
+            return false;
+        }
+
+        if ($record instanceof OptionValue && $record->parent_id !== null) {
+            return false;
+        }
+
+        return true;
     }
 }

@@ -19,6 +19,8 @@ final class RichTextSanitizer
                 ->allowSafeElements()
                 ->withMaxInputLength(-1)
                 ->allowRelativeLinks(true)
+                ->allowRelativeMedias(true)
+                ->allowMediaSchemes(['http', 'https'])
         );
     }
 
@@ -58,6 +60,17 @@ final class RichTextSanitizer
         }
 
         return self::instance()->sanitize($value);
+    }
+
+    public static function toCareArticleHtml(?string $value): string
+    {
+        $html = self::toHtml($value);
+
+        if ($html === '') {
+            return '';
+        }
+
+        return self::embedYoutubeLinks($html);
     }
 
     /**
@@ -126,5 +139,100 @@ final class RichTextSanitizer
         }
 
         return '<p>'.htmlspecialchars($trimmed, ENT_QUOTES | ENT_HTML5, 'UTF-8').'</p>';
+    }
+
+    private static function embedYoutubeLinks(string $html): string
+    {
+        $html = (string) preg_replace_callback(
+            '/<p>\s*<a\b[^>]*\bhref=(["\'])(.*?)\1[^>]*>.*?<\/a>\s*<\/p>/is',
+            static function (array $matches): string {
+                $url = html_entity_decode((string) ($matches[2] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $embedUrl = self::youtubeEmbedUrlFrom($url);
+
+                if ($embedUrl === null) {
+                    return $matches[0];
+                }
+
+                return self::youtubeEmbedHtml($embedUrl);
+            },
+            $html
+        );
+
+        $html = (string) preg_replace_callback(
+            '/<a\b[^>]*\bhref=(["\'])(.*?)\1[^>]*>.*?<\/a>/is',
+            static function (array $matches): string {
+                $url = html_entity_decode((string) ($matches[2] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $embedUrl = self::youtubeEmbedUrlFrom($url);
+
+                if ($embedUrl === null) {
+                    return $matches[0];
+                }
+
+                return self::youtubeEmbedHtml($embedUrl);
+            },
+            $html
+        );
+
+        return (string) preg_replace_callback(
+            '~(?<!["\'=])(https?://(?:www\.|m\.)?(?:youtube\.com|youtu\.be|youtube-nocookie\.com)/[^\s<]+)~i',
+            static function (array $matches): string {
+                $embedUrl = self::youtubeEmbedUrlFrom((string) ($matches[1] ?? ''));
+
+                if ($embedUrl === null) {
+                    return $matches[0];
+                }
+
+                return self::youtubeEmbedHtml($embedUrl);
+            },
+            $html
+        );
+    }
+
+    private static function youtubeEmbedUrlFrom(string $url): ?string
+    {
+        $url = trim($url);
+
+        if ($url === '') {
+            return null;
+        }
+
+        $parts = parse_url($url);
+        if (! is_array($parts)) {
+            return null;
+        }
+
+        $host = strtolower((string) ($parts['host'] ?? ''));
+        $host = preg_replace('/^www\./', '', $host) ?: $host;
+        $path = trim((string) ($parts['path'] ?? ''), '/');
+        $videoId = null;
+
+        if ($host === 'youtu.be') {
+            $videoId = explode('/', $path)[0] ?? null;
+        } elseif (in_array($host, ['youtube.com', 'm.youtube.com', 'youtube-nocookie.com'], true)) {
+            if (($parts['query'] ?? '') !== '') {
+                parse_str((string) $parts['query'], $query);
+                $videoId = isset($query['v']) ? (string) $query['v'] : null;
+            }
+
+            if ($videoId === null && $path !== '') {
+                $segments = explode('/', $path);
+                if (in_array($segments[0] ?? '', ['embed', 'shorts'], true)) {
+                    $videoId = $segments[1] ?? null;
+                }
+            }
+        }
+
+        if (! is_string($videoId) || ! preg_match('/^[A-Za-z0-9_-]{11}$/', $videoId)) {
+            return null;
+        }
+
+        return 'https://www.youtube-nocookie.com/embed/'.$videoId;
+    }
+
+    private static function youtubeEmbedHtml(string $embedUrl): string
+    {
+        $src = htmlspecialchars($embedUrl, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        return '<div class="care-article-video"><iframe src="'.$src.'" title="YouTube video player" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>';
     }
 }

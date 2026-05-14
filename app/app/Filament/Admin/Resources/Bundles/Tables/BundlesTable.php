@@ -4,6 +4,7 @@ namespace App\Filament\Admin\Resources\Bundles\Tables;
 
 use App\Models\Bundle;
 use App\Services\BundlePricingService;
+use App\Support\PublicStorageUrl;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -65,11 +66,10 @@ class BundlesTable
             ->columns([
                 ImageColumn::make('photo_preview')
                     ->label('Фото')
-                    ->disk('public')
                     ->checkFileExistence(false)
                     ->imageSize(40)
                     ->square()
-                    ->state(fn (Bundle $record): ?string => self::firstStoredPhotoPath($record))
+                    ->state(fn (Bundle $record): ?string => PublicStorageUrl::forPath(self::firstStoredPhotoPath($record)))
                     ->sortable(false),
                 TextColumn::make('title')
                     ->label('Назва')

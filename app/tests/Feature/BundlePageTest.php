@@ -141,6 +141,7 @@ class BundlePageTest extends TestCase
                 'customer_name' => 'Тестовий покупець',
                 'customer_phone' => '380000000000',
                 'customer_email' => 'bundle@example.test',
+                'payment_method' => 'cod',
                 'delivery_type' => Order::DELIVERY_PICKUP,
             ]);
 

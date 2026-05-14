@@ -6,7 +6,9 @@ use App\Models\OptionGroup;
 use App\Models\OptionValue;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\ShopIntegrationSetting;
 use App\Support\ListingOptionValuePrices;
+use App\Support\ShopHeaderContacts;
 use App\Support\VariantOptionsAllowlist;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -24,6 +26,8 @@ class ProductShowPageService
 {
     public function __construct(
         private readonly VariantPricingService $variantPricing,
+        private readonly ProductRecommendationsService $productRecommendations,
+        private readonly CategoryCheckoutRulesService $categoryCheckoutRules,
     ) {}
 
     /**
@@ -41,7 +45,7 @@ class ProductShowPageService
         $listingBaseCompareAt = $listingQuote->strikePrice;
         $defaultOptionSelection = [];
         $optionsPreselectedFromVariant = false;
-        $galleryPhotos = $this->galleryPhotosForListingPage($listing);
+        $galleryPhotos = $listing->storefrontGalleryStoragePaths();
         $catalogVariantIdForScript = null;
         $variantsPayload = [];
 
@@ -80,10 +84,7 @@ class ProductShowPageService
 
         $needsBareVariantPicker = false;
 
-        $galleryUrls = collect($galleryPhotos)
-            ->map(fn ($p) => asset('storage/'.$p))
-            ->values()
-            ->all();
+        $galleryUrls = $listing->storefrontGalleryAssetUrls();
 
         $listingBaseCompareAtForScript = $listingBaseCompareAt !== null && (float) $listingBaseCompareAt > (float) $minEffective
             ? (float) $listingBaseCompareAt
@@ -92,6 +93,18 @@ class ProductShowPageService
         $needsExplicitVariantChoice = false;
         $pdpOfferLowPrice = $minEffective;
         $pdpOfferHighPrice = $minEffective;
+
+        $checkoutRules = $this->categoryCheckoutRules->aggregateForProductIds([(int) $listing->id]);
+        $pdpDefersOnlinePayment = $checkoutRules['defers_online_payment'];
+        $pdpDeferModalContacts = array_map(
+            static fn (array $item): array => [
+                'label' => $item['label'],
+                'href' => $item['href'],
+                'kind' => $item['kind'],
+                'external' => $item['external'],
+            ],
+            ShopHeaderContacts::deferModalContactItemsFrom(ShopIntegrationSetting::query()->first()),
+        );
 
         $productShowConfig = [
             'listingTitle' => (string) $listing->title,
@@ -109,7 +122,15 @@ class ProductShowPageService
             'optionsPreselectedFromVariant' => $optionsPreselectedFromVariant,
             'storageBase' => rtrim(asset('storage'), '/'),
             'needsBareVariantPicker' => $needsBareVariantPicker,
+            'pdpDefersOnlinePayment' => $pdpDefersOnlinePayment,
+            'pdpDeferModalContacts' => $pdpDeferModalContacts,
         ];
+
+        $recommendedProducts = $this->productRecommendations->forProductPage($listing, 8);
+        $recommendedListingQuotes = $recommendedProducts->isEmpty()
+            ? []
+            : $this->variantPricing->quoteManyProducts($recommendedProducts);
+        $careArticles = $listing->publishedCareArticles()->get();
 
         return [
             'listing' => $listing,
@@ -137,6 +158,11 @@ class ProductShowPageService
             'pdpOgImageUrl' => ($galleryPhotos[0] ?? null) ? url('storage/'.$galleryPhotos[0]) : null,
             'pdpOfferLowPrice' => $pdpOfferLowPrice,
             'pdpOfferHighPrice' => $pdpOfferHighPrice,
+            'recommendedProducts' => $recommendedProducts,
+            'recommendedListingQuotes' => $recommendedListingQuotes,
+            'careArticles' => $careArticles,
+            'pdpDefersOnlinePayment' => $pdpDefersOnlinePayment,
+            'pdpDeferModalContacts' => $pdpDeferModalContacts,
         ];
     }
 
@@ -269,20 +295,6 @@ class ProductShowPageService
         }
 
         return $out;
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function galleryPhotosForListingPage(Product $listing): array
-    {
-        $listingPhotos = is_array($listing->photos ?? null) ? $listing->photos : [];
-
-        if ($listingPhotos !== []) {
-            return $listingPhotos;
-        }
-
-        return [];
     }
 
     /**

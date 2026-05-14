@@ -123,4 +123,21 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | URL root from incoming request (Livewire / Filament file uploads)
+    |--------------------------------------------------------------------------
+    |
+    | Якщо true, для web-запитів викликається URL::forceRootUrl() з поточного Host/порту.
+    | Підписані маршрути livewire/upload-file тоді збігаються з адресою в браузері, навіть
+    | коли APP_URL відрізняється (127.0.0.1 vs localhost, інший порт). Вимкніть
+    | FORCE_URL_FROM_INCOMING_REQUEST=false, якщо генерація URL має йти лише з APP_URL.
+    |
+    */
+
+    'force_url_from_incoming_request' => filter_var(
+        env('FORCE_URL_FROM_INCOMING_REQUEST', true),
+        FILTER_VALIDATE_BOOLEAN
+    ),
+
 ];

@@ -15,19 +15,39 @@ class LiqPayClient
     }
 
     /**
+     * @param  'full'|'immediate'|'deferred'  $leg
      * @return array{data: string, signature: string}
      */
-    public function checkoutFormData(Order $order): array
+    public function checkoutFormData(Order $order, string $leg = 'full'): array
     {
         $privateKey = (string) config('services.liqpay.private_key');
+
+        $amount = match ($leg) {
+            'immediate' => $order->effectiveImmediateSubtotal(),
+            'deferred' => $order->effectiveDeferredSubtotal(),
+            default => (float) $order->total,
+        };
+
+        $orderId = match ($leg) {
+            'immediate' => $order->id.'-imm',
+            'deferred' => $order->id.'-def',
+            default => (string) $order->id,
+        };
+
+        $description = match ($leg) {
+            'immediate' => 'Замовлення '.$order->number.' — аксесуари / без відкладеної категорії',
+            'deferred' => 'Замовлення '.$order->number.' — доплата (товари з узгодженою онлайн-оплатою)',
+            default => 'Оплата замовлення '.$order->number,
+        };
+
         $params = [
             'version' => 3,
             'public_key' => (string) config('services.liqpay.public_key'),
             'action' => 'pay',
-            'amount' => number_format((float) $order->total, 2, '.', ''),
+            'amount' => number_format(max(0.01, $amount), 2, '.', ''),
             'currency' => 'UAH',
-            'description' => 'Оплата замовлення '.$order->number,
-            'order_id' => (string) $order->id,
+            'description' => $description,
+            'order_id' => $orderId,
             'result_url' => route('checkout.success', ['order' => $order, 'token' => $order->success_token]),
             'server_url' => route('payments.liqpay.callback'),
             'sandbox' => config('services.liqpay.sandbox') ? 1 : 0,

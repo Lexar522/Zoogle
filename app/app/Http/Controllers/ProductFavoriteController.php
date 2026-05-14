@@ -22,15 +22,23 @@ class ProductFavoriteController extends Controller
         $user = $request->user();
         $productId = (int) $validated['product_id'];
 
+        $product = Product::query()->findOrFail($productId);
+
         if ($user->favoriteProducts()->whereKey($productId)->exists()) {
             $user->favoriteProducts()->detach($productId);
 
-            return response()->json(['favorited' => false]);
+            return response()->json([
+                'favorited' => false,
+                'favorites_count' => $product->favoritedByUsers()->count(),
+            ]);
         }
 
         $user->favoriteProducts()->attach($productId);
 
-        return response()->json(['favorited' => true]);
+        return response()->json([
+            'favorited' => true,
+            'favorites_count' => $product->favoritedByUsers()->count(),
+        ]);
     }
 
     public function sync(Request $request): JsonResponse

@@ -50,6 +50,56 @@ class EditProductSaveTest extends TestCase
         $this->assertStringContainsString('Новий опис товару', (string) $product->description);
     }
 
+    public function test_edit_product_page_saves_care_article(): void
+    {
+        $this->seed(RolesAndPermissionsSeeder::class);
+
+        $admin = User::query()->where('email', 'admin@sitezoo.local')->firstOrFail();
+        $product = $this->makeEditableProduct();
+
+        $this->actingAs($admin);
+
+        Livewire::test(EditProduct::class, ['record' => (string) $product->id])
+            ->set('data.careArticles', [
+                [
+                    'title' => 'Як доглядати',
+                    'slug' => 'yak-doglyadaty',
+                    'excerpt' => 'Коротка порада',
+                    'body' => [
+                        'type' => 'doc',
+                        'content' => [
+                            [
+                                'type' => 'paragraph',
+                                'content' => [
+                                    [
+                                        'type' => 'text',
+                                        'text' => 'Текст статті по догляду',
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                    'sort_order' => 1,
+                    'is_published' => true,
+                    'published_at' => null,
+                ],
+            ])
+            ->call('save', false, false)
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('product_care_articles', [
+            'product_id' => $product->id,
+            'slug' => 'yak-doglyadaty',
+            'title' => 'Як доглядати',
+            'is_published' => true,
+        ]);
+
+        $this->assertStringContainsString(
+            'Текст статті по догляду',
+            (string) $product->careArticles()->first()?->body
+        );
+    }
+
     private function makeEditableProduct(): Product
     {
         $categoryGroup = OptionGroup::query()->firstOrCreate(

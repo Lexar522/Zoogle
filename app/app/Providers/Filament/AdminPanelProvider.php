@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Admin\Resources\Products\Pages\ListProducts;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -10,6 +11,7 @@ use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\Tables\View\TablesRenderHook;
 use Filament\View\PanelsRenderHook;
 use Filament\Widgets\AccountWidget;
 use Filament\Widgets\FilamentInfoWidget;
@@ -41,6 +43,24 @@ class AdminPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::HEAD_END,
                 fn (): string => view('filament.hooks.listing-photos-upload-layout')->render()
+            )
+            ->renderHook(
+                PanelsRenderHook::HEAD_END,
+                function (): string {
+                    $path = resource_path('css/filament/list-products-table-toolbar.css');
+
+                    return is_file($path) ? '<style>'.file_get_contents($path).'</style>' : '';
+                }
+            )
+            ->renderHook(
+                TablesRenderHook::TOOLBAR_SEARCH_BEFORE,
+                fn (): string => view('filament.admin.resources.products.list-products-table-search-row-start')->render(),
+                scopes: ListProducts::class,
+            )
+            ->renderHook(
+                TablesRenderHook::TOOLBAR_SEARCH_AFTER,
+                fn (): string => view('filament.admin.resources.products.list-products-table-search-row-end')->render(),
+                scopes: ListProducts::class,
             )
             ->colors([
                 'primary' => Color::Amber,

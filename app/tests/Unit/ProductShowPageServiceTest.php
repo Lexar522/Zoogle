@@ -3,14 +3,13 @@
 namespace Tests\Unit;
 
 use App\Services\ProductShowPageService;
-use App\Services\VariantPricingService;
 use Tests\TestCase;
 
 class ProductShowPageServiceTest extends TestCase
 {
     public function test_variant_match_signatures_maps_distinct_option_combos(): void
     {
-        $service = new ProductShowPageService(app(VariantPricingService::class));
+        $service = app(ProductShowPageService::class);
 
         $optionBlocks = [
             ['id' => 10, 'affects_variant_matching' => true],
@@ -30,7 +29,7 @@ class ProductShowPageServiceTest extends TestCase
 
     public function test_variant_match_signatures_keeps_lower_id_on_collision(): void
     {
-        $service = new ProductShowPageService(app(VariantPricingService::class));
+        $service = app(ProductShowPageService::class);
 
         $optionBlocks = [
             ['id' => 1, 'affects_variant_matching' => true],
