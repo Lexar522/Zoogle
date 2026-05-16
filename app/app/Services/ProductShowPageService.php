@@ -61,9 +61,12 @@ class ProductShowPageService
                     ->first();
 
                 if ($firstCategoryValueId) {
-                    $categoryLabel = OptionValue::query()
+                    $rawCatName = OptionValue::query()
                         ->whereKey($firstCategoryValueId)
                         ->value('name');
+                    $categoryLabel = is_string($rawCatName) && trim($rawCatName) !== ''
+                        ? $this->mtLine($rawCatName)
+                        : null;
                 }
 
                 break;
@@ -73,10 +76,13 @@ class ProductShowPageService
         $browsingCategoryName = null;
         $filterCategoryId = (int) $request->integer('category');
         if ($filterCategoryId > 0 && $categoryGroupId > 0) {
-            $browsingCategoryName = OptionValue::query()
+            $rawBrowseName = OptionValue::query()
                 ->where('option_group_id', $categoryGroupId)
                 ->whereKey($filterCategoryId)
                 ->value('name');
+            $browsingCategoryName = is_string($rawBrowseName) && trim($rawBrowseName) !== ''
+                ? $this->mtLine($rawBrowseName)
+                : null;
         }
 
         $categoryDisplayForPage = $browsingCategoryName ?? $categoryLabel;
@@ -124,6 +130,18 @@ class ProductShowPageService
             'needsBareVariantPicker' => $needsBareVariantPicker,
             'pdpDefersOnlinePayment' => $pdpDefersOnlinePayment,
             'pdpDeferModalContacts' => $pdpDeferModalContacts,
+            'i18n' => [
+                'pdp_no_photo' => (string) __('shop.pdp_no_photo'),
+                'pdp_badge_preorder' => (string) __('shop.pdp_badge_preorder'),
+                'pdp_badge_low' => (string) __('shop.pdp_badge_low'),
+                'pdp_badge_in_stock' => (string) __('shop.pdp_badge_in_stock'),
+                'pdp_badge_out_of_stock' => (string) __('shop.pdp_badge_out_of_stock'),
+                'pdp_selected_prefix' => (string) __('shop.pdp_selected_prefix'),
+                'pdp_selected_empty' => (string) __('shop.pdp_selected_empty'),
+                'pdp_category_prefix' => (string) __('shop.pdp_category_prefix'),
+                'pdp_unavailable_hint' => (string) __('shop.pdp_unavailable_hint'),
+                'pdp_lines_selected_prefix' => (string) __('shop.pdp_lines_selected_prefix'),
+            ],
         ];
 
         $recommendedProducts = $this->productRecommendations->forProductPage($listing, 8);
@@ -174,7 +192,7 @@ class ProductShowPageService
     {
         $categoryValues = $nav['categoryValues'] ?? collect();
         if (! $categoryValues instanceof Collection || $categoryValues->isEmpty()) {
-            return $fallbackLabel ? [['id' => 0, 'name' => (string) $fallbackLabel]] : [];
+            return $fallbackLabel ? [['id' => 0, 'name' => $this->mtLine((string) $fallbackLabel)]] : [];
         }
 
         $byId = $categoryValues->keyBy('id');
@@ -188,7 +206,7 @@ class ProductShowPageService
         }
 
         if ($startId <= 0 || ! $byId->has($startId)) {
-            return $fallbackLabel ? [['id' => 0, 'name' => (string) $fallbackLabel]] : [];
+            return $fallbackLabel ? [['id' => 0, 'name' => $this->mtLine((string) $fallbackLabel)]] : [];
         }
 
         $path = [];
@@ -200,7 +218,7 @@ class ProductShowPageService
             if ($name !== '') {
                 array_unshift($path, [
                     'id' => (int) ($node->id ?? 0),
-                    'name' => $name,
+                    'name' => $this->mtLine($name),
                 ]);
             }
             $currentId = (int) ($node->parent_id ?? 0);
@@ -208,7 +226,7 @@ class ProductShowPageService
         }
 
         if ($path === [] && $fallbackLabel) {
-            $path[] = ['id' => 0, 'name' => (string) $fallbackLabel];
+            $path[] = ['id' => 0, 'name' => $this->mtLine((string) $fallbackLabel)];
         }
 
         $uniq = [];
@@ -230,13 +248,15 @@ class ProductShowPageService
 
     private function buildPdpMetaDescription(Product $listing, float $minPrice, ?float $compareAt): string
     {
+        $short = $listing->short_description;
+        $long = $listing->description;
         $parts = array_filter([
-            $listing->short_description ? strip_tags($listing->short_description) : null,
-            $listing->description ? Str::limit(strip_tags($listing->description), 120) : null,
+            $short ? strip_tags((string) $short) : null,
+            $long ? Str::limit(strip_tags((string) $long), 120) : null,
         ]);
-        $priceLine = 'від '.number_format($minPrice, 0, '', ' ').' ₴';
+        $priceLine = __('shop.pdp_meta_price_from', ['price' => number_format($minPrice, 0, '', ' ')]);
         if ($compareAt !== null && $compareAt > $minPrice) {
-            $priceLine .= ' (акційна ціна)';
+            $priceLine .= ' '.__('shop.pdp_meta_compare_hint');
         }
         $base = implode(' ', $parts);
 
@@ -651,7 +671,7 @@ class ProductShowPageService
 
         return [
             'id' => $group->id,
-            'name' => $group->name,
+            'name' => $this->mtLine((string) $group->name),
             'selection_mode' => $group->selection_mode ?? 'single',
             'value_type' => $catalogValueType,
             'values' => $values->map(function (OptionValue $v) use ($variantRows, $groupId): array {
@@ -659,11 +679,22 @@ class ProductShowPageService
 
                 return [
                     'id' => $v->id,
-                    'name' => $v->name,
+                    'name' => $this->mtLine((string) $v->name),
                     'price' => $addon > 0 ? $addon : null,
                     'color_hex' => $v->color_hex,
                 ];
             })->values()->all(),
         ];
+    }
+
+    private function mtLine(string $text): string
+    {
+        $text = trim($text);
+
+        if ($text === '') {
+            return '';
+        }
+
+        return $text;
     }
 }

@@ -12,6 +12,7 @@
     <div
         class="space-y-2"
         wire:ignore
+        wire:key="filament-pickup-map-{{ md5(app(\App\Support\GoogleMapsApiKey::class)->current()) }}"
         x-data="{
             map: null,
             marker: null,

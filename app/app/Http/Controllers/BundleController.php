@@ -68,7 +68,9 @@ class BundleController extends Controller
 
             return [
                 'product' => $product,
-                'title' => $product?->title ?? 'Товар #'.$item->product_id,
+                'title' => $product
+                    ? (string) $product->title
+                    : __('shop.bundles_line_missing_product', ['id' => $item->product_id]),
                 'url' => $product ? route('catalog.show', $product->slug) : null,
                 'photo' => $product ? $this->firstProductPhotoPath($product) : null,
                 'excerpt' => $excerpt,

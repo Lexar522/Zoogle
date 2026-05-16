@@ -71,12 +71,12 @@ class ManageShopIntegrations extends Page
 
     public function mount(): void
     {
-        $record = ShopIntegrationSetting::query()->first();
+        $record = ShopIntegrationSetting::record();
 
         $this->form->fill([
             'nova_poshta_api_key' => '',
             'clear_nova_poshta_key' => false,
-            'google_maps_api_key' => '',
+            'google_maps_api_key' => app(GoogleMapsApiKey::class)->current(),
             'clear_google_maps_key' => false,
             'pickup_address' => $record?->pickup_address ?? '',
             'pickup_lat' => $record?->pickup_lat,
@@ -174,11 +174,7 @@ class ManageShopIntegrations extends Page
             if (! empty($data['clear_google_maps_key'])) {
                 $record->google_maps_api_key = null;
             } else {
-                $mapsKeyFromForm = $data['google_maps_api_key'] ?? null;
-                $trimmed = is_string($mapsKeyFromForm) ? trim($mapsKeyFromForm) : '';
-                if ($trimmed !== '') {
-                    $record->google_maps_api_key = $trimmed;
-                }
+                $this->persistGoogleMapsKeyFromFormIfNonEmpty($data, $record);
             }
 
             $record->save();
@@ -200,8 +196,8 @@ class ManageShopIntegrations extends Page
 
         $maps = app(GoogleMapsApiKey::class);
         $body = $maps->isConfigured()
-            ? 'Ключ карти для чекауту активний. Оновіть сторінку оформлення (Ctrl+F5), якщо щойно змінили ключ.'.($maps->hasStoredKey() ? ' Джерело: база.' : ' Джерело: .env.')
-            : 'Ключ не заданий — на чекауті карта через OpenStreetMap (або додайте GOOGLE_MAPS_API_KEY у .env).';
+            ? 'Ключ активний: чекаут (JavaScript API) і карта в підвалі сайту (Embed API), якщо задані координати самовивозу. Оновіть вітрину (Ctrl+F5).'.($maps->hasStoredKey() ? ' Джерело: база.' : ' Джерело: .env.')
+            : 'Ключ не заданий — на чекауті та у футері без ключа використовується OpenStreetMap (або додайте GOOGLE_MAPS_API_KEY у .env).';
 
         Notification::make()
             ->success()
@@ -297,6 +293,7 @@ class ManageShopIntegrations extends Page
 
     public function savePickup(): void
     {
+        $mapsKeyUpdated = false;
         try {
             $this->beginDatabaseTransaction();
             $this->callHook('beforeValidate');
@@ -306,6 +303,8 @@ class ManageShopIntegrations extends Page
 
             $record = ShopIntegrationSetting::record();
 
+            $previousStoredMapsKey = is_string($record->google_maps_api_key) ? trim($record->google_maps_api_key) : '';
+
             $pickupAddr = $data['pickup_address'] ?? null;
             $record->pickup_address = is_string($pickupAddr) && trim($pickupAddr) !== '' ? trim($pickupAddr) : null;
 
@@ -313,6 +312,11 @@ class ManageShopIntegrations extends Page
             $lngRaw = $data['pickup_lng'] ?? null;
             $record->pickup_lat = ($latRaw !== null && $latRaw !== '') ? (float) $latRaw : null;
             $record->pickup_lng = ($lngRaw !== null && $lngRaw !== '') ? (float) $lngRaw : null;
+
+            $mapsKeyFromForm = $data['google_maps_api_key'] ?? null;
+            $trimmedMaps = is_string($mapsKeyFromForm) ? trim($mapsKeyFromForm) : '';
+            $mapsKeyUpdated = $trimmedMaps !== '' && $trimmedMaps !== $previousStoredMapsKey;
+            $this->persistGoogleMapsKeyFromFormIfNonEmpty($data, $record);
 
             $record->save();
             $this->callHook('afterSave');
@@ -331,7 +335,7 @@ class ManageShopIntegrations extends Page
         $this->commitDatabaseTransaction();
         $this->refreshFormFromRecord();
 
-        $record = ShopIntegrationSetting::query()->first();
+        $record = ShopIntegrationSetting::record();
         $hasAddr = is_string($record?->pickup_address) && trim($record->pickup_address) !== '';
         $hasCoords = $record?->pickup_lat !== null && $record?->pickup_lng !== null;
         $body = match (true) {
@@ -339,6 +343,9 @@ class ManageShopIntegrations extends Page
             $hasAddr => 'Адресу збережено; координати опційні для мітки на карті.',
             default => 'Дані самовивозу очищено або ще не заповнені.',
         };
+        if ($mapsKeyUpdated) {
+            $body .= ' Ключ Google Maps оновлено в базі.';
+        }
 
         Notification::make()
             ->success()
@@ -347,14 +354,26 @@ class ManageShopIntegrations extends Page
             ->send();
     }
 
+    /**
+     * Порожнє поле ключа в формі означає «не змінювати вже збережений» (як у блоці Google Maps).
+     */
+    private function persistGoogleMapsKeyFromFormIfNonEmpty(array $data, ShopIntegrationSetting $record): void
+    {
+        $mapsKeyFromForm = $data['google_maps_api_key'] ?? null;
+        $trimmed = is_string($mapsKeyFromForm) ? trim($mapsKeyFromForm) : '';
+        if ($trimmed !== '') {
+            $record->google_maps_api_key = $trimmed;
+        }
+    }
+
     private function refreshFormFromRecord(): void
     {
-        $record = ShopIntegrationSetting::query()->first();
+        $record = ShopIntegrationSetting::record();
 
         $this->form->fill([
             'nova_poshta_api_key' => '',
             'clear_nova_poshta_key' => false,
-            'google_maps_api_key' => '',
+            'google_maps_api_key' => app(GoogleMapsApiKey::class)->current(),
             'clear_google_maps_key' => false,
             'pickup_address' => $record?->pickup_address ?? '',
             'pickup_lat' => $record?->pickup_lat,
@@ -406,7 +425,7 @@ class ManageShopIntegrations extends Page
         $this->commitDatabaseTransaction();
         $this->refreshFormFromRecord();
 
-        $items = ShopHeaderContacts::itemsFrom(ShopIntegrationSetting::query()->first());
+        $items = ShopHeaderContacts::itemsFrom(ShopIntegrationSetting::record());
         $body = count($items) > 0
             ? 'У шапці відображаються '.count($items).' контакт(ів) зі збережених даних (у разі невалідного значення воно на сайті не показується).'
             : 'Усі поля очищено — блок контактів у шапці приховано.';
@@ -552,7 +571,7 @@ class ManageShopIntegrations extends Page
                     ])
                     ->columnSpanFull(),
                 Section::make('Google Maps (чекаут)')
-                    ->description('Необов’язково: карта відділень Нової Пошти на оформленні замовлення. У Google Cloud Console увімкніть Maps JavaScript API і обмежте ключ по HTTP referrers вашого сайту. Окреме збереження — не чіпає ключ НП і самовивіз.')
+                    ->description('Необов’язково: карта відділень Нової Пошти на оформленні замовлення та вбудована карта в підвалі сайту (за координатами самовивозу). У Google Cloud увімкніть Maps JavaScript API (чекаут) і Maps Embed API (футер). Обмежте ключ по HTTP referrers. Щоб записати ключ у базу, натисніть «Зберегти блок» тут або збережіть блок «Самовивіз», якщо поле ключа вже заповнене.')
                     ->footerActionsAlignment(Alignment::End)
                     ->footerActions([
                         Action::make('saveGoogleMaps')
@@ -595,7 +614,7 @@ class ManageShopIntegrations extends Page
                             ->maxLength(512)
                             ->saved(true)
                             ->dehydrated(true)
-                            ->helperText('Вставте ключ і натисніть «Зберегти». Порожнє поле — не змінює вже збережений ключ.')
+                            ->helperText('Підставляється з бази (якщо порожньо там — з .env). Можна залишити як є. Порожнє поле при «Зберегти блок» тут — не змінює збережений у базі ключ; щоб видалити ключ з бази — прапорець нижче.')
                             ->autocomplete(false),
                         Checkbox::make('clear_google_maps_key')
                             ->label('Видалити збережений у базі ключ карти (далі лише .env)')
@@ -670,7 +689,7 @@ class ManageShopIntegrations extends Page
                     ])
                     ->columnSpanFull(),
                 Section::make('Самовивіз з магазину')
-                    ->description('Показується на оформленні замовлення, коли покупець обирає «Самовивіз». Збереження цього блоку не змінює ключі API вище.')
+                    ->description('Показується на оформленні замовлення, коли покупець обирає «Самовивіз». Якщо в блоці «Google Maps» ви ввели новий ключ і натискаєте лише «Зберегти блок» тут — ключ теж збережеться в базу (не потрібно двічі зберігати).')
                     ->footerActionsAlignment(Alignment::End)
                     ->footerActions([
                         Action::make('savePickup')
@@ -682,7 +701,7 @@ class ManageShopIntegrations extends Page
                             ->hiddenLabel()
                             ->view('filament.admin.shop-integration-status')
                             ->viewData(function (): array {
-                                $r = ShopIntegrationSetting::query()->first();
+                                $r = ShopIntegrationSetting::record();
                                 $hasAddr = is_string($r?->pickup_address) && trim((string) $r->pickup_address) !== '';
                                 $hasCoords = $r?->pickup_lat !== null && $r?->pickup_lng !== null;
                                 $lines = [
@@ -690,8 +709,8 @@ class ManageShopIntegrations extends Page
                                         ? 'Адреса для покупця: задана.'
                                         : 'Адреса для покупця: не задана.',
                                     $hasCoords
-                                        ? 'Координати для карти: задані.'
-                                        : 'Координати для карти: не задані (карта на чекауті може бути прихована).',
+                                        ? 'Координати для карти: задані (потрібні для карти в підвалі сайту).'
+                                        : 'Координати для карти: не задані — вбудована карта в підвалі без координат не показується.',
                                     match (true) {
                                         $hasAddr && $hasCoords => 'Підсумок: текст і мітка на карті на чекауті.',
                                         $hasAddr => 'Підсумок: лише текст адреси.',
@@ -750,7 +769,7 @@ class ManageShopIntegrations extends Page
                             ->hiddenLabel()
                             ->view('filament.admin.shop-integration-status')
                             ->viewData(function (): array {
-                                $r = ShopIntegrationSetting::query()->first();
+                                $r = ShopIntegrationSetting::record();
                                 $items = ShopHeaderContacts::itemsFrom($r);
                                 $ok = count($items) > 0;
                                 $lines = [

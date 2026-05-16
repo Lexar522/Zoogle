@@ -20,6 +20,12 @@ function runProductShowPage() {
     const initialPhotos = cfg.initialPhotos || [];
     const storageBase = cfg.storageBase || '';
     const listingTitle = cfg.listingTitle || '';
+    const i18n = cfg.i18n && typeof cfg.i18n === 'object' ? cfg.i18n : {};
+    const t = (key, fallback) => {
+        const v = i18n[key];
+        return v != null && String(v) !== '' ? String(v) : fallback;
+    };
+    const categoryPrefix = t('pdp_category_prefix', 'Категорія: ');
 
     const priceEl = document.getElementById('product-price');
     const priceNoteEl = document.getElementById('product-price-note');
@@ -520,7 +526,7 @@ function runProductShowPage() {
             if (!mainVisual.querySelector('.placeholder')) {
                 const ph = document.createElement('span');
                 ph.className = 'placeholder';
-                ph.textContent = 'Немає фото';
+                ph.textContent = t('pdp_no_photo', 'Немає фото');
                 mainVisual.appendChild(ph);
             }
             if (thumbsWrap) {
@@ -568,13 +574,13 @@ function runProductShowPage() {
         }
         let html = '';
         if (listingStockMode === 'preorder') {
-            html = '<span class="badge pre">Передзамовлення</span>';
+            html = '<span class="badge pre">' + t('pdp_badge_preorder', 'Передзамовлення') + '</span>';
         } else if (listingStockMode === 'low') {
-            html = '<span class="badge low">Закінчується</span>';
+            html = '<span class="badge low">' + t('pdp_badge_low', 'Закінчується') + '</span>';
         } else if (listingStockMode === 'ok') {
-            html = '<span class="badge ok">В наявності</span>';
+            html = '<span class="badge ok">' + t('pdp_badge_in_stock', 'В наявності') + '</span>';
         } else {
-            html = '<span class="badge no">Немає в наявності</span>';
+            html = '<span class="badge no">' + t('pdp_badge_out_of_stock', 'Немає в наявності') + '</span>';
         }
         badgesEl.innerHTML = html;
     }
@@ -625,13 +631,15 @@ function runProductShowPage() {
         if (!breadcrumbSelectedEl) {
             return;
         }
-        breadcrumbSelectedEl.textContent = parts.length ? 'Обрано: ' + parts.join(', ') : 'Обрано: —';
+        breadcrumbSelectedEl.textContent = parts.length
+            ? t('pdp_selected_prefix', 'Обрано: ') + parts.join(', ')
+            : t('pdp_selected_empty', 'Обрано: —');
     }
 
     function updateBreadcrumbFromOptionSelection() {
         const parts = [];
         if (initialCategoryLabel) {
-            parts.push('Категорія: ' + initialCategoryLabel);
+            parts.push(categoryPrefix + initialCategoryLabel);
         }
         const sel = getSelection();
         for (const block of optionBlocks) {
@@ -648,7 +656,7 @@ function runProductShowPage() {
                 parts.push(block.name + ': ' + names.join(', '));
             }
         }
-        updateBreadcrumbSelectedLine(parts.filter((p) => !p.startsWith('Категорія: ')));
+        updateBreadcrumbSelectedLine(parts.filter((p) => !p.startsWith(categoryPrefix)));
     }
 
     function refresh() {
@@ -670,10 +678,10 @@ function runProductShowPage() {
             addBtn.disabled = listingStockMode === 'none';
         }
         if (hintEl) {
-            hintEl.textContent = listingStockMode === 'none' ? 'Цей товар зараз недоступний.' : '';
+            hintEl.textContent = listingStockMode === 'none' ? t('pdp_unavailable_hint', 'Цей товар зараз недоступний.') : '';
         }
         if (priceNoteEl) {
-            priceNoteEl.textContent = price.lineCount > 1 ? 'Обрано позицій: ' + price.lineCount : '';
+            priceNoteEl.textContent = price.lineCount > 1 ? t('pdp_lines_selected_prefix', 'Обрано позицій: ') + price.lineCount : '';
         }
 
         updateBreadcrumbFromOptionSelection();

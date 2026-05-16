@@ -8,3 +8,8 @@ Thumbs.db
 
 # Optional: large/generated assets at repo root
 ChatGPT*.png
+
+# Згенерований повний пакет для FTP/хостингу (великий обсяг)
+hosting/deploy-package/
+hosting/deploy-package*.zip
+hosting/*.zip

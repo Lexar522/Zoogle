@@ -25,7 +25,7 @@
     }
 
     $cardState = 'default';
-    $cardBadge = 'В наявності';
+    $cardBadge = __('shop.card_in_stock');
     $cardAccent = '#0f766e';
     $cardAccentSoft = 'rgba(15, 118, 110, 0.24)';
     $cardMediaStart = '#99f6e4';
@@ -33,21 +33,21 @@
 
     if (! $sellable) {
         $cardState = 'unavailable';
-        $cardBadge = 'Немає';
+        $cardBadge = __('shop.card_none');
         $cardAccent = '#64748b';
         $cardAccentSoft = 'rgba(100, 116, 139, 0.24)';
         $cardMediaStart = '#cbd5e1';
         $cardMediaEnd = '#94a3b8';
     } elseif ($onCardSale) {
         $cardState = 'sale';
-        $cardBadge = 'Акція';
+        $cardBadge = __('shop.card_sale');
         $cardAccent = '#ef4444';
         $cardAccentSoft = 'rgba(239, 68, 68, 0.24)';
         $cardMediaStart = '#fda4af';
         $cardMediaEnd = '#fb7185';
     } elseif ($isBundle) {
         $cardState = 'bundle';
-        $cardBadge = 'Комплект';
+        $cardBadge = __('shop.card_bundle');
         $cardAccent = '#7c3aed';
         $cardAccentSoft = 'rgba(124, 58, 237, 0.24)';
         $cardMediaStart = '#c4b5fd';
@@ -73,7 +73,7 @@
     <div class="product-card__shine" aria-hidden="true"></div>
     <div class="product-card__glow" aria-hidden="true"></div>
     <a href="{{ $showUrl }}" class="product-card__link-overlay">
-        <span class="visually-hidden">{{ $listing->title }}</span>
+        <span class="visually-hidden">{{ mt($listing->title) }}</span>
     </a>
     @if ($homeCardBadge !== null)
         <div class="product-card__badge product-card__badge--home product-card__badge--{{ $homeCardBadgeClass }}">{{ $homeCardBadge }}</div>
@@ -96,18 +96,18 @@
             >
         </div>
     @else
-        <div class="product-card__media product-card__media--empty" aria-hidden="true">Немає фото</div>
+        <div class="product-card__media product-card__media--empty" aria-hidden="true">{{ __('shop.card_no_photo') }}</div>
     @endif
     <div class="product-card__body">
         @if ($isBundle)
-            <p class="product-card__eyebrow">Комплект</p>
+            <p class="product-card__eyebrow">{{ __('shop.card_bundle_eyebrow') }}</p>
         @endif
         <h3 class="product-card__title">
-            <span class="product-card__title-text">{{ $listing->title }}</span>
+            <span class="product-card__title-text">{{ mt($listing->title) }}</span>
         </h3>
         <div class="product-card__actions">
             @if ($excerptPlain !== '')
-                <p class="product-card__excerpt">{{ $excerptPlain }}</p>
+                <p class="product-card__excerpt">{{ mt($excerptPlain) }}</p>
             @endif
             <div class="product-card__footer">
                 <div class="product-card__price-inline">
@@ -131,8 +131,8 @@
                                     type="submit"
                                     class="product-card__cart-add"
                                     @disabled(!$sellable)
-                                    title="{{ $sellable ? 'Додати комплект у кошик' : 'Недоступно для замовлення' }}"
-                                    aria-label="{{ $sellable ? 'Додати комплект у кошик' : 'Недоступно для замовлення' }}"
+                                    title="{{ $sellable ? __('shop.card_add_bundle') : __('shop.card_unavailable_order') }}"
+                                    aria-label="{{ $sellable ? __('shop.card_add_bundle') : __('shop.card_unavailable_order') }}"
                                 >
                                     <svg class="product-card__cart-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                         <circle cx="9" cy="21" r="1"/>
@@ -145,8 +145,8 @@
                         <a
                             href="{{ $showUrl }}"
                             class="product-card__btn product-card__btn--icon"
-                            title="Відкрити комплект"
-                            aria-label="Відкрити комплект"
+                            title="{{ __('shop.card_open_bundle') }}"
+                            aria-label="{{ __('shop.card_open_bundle') }}"
                         >
                             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                 <path d="M5 12h14"/>
@@ -162,8 +162,8 @@
                                     type="submit"
                                     class="product-card__cart-add"
                                     @disabled(!$sellable)
-                                    title="{{ $sellable ? 'У кошик' : 'Недоступно для замовлення' }}"
-                                    aria-label="{{ $sellable ? 'Додати в кошик' : 'Недоступно для замовлення' }}"
+                                    title="{{ $sellable ? __('shop.card_add_cart') : __('shop.card_unavailable_order') }}"
+                                    aria-label="{{ $sellable ? __('shop.card_add_cart_aria') : __('shop.card_unavailable_order') }}"
                                 >
                                     <svg class="product-card__cart-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                         <circle cx="9" cy="21" r="1"/>
@@ -179,7 +179,7 @@
                                 class="product-card__favorite"
                                 data-product-id="{{ $listing->id }}"
                                 data-favorite-key="catalog"
-                                aria-label="Уподобання"
+                                aria-label="{{ __('shop.card_favorite_aria') }}"
                                 aria-pressed="false"
                             >
                                 <svg

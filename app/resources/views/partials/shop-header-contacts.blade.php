@@ -1,10 +1,42 @@
+@php
+    $contactIconsColored = filter_var($contactIconsColored ?? false, FILTER_VALIDATE_BOOLEAN);
+    $cdnSi = 'https://cdn.jsdelivr.net/npm/simple-icons@13.16.0/icons';
+    $cdnHero = 'https://cdn.jsdelivr.net/npm/heroicons@2.1.5/24/outline';
+    $commons = 'https://upload.wikimedia.org/wikipedia/commons';
+    $cdnTelegramOfficial = 'https://telegram.org/img/t_logo.svg';
+@endphp
 @foreach ($shopHeaderContactItems ?? [] as $item)
+    @php
+        $coloredIconSrc = null;
+        if ($contactIconsColored) {
+            $coloredIconSrc = match ($item['kind'] ?? '') {
+                'phone' => "{$cdnHero}/phone.svg",
+                'email' => "{$commons}/7/7e/Gmail_icon_%282020%29.svg",
+                'instagram' => "{$commons}/9/95/Instagram_logo_2022.svg",
+                'viber' => "{$cdnSi}/viber.svg",
+                'whatsapp' => "{$commons}/6/6b/WhatsApp.svg",
+                default => $cdnTelegramOfficial,
+            };
+        }
+    @endphp
     <a
         href="{{ e($item['href']) }}"
         class="site-header__contact-card"
         @if (! empty($item['external'])) target="_blank" rel="noopener noreferrer" @endif
     >
-        @if ($item['kind'] === 'phone')
+        @if ($contactIconsColored)
+            <span class="site-header__contact-icon site-header__contact-icon--multicolor site-header__contact-icon--cdn site-header__contact-icon--cdn-{{ e($item['kind'] ?? 'telegram') }}" aria-hidden="true">
+                <img
+                    src="{{ e($coloredIconSrc) }}"
+                    alt=""
+                    width="44"
+                    height="44"
+                    loading="lazy"
+                    decoding="async"
+                    referrerpolicy="no-referrer"
+                />
+            </span>
+        @elseif ($item['kind'] === 'phone')
             <svg class="site-header__contact-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true">
                 <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.08 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72c.12.9.34 1.78.65 2.62a2 2 0 0 1-.45 2.11L8 9.91a16 16 0 0 0 6.09 6.09l1.46-1.26a2 2 0 0 1 2.11-.45c.84.31 1.72.53 2.62.65A2 2 0 0 1 22 16.92z"/>
             </svg>

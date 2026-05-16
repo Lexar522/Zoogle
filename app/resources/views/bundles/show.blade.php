@@ -1,6 +1,6 @@
 @extends('layouts.shop')
 
-@section('title', $bundle->title.' — ZOOGLE')
+@section('title', mt($bundle->title).' — ZOOGLE')
 
 @php
     $galleryPhotos = is_array($galleryPhotos ?? null) ? $galleryPhotos : [];
@@ -19,7 +19,7 @@
 @section('meta_description', \Illuminate\Support\Str::limit($bundleSeoDescription, 155, ''))
 @section('canonical_url', route('bundles.show', $bundle->slug))
 @section('og_type', 'product')
-@section('og_title', $bundle->title.' — ZOOGLE')
+@section('og_title', mt($bundle->title).' — ZOOGLE')
 @section('og_description', \Illuminate\Support\Str::limit($bundleSeoDescription, 155, ''))
 @if (count($galleryPhotos))
     @section('og_image', asset('storage/'.$galleryPhotos[0]))
@@ -586,7 +586,7 @@
                 <span class="bundle-breadcrumb__sep">/</span>
                 <a href="{{ route('bundles.index') }}">Комплекти</a>
                 <span class="bundle-breadcrumb__sep">/</span>
-                <span class="bundle-breadcrumb__selected">{{ $bundle->title }}</span>
+                <span class="bundle-breadcrumb__selected">{{ mt($bundle->title) }}</span>
             </nav>
         @endif
 
@@ -595,7 +595,7 @@
                 <div class="bundle-gallery-card">
                     <div class="bundle-gallery-main">
                         @if (count($galleryPhotos))
-                            <img src="{{ asset('storage/' . $galleryPhotos[0]) }}" alt="{{ $bundle->title }}" id="bundle-main-img">
+                            <img src="{{ asset('storage/' . $galleryPhotos[0]) }}" alt="{{ mt($bundle->title) }}" id="bundle-main-img">
                         @else
                             <div class="bundle-gallery-placeholder">Немає фото комплекту</div>
                         @endif
@@ -628,7 +628,7 @@
             <div class="bundle-summary-column">
                 <div class="bundle-summary-card">
                 <p class="bundle-eyebrow">Комплект</p>
-                <h1 class="bundle-title">{{ $bundle->title }}</h1>
+                <h1 class="bundle-title">{{ mt($bundle->title) }}</h1>
 
                 <div class="bundle-badges">
                     <span class="bundle-badge bundle-badge--ok">Доступний до замовлення</span>

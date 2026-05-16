@@ -1,11 +1,11 @@
 @extends('layouts.shop')
 
-@section('title', $listing->title . ' — ZOOGLE')
-@section('meta_description', $pdpMetaDescription ?? $listing->title)
+@section('title', mt($listing->title) . ' — ZOOGLE')
+@section('meta_description', $pdpMetaDescription ?? mt($listing->title))
 @section('canonical_url', route('catalog.show', $listing->slug))
 @section('og_type', 'product')
-@section('og_title', $listing->title)
-@section('og_description', $pdpMetaDescription ?? $listing->title)
+@section('og_title', mt($listing->title))
+@section('og_description', $pdpMetaDescription ?? mt($listing->title))
 @if (! empty($pdpOgImageUrl))
     @section('og_image', $pdpOgImageUrl)
 @endif
@@ -21,8 +21,8 @@
         $schemaProduct = [
             '@context' => 'https://schema.org',
             '@type' => 'Product',
-            'name' => $listing->title,
-            'description' => $pdpMetaDescription ?? $listing->title,
+            'name' => mt($listing->title),
+            'description' => $pdpMetaDescription ?? mt($listing->title),
             'sku' => filled(trim((string) ($listing->sku ?? ''))) ? (string) $listing->sku : (string) $listing->slug,
             'url' => route('catalog.show', $listing->slug),
             'offers' => [
@@ -1207,11 +1207,11 @@
     .product-desc__body li > ul,
     .product-desc__body li > ol { margin-top: 0.35em; margin-bottom: 0.35em; }
     .product-care-section {
-        width: calc(100% - (var(--pdp-block-inset) * 2));
-        max-width: 100%;
+        max-width: none;
+        width: 100%;
         box-sizing: border-box;
-        margin: 22px auto 0;
-        padding: clamp(18px, 2.4vw, 28px);
+        margin: 0;
+        padding: clamp(18px, 2.4vw, 30px);
         border-radius: 20px;
         border: 1px solid #e8eaed;
         background: linear-gradient(180deg, #fff 0%, #f8fbff 100%);
@@ -1240,6 +1240,9 @@
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         gap: 0.9rem;
+    }
+    .product-main-column .product-care-grid {
+        grid-template-columns: 1fr;
     }
     .product-care-card {
         display: flex;
@@ -1303,7 +1306,8 @@
 
         .product-gallery-card,
         .product-detail-card,
-        .product-desc {
+        .product-desc,
+        .product-care-section {
             border-radius: 18px;
         }
 
@@ -1312,7 +1316,8 @@
         }
 
         .product-detail-card,
-        .product-desc {
+        .product-desc,
+        .product-care-section {
             padding: 16px;
         }
 
@@ -1388,14 +1393,9 @@
             border-radius: 20px;
         }
 
-        .product-desc {
-            margin-top: 0;
-        }
-
+        .product-desc,
         .product-care-section {
-            margin-top: 16px;
-            padding: 14px;
-            border-radius: 18px;
+            margin-top: 0;
         }
 
         .pdp-related-section.home-shop-panel {
@@ -1433,7 +1433,7 @@
             <a
                 href="{{ route('catalog.index', array_filter($breadcrumbQueryBase)) }}"
             >
-                Каталог
+                {{ __('shop.catalog_toolbar_catalog') }}
             </a>
             @foreach ($categoryBreadcrumb as $index => $catPart)
                 @php
@@ -1448,9 +1448,9 @@
         </div>
     @else
         <div class="product-breadcrumb">
-            <a href="{{ route('catalog.index') }}">Каталог</a>
+            <a href="{{ route('catalog.index') }}">{{ __('shop.catalog_toolbar_catalog') }}</a>
             <span class="product-breadcrumb__sep">/</span>
-            <span class="product-breadcrumb__selected" id="product-breadcrumb-selected">{{ $listing->title }}</span>
+            <span class="product-breadcrumb__selected" id="product-breadcrumb-selected">{{ mt($listing->title) }}</span>
         </div>
     @endif
 
@@ -1463,9 +1463,9 @@
                         id="product-main-visual"
                     >
                         @if (count($galleryPhotos))
-                            <img src="{{ asset('storage/' . $galleryPhotos[0]) }}" alt="{{ $listing->title }}" id="product-main-img">
+                            <img src="{{ asset('storage/' . $galleryPhotos[0]) }}" alt="{{ mt($listing->title) }}" id="product-main-img">
                         @else
-                            <span class="placeholder">Немає фото</span>
+                            <span class="placeholder">{{ __('shop.pdp_no_photo') }}</span>
                         @endif
                     </div>
                     <div
@@ -1475,7 +1475,7 @@
                         data-has-thumbs="{{ count($galleryPhotos) > 1 ? '1' : '0' }}"
                     >
                         @foreach ($galleryPhotos as $i => $photo)
-                            <button type="button" class="{{ $i === 0 ? 'active' : '' }}" data-src="{{ asset('storage/' . $photo) }}" aria-label="Фото {{ $i + 1 }}">
+                            <button type="button" class="{{ $i === 0 ? 'active' : '' }}" data-src="{{ asset('storage/' . $photo) }}" aria-label="{{ __('shop.pdp_photo_aria', ['n' => $i + 1]) }}">
                                 <img src="{{ asset('storage/' . $photo) }}" alt="">
                             </button>
                         @endforeach
@@ -1486,30 +1486,53 @@
             @if ($listing->hasRichDescriptionSection())
                 <div class="product-desc">
                     @if ($listing->hasDisplayableShortDescription())
-                        <h2>Короткий опис</h2>
+                        <h2>{{ __('shop.pdp_short_heading') }}</h2>
                         <div class="product-desc__body">{!! $listing->safeShortDescriptionHtml() !!}</div>
                     @endif
                     @if ($listing->hasDisplayableDescription())
-                        <h2 style="margin-top:24px;">Опис</h2>
+                        <h2 style="margin-top:24px;">{{ __('shop.pdp_long_heading') }}</h2>
                         <div class="product-desc__body">{!! $listing->safeDescriptionHtml() !!}</div>
                     @endif
                 </div>
+            @endif
+
+            @if (($careArticles ?? collect())->isNotEmpty())
+                <section class="product-care-section" aria-labelledby="product-care-heading">
+                    <div class="product-care-section__head">
+                        <div>
+                            <h2 id="product-care-heading" class="product-care-section__title">{{ __('shop.pdp_care_section_title') }}</h2>
+                            <p class="product-care-section__lead">{{ __('shop.pdp_care_section_lead') }}</p>
+                        </div>
+                        <a class="btn secondary" href="{{ route('catalog.care.index', $listing->slug) }}">{{ __('shop.pdp_care_all') }}</a>
+                    </div>
+                    <div class="product-care-grid">
+                        @foreach ($careArticles->take(3) as $article)
+                            <a class="product-care-card" href="{{ route('catalog.care.show', [$listing->slug, $article->slug]) }}">
+                                <h3 class="product-care-card__title">{{ mt($article->title) }}</h3>
+                                @if (filled($article->excerpt))
+                                    <p class="product-care-card__excerpt">{{ mt($article->excerpt) }}</p>
+                                @endif
+                                <span class="product-care-card__more">{{ __('shop.pdp_care_read') }}</span>
+                            </a>
+                        @endforeach
+                    </div>
+                </section>
             @endif
         </div>
 
         <div class="product-detail-column">
             <div class="product-detail-card">
-                <h1 class="product-title">{{ $listing->title }}</h1>
+                <h1 class="product-title">{{ mt($listing->title) }}</h1>
 
             <div class="product-badges" id="product-stock-badges">
                 @if ($listingStockMode === 'preorder')
-                    <span class="badge pre">Передзамовлення</span>
+                    <span class="badge pre">{{ __('shop.pdp_badge_preorder') }}</span>
                 @elseif ($listingStockMode === 'low')
-                    <span class="badge low">Закінчується</span>
+                    <span class="badge low">{{ __('shop.pdp_badge_low') }}</span>
                 @elseif ($listingStockMode === 'ok')
-                    <span class="badge ok">В наявності</span>
+                    <span class="badge ok">{{ __('shop.pdp_badge_in_stock') }}</span>
                 @else
-                    <span class="badge no">Немає в наявності</span>
+                    <span class="badge no">{{ __('shop.pdp_badge_out_of_stock') }}</span>
                 @endif
             </div>
 
@@ -1523,12 +1546,12 @@
             </div>
             <p class="product-price-note" id="product-price-note" style="font-size:13px;color:#5f6368;margin:6px 0 0;"></p>
             @if (filled(trim((string) ($listing->sku ?? ''))))
-                <p class="product-sku">Артикул: {{ $listing->sku }}</p>
+                <p class="product-sku">{{ __('shop.pdp_sku', ['sku' => $listing->sku]) }}</p>
             @endif
 
             @if (count($optionBlocks))
                 <div id="product-options" class="product-options-panel" data-has-variants="0">
-                    <h2 class="product-options-heading">Опції</h2>
+                    <h2 class="product-options-heading">{{ __('shop.pdp_options_heading') }}</h2>
                     @foreach ($optionBlocks as $block)
                         @php
                             $rawDefault = $defaultOptionSelection[$block['id']] ?? null;
@@ -1618,8 +1641,8 @@
                     @endforeach
                 </div>
             @elseif (count($productOptionsDisplay))
-                <div class="product-options-readonly product-options-panel" id="product-options-readonly" aria-label="Опції товару">
-                    <h2 class="product-options-heading">Опції</h2>
+                <div class="product-options-readonly product-options-panel" id="product-options-readonly" aria-label="{{ __('shop.pdp_options_aria') }}">
+                    <h2 class="product-options-heading">{{ __('shop.pdp_options_heading') }}</h2>
                     @foreach ($productOptionsDisplay as $block)
                         @php
                             $roExclusiveVid = (int) ($block['exclusive_for_variant_id'] ?? 0);
@@ -1676,11 +1699,11 @@
                     @csrf
                     <input type="hidden" name="product_id" value="{{ $listing->id }}">
                     <input type="hidden" name="option_value_ids" value="[]" id="input-option-value-ids">
-                    <button class="btn-product" type="submit" id="product-add-btn">Додати в кошик</button>
+                    <button class="btn-product" type="submit" id="product-add-btn">{{ __('shop.pdp_add_to_cart') }}</button>
                 </form>
                 @if (($careArticles ?? collect())->isNotEmpty())
                     <a class="product-care-cta" href="{{ route('catalog.care.index', $listing->slug) }}">
-                        Поради по догляду
+                        {{ __('shop.pdp_care_cta') }}
                     </a>
                 @endif
                 <div class="product-card__like-react product-actions__favorite pdp-actions-like">
@@ -1689,7 +1712,7 @@
                         class="product-card__favorite product-actions__favorite-btn"
                         data-product-id="{{ $listing->id }}"
                         data-favorite-key="catalog"
-                        aria-label="Додати в обране"
+                        aria-label="{{ __('shop.pdp_favorite_aria') }}"
                         aria-pressed="false"
                     >
                         <svg
@@ -1727,17 +1750,15 @@
                         aria-modal="true"
                         aria-labelledby="pdp-defer-title"
                     >
-                        <p class="pdp-defer-modal__eyebrow" aria-hidden="true">Відкладена онлайн-оплата</p>
-                        <h2 id="pdp-defer-title" class="pdp-defer-modal__title">Звʼязок або оформлення на сайті</h2>
+                        <p class="pdp-defer-modal__eyebrow" aria-hidden="true">{{ __('shop.pdp_defer_eyebrow') }}</p>
+                        <h2 id="pdp-defer-title" class="pdp-defer-modal__title">{{ __('shop.pdp_defer_title') }}</h2>
                         <p class="pdp-defer-modal__lead">
-                            Для категорії цього товару діє відкладена онлайн-оплата: спочатку узгодження з менеджером.
-                            Можете написати в месенджер або продовжити додавання в кошик і оформити замовлення на сайті
-                            (онлайн-оплата зʼявиться після дозволу менеджера або оберіть накладений платіж).
+                            {{ __('shop.pdp_defer_lead') }}
                         </p>
                         @include('catalog.partials.pdp-defer-modal-contacts', ['items' => $pdpDeferModalContacts ?? []])
                         <div class="pdp-defer-modal__actions">
-                            <button type="button" class="pdp-defer-modal__btn pdp-defer-modal__btn--secondary" data-pdp-defer-close>Скасувати</button>
-                            <button type="button" class="pdp-defer-modal__btn pdp-defer-modal__btn--primary" data-pdp-defer-continue>Додати в кошик на сайті</button>
+                            <button type="button" class="pdp-defer-modal__btn pdp-defer-modal__btn--secondary" data-pdp-defer-close>{{ __('shop.pdp_defer_cancel') }}</button>
+                            <button type="button" class="pdp-defer-modal__btn pdp-defer-modal__btn--primary" data-pdp-defer-continue>{{ __('shop.pdp_defer_continue') }}</button>
                         </div>
                     </div>
                 </div>
@@ -1745,29 +1766,6 @@
             </div>
         </div>
     </div>
-
-    @if (($careArticles ?? collect())->isNotEmpty())
-        <section class="product-care-section" aria-labelledby="product-care-heading">
-            <div class="product-care-section__head">
-                <div>
-                    <h2 id="product-care-heading" class="product-care-section__title">Поради по догляду</h2>
-                    <p class="product-care-section__lead">Корисні статті, фото та відео для цього товару.</p>
-                </div>
-                <a class="btn secondary" href="{{ route('catalog.care.index', $listing->slug) }}">Усі поради</a>
-            </div>
-            <div class="product-care-grid">
-                @foreach ($careArticles->take(3) as $article)
-                    <a class="product-care-card" href="{{ route('catalog.care.show', [$listing->slug, $article->slug]) }}">
-                        <h3 class="product-care-card__title">{{ $article->title }}</h3>
-                        @if (filled($article->excerpt))
-                            <p class="product-care-card__excerpt">{{ $article->excerpt }}</p>
-                        @endif
-                        <span class="product-care-card__more">Читати</span>
-                    </a>
-                @endforeach
-            </div>
-        </section>
-    @endif
 
 @php
     $pdpRecommended = $recommendedProducts ?? collect();
@@ -1779,18 +1777,18 @@
         data-favorite-ids="{{ e(json_encode($favoriteProductIds ?? [])) }}"
         aria-labelledby="pdp-related-heading"
     >
-        <h2 id="pdp-related-heading" class="home-shop-panel__title">Схожі товари</h2>
+        <h2 id="pdp-related-heading" class="home-shop-panel__title">{{ __('shop.pdp_related') }}</h2>
         <div
             class="home-product-carousel"
             data-home-carousel
             role="region"
-            aria-roledescription="карусель"
+            aria-roledescription="{{ __('shop.aria_carousel') }}"
             aria-labelledby="pdp-related-heading"
         >
             <button
                 type="button"
                 class="home-product-carousel__btn home-product-carousel__btn--prev"
-                aria-label="Попередні товари"
+                aria-label="{{ __('shop.home_carousel_prev') }}"
             >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path d="M15 18l-6-6 6-6" />
@@ -1813,7 +1811,7 @@
             <button
                 type="button"
                 class="home-product-carousel__btn home-product-carousel__btn--next"
-                aria-label="Наступні товари"
+                aria-label="{{ __('shop.home_carousel_next') }}"
             >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <path d="M9 18l6-6-6-6" />

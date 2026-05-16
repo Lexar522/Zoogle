@@ -111,7 +111,7 @@ class ListingOptionSelectionService
                 ->get(['id', 'name', 'color_hex'])
                 ->map(fn (OptionValue $value): array => [
                     'id' => (int) $value->id,
-                    'name' => (string) $value->name,
+                    'name' => $this->mtLine((string) $value->name),
                     'price' => ListingOptionValuePrices::priceAddonForValue(
                         is_array($product->variant_options ?? null) ? $product->variant_options : [],
                         $gid,
@@ -129,7 +129,7 @@ class ListingOptionSelectionService
 
             $blocks[$gid] = [
                 'id' => $gid,
-                'name' => (string) ($group->name ?? ''),
+                'name' => $this->mtLine((string) ($group->name ?? '')),
                 'selection_mode' => (string) ($group->selection_mode ?? 'single'),
                 'value_type' => (string) ($group->value_type ?? 'text'),
                 'affects_variant_matching' => $this->optionGroupPinsAnyVisibleVariant($product, $gid, $categoryGroupId),
@@ -547,5 +547,15 @@ class ListingOptionSelectionService
         }
 
         return null;
+    }
+
+    private function mtLine(string $text): string
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return '';
+        }
+
+        return $text;
     }
 }

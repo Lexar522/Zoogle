@@ -1,6 +1,6 @@
 @extends('layouts.shop')
 
-@section('title', 'Замовлення '.$order->number.' — ZOOGLE')
+@section('title', __('shop.order_track_page_title', ['number' => $order->number]))
 @section('robots', 'noindex,follow')
 
 @push('styles')
@@ -360,7 +360,7 @@
         @include('orders.partials.summary', ['order' => $order])
 
         <div class="order-track__actions">
-            <a class="btn btn-buy" href="{{ route('catalog.index') }}">У каталог</a>
+            <a class="btn btn-buy" href="{{ route('catalog.index') }}">{{ __('shop.order_track_to_catalog') }}</a>
         </div>
     </div>
 @endsection

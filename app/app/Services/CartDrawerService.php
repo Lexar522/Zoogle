@@ -142,7 +142,7 @@ class CartDrawerService
                 return array_merge($line, [
                     'line_kind' => 'product',
                     'key' => $cartKey,
-                    'title' => $product->title,
+                    'title' => (string) $product->title,
                     'title_url' => route('catalog.show', $product->slug),
                     'photo' => $this->linePhotoPath($line, $optionDisplayItems),
                     'option_badges' => array_values(array_filter(
@@ -221,7 +221,7 @@ class CartDrawerService
             'option_badges' => [],
             'option_swatches' => [],
             'photo' => $bundle->firstCatalogPhotoPath(),
-            'title' => $bundle->title,
+            'title' => (string) $bundle->title,
             'title_url' => route('bundles.show', $bundle->slug),
             'bundle_items' => $bundleItems,
             'bundle_snapshot' => $this->makeBundleSnapshot($bundle, $bundleItems, $quote),

@@ -4,12 +4,12 @@
     @include('catalog.partials.category-filters', ['inHeader' => true])
 @endsection
 
-@section('title', $article->title.' — '.$listing->title.' — ZOOGLE')
-@section('meta_description', filled($article->excerpt) ? $article->excerpt : 'Порада по догляду для товару '.$listing->title.' у зоомагазині ZOOGLE.')
+@section('title', __('shop.care_article_page_title', ['article' => mt($article->title), 'product' => mt($listing->title)]))
+@section('meta_description', filled($article->excerpt) ? \Illuminate\Support\Str::limit(strip_tags(mt($article->excerpt)), 158) : __('shop.care_article_meta_fallback', ['product' => mt($listing->title)]))
 @section('canonical_url', route('catalog.care.show', [$listing->slug, $article->slug]))
 @section('og_type', 'article')
-@section('og_title', $article->title.' — '.$listing->title)
-@section('og_description', filled($article->excerpt) ? $article->excerpt : 'Корисна порада від ZOOGLE для догляду за домашнім улюбленцем.')
+@section('og_title', __('shop.care_article_og_title', ['article' => mt($article->title), 'product' => mt($listing->title)]))
+@section('og_description', filled($article->excerpt) ? \Illuminate\Support\Str::limit(strip_tags(mt($article->excerpt)), 158) : __('shop.care_article_og_description_fallback'))
 
 @push('styles')
 <style>
@@ -214,10 +214,10 @@
     <div class="care-article-page">
         <article class="care-article">
             <header class="care-article__hero">
-                <p class="care-article__eyebrow">{{ $listing->title }}</p>
-                <h1 class="care-article__title">{{ $article->title }}</h1>
+                <p class="care-article__eyebrow">{{ mt($listing->title) }}</p>
+                <h1 class="care-article__title">{{ mt($article->title) }}</h1>
                 @if (filled($article->excerpt))
-                    <p class="care-article__lead">{{ $article->excerpt }}</p>
+                    <p class="care-article__lead">{{ mt($article->excerpt) }}</p>
                 @endif
             </header>
             <div class="care-article__body">
@@ -238,7 +238,7 @@
                         class="care-sidebar__link @if ($row->is($article)) is-active @endif"
                         href="{{ route('catalog.care.show', [$listing->slug, $row->slug]) }}"
                     >
-                        {{ $row->title }}
+                        {{ mt($row->title) }}
                     </a>
                 @endforeach
             </div>

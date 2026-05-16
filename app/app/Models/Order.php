@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\OnlinePaymentSettings;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,7 +17,7 @@ class Order extends Model
     /**
      * Замовлення, які має бачити користувач у кабінеті: свої за user_id або гостьові з тим самим e-mail.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<Order>  $query
+     * @param  Builder<Order>  $query
      */
     public function scopeForAccountUser($query, User $user): void
     {
@@ -98,12 +99,12 @@ class Order extends Model
     public static function statusLabels(): array
     {
         return [
-            self::STATUS_NEW => 'Нове',
-            self::STATUS_PAID => 'Оплачено (очікує відправки)',
-            self::STATUS_PROCESSING => 'В обробці',
-            self::STATUS_SHIPPED => 'Відправлено',
-            self::STATUS_COMPLETED => 'Завершено',
-            self::STATUS_CANCELLED => 'Скасовано',
+            self::STATUS_NEW => __('shop.order_status_new'),
+            self::STATUS_PAID => __('shop.order_status_paid'),
+            self::STATUS_PROCESSING => __('shop.order_status_processing'),
+            self::STATUS_SHIPPED => __('shop.order_status_shipped'),
+            self::STATUS_COMPLETED => __('shop.order_status_completed'),
+            self::STATUS_CANCELLED => __('shop.order_status_cancelled'),
         ];
     }
 
@@ -111,10 +112,10 @@ class Order extends Model
     public static function paymentStatusLabels(): array
     {
         return [
-            'pending' => 'Очікує оплату',
-            'partial' => 'Частково сплачено (онлайн)',
-            'paid' => 'Оплачено',
-            'failed' => 'Помилка оплати',
+            'pending' => __('shop.order_payment_pending'),
+            'partial' => __('shop.order_payment_partial'),
+            'paid' => __('shop.order_payment_paid'),
+            'failed' => __('shop.order_payment_failed'),
         ];
     }
 
@@ -169,12 +170,12 @@ class Order extends Model
     public static function deliveryTypeLabels(): array
     {
         return [
-            self::DELIVERY_PICKUP => 'Самовивіз',
-            self::DELIVERY_NOVA_POSHTA_WAREHOUSE => 'Нова Пошта — доставка у відділення',
-            self::DELIVERY_NOVA_POSHTA_COURIER => "Нова Пошта — доставка кур'єром",
-            self::DELIVERY_NOVA_POSHTA_LOCKER => 'Нова Пошта — доставка в поштомат',
-            self::DELIVERY_NOVA_POSHTA => 'Нова Пошта (застаріле)',
-            self::DELIVERY_COURIER => "Кур'єр (застаріле)",
+            self::DELIVERY_PICKUP => __('shop.order_delivery_pickup'),
+            self::DELIVERY_NOVA_POSHTA_WAREHOUSE => __('shop.order_delivery_np_warehouse'),
+            self::DELIVERY_NOVA_POSHTA_COURIER => __('shop.order_delivery_np_courier'),
+            self::DELIVERY_NOVA_POSHTA_LOCKER => __('shop.order_delivery_np_locker'),
+            self::DELIVERY_NOVA_POSHTA => __('shop.order_delivery_np_legacy'),
+            self::DELIVERY_COURIER => __('shop.order_delivery_courier_legacy'),
         ];
     }
 
@@ -196,20 +197,20 @@ class Order extends Model
             && $this->checkout_payment_method === 'online'
             && $this->immediate_portion_paid_at === null
             && $this->effectiveImmediateSubtotal() > 0.00001) {
-            return 'Онлайн: спочатку оплатіть частину за аксесуари (посилання з сторінки після оформлення)';
+            return __('shop.order_deferred_mixed_online_first');
         }
         if ($this->checkout_payment_method === 'cod' && $this->mixed_payment_plan) {
-            return 'Тварин: накладний платіж (вся сума при отриманні)';
+            return __('shop.order_deferred_mixed_cod_animals');
         }
         if ($this->online_payment_unlocked_at !== null) {
             if ((float) $this->effectiveDeferredSubtotal() > 0) {
-                return 'Онлайн: можна доплатити за тварин';
+                return __('shop.order_deferred_online_can_pay_animals');
             }
 
-            return 'Онлайн: дозволено';
+            return __('shop.order_deferred_online_allowed');
         }
 
-        return 'Онлайн: очікує дозволу (тварини)';
+        return __('shop.order_deferred_online_pending_animals');
     }
 
     /**

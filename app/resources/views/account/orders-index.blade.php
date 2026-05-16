@@ -1,20 +1,20 @@
 @extends('account.layout')
 
-@section('title', 'Мої замовлення — ZOOGLE')
+@section('title', __('shop.account_page_title_orders'))
 
 @section('account_content')
     @php
         $payFilter = $ordersPaymentFilter ?? 'all';
         $tabs = [
-            'all' => 'Усі',
-            'deferred_pending' => 'Очікують дозволу',
-            'deferred_ready' => 'Можна оплатити',
+            'all' => __('shop.account_orders_tab_all'),
+            'deferred_pending' => __('shop.account_orders_tab_deferred_pending'),
+            'deferred_ready' => __('shop.account_orders_tab_deferred_ready'),
         ];
     @endphp
     <section class="account-card account-orders-index">
         <div class="account-orders-index__head">
-            <h1 class="account-orders-index__title">Мої замовлення</h1>
-            <nav class="account-orders-tabs" aria-label="Фільтр за оплатою">
+            <h1 class="account-orders-index__title">{{ __('shop.account_orders_h1') }}</h1>
+            <nav class="account-orders-tabs" aria-label="{{ __('shop.account_orders_tabs_aria') }}">
                 @foreach ($tabs as $key => $label)
                     @php
                         $isActive = $payFilter === $key;
@@ -51,16 +51,16 @@
                 <article class="account-order-card {{ $canPay ? 'account-order-card--payable' : '' }}">
                     <div class="account-order-card__main">
                         <a class="account-order-card__number" href="{{ route('account.orders.show', $order) }}">{{ $order->number }}</a>
-                        <div class="account-order-card__date">{{ $order->placed_at?->format('d.m.Y H:i') ?? 'Дата не вказана' }}</div>
+                        <div class="account-order-card__date">{{ $order->placed_at?->format('d.m.Y H:i') ?? __('shop.account_order_date_missing') }}</div>
                     </div>
 
                     <div class="account-order-card__amount">
-                        <span class="account-order-card__label">Сума</span>
+                        <span class="account-order-card__label">{{ __('shop.account_order_card_total') }}</span>
                         <span class="account-order-card__sum">{{ number_format((float) $order->total, 2, ',', ' ') }} UAH</span>
                     </div>
 
                     <div class="account-order-card__state">
-                        <span class="account-order-card__label">Стан</span>
+                        <span class="account-order-card__label">{{ __('shop.account_order_card_state') }}</span>
                         <div class="account-order-card__badges">
                             <span class="account-order-badge account-order-badge--{{ $statusTone }}">{{ $order->statusLabel() }}</span>
                             <span class="account-order-badge account-order-badge--{{ $paymentTone }}">{{ $order->paymentStatusLabel() }}</span>
@@ -75,13 +75,13 @@
 
                     <div class="account-order-card__actions">
                         @if ($canPay)
-                            <a class="btn btn-buy" href="{{ route('account.orders.payment', $order) }}">Оплатити</a>
+                            <a class="btn btn-buy" href="{{ route('account.orders.payment', $order) }}">{{ __('shop.account_order_pay') }}</a>
                         @endif
-                        <a class="account-order-card__open" href="{{ route('account.orders.show', $order) }}">Деталі</a>
+                        <a class="account-order-card__open" href="{{ route('account.orders.show', $order) }}">{{ __('shop.account_order_open') }}</a>
                     </div>
                 </article>
             @empty
-                <p class="account-empty" style="margin:0;">Поки що порожньо.</p>
+                <p class="account-empty" style="margin:0;">{{ __('shop.account_orders_empty') }}</p>
             @endforelse
         </div>
 

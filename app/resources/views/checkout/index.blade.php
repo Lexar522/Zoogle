@@ -1,6 +1,6 @@
 @extends('layouts.shop')
 
-@section('title', 'Оформлення замовлення — ZOOGLE')
+@section('title', __('shop.checkout_page_title'))
 @section('robots', 'noindex,follow')
 
 @php
@@ -718,33 +718,33 @@
 @section('content')
     <div class="checkout-page">
         <header class="checkout-page__toolbar">
-            <h1 class="checkout-page__title">Оформлення замовлення</h1>
-            <p class="checkout-page__lead">Перевірте склад замовлення та вкажіть контакт, доставку та спосіб оплати.</p>
+            <h1 class="checkout-page__title">{{ __('shop.checkout_title') }}</h1>
+            <p class="checkout-page__lead">{{ __('shop.checkout_lead') }}</p>
         </header>
 
         <section class="card" aria-labelledby="checkout-items-heading">
-            <h2 id="checkout-items-heading" class="checkout-page__section-heading">Ваше замовлення</h2>
+            <h2 id="checkout-items-heading" class="checkout-page__section-heading">{{ __('shop.checkout_your_order') }}</h2>
             <div class="cart-drawer__lines">
                 @foreach ($items as $item)
                     @include('cart.partials.line-checkout', ['item' => $item])
                 @endforeach
             </div>
-            <p class="checkout-page__total">Разом: {{ number_format((float) $total, 2, ',', ' ') }} ₴</p>
+            <p class="checkout-page__total">{{ __('shop.checkout_total') }} {{ number_format((float) $total, 2, ',', ' ') }} ₴</p>
         </section>
 
         <form class="checkout-page__form checkout-page__form--blocks" method="POST" action="{{ route('checkout.store') }}" id="checkout-form">
                 @csrf
 
         <section class="card" aria-labelledby="checkout-contact-heading">
-            <h2 id="checkout-contact-heading" class="checkout-page__section-heading">Контактна інформація</h2>
+            <h2 id="checkout-contact-heading" class="checkout-page__section-heading">{{ __('shop.checkout_contact') }}</h2>
                 <div class="checkout-contact-grid">
                     <div>
-                        <label for="customer_name">Прізвище та імʼя</label>
+                        <label for="customer_name">{{ __('shop.checkout_name_label') }}</label>
                         <input id="customer_name" name="customer_name" value="{{ old('customer_name', $checkoutPrefill['customer_name'] ?? '') }}" required autocomplete="name">
                         @error('customer_name') <p class="alert error">{{ $message }}</p> @enderror
                     </div>
                     <div>
-                        <label for="customer_phone">Телефон</label>
+                        <label for="customer_phone">{{ __('shop.checkout_phone_label') }}</label>
                         <input id="customer_phone" name="customer_phone" value="{{ old('customer_phone', $checkoutPrefill['customer_phone'] ?? '') }}" required autocomplete="tel">
                         @error('customer_phone') <p class="alert error">{{ $message }}</p> @enderror
                     </div>
@@ -757,24 +757,24 @@
         </section>
 
         <div class="checkout-delivery-section">
-            <h2 id="checkout-delivery-heading" class="checkout-page__section-heading">Доставка</h2>
+            <h2 id="checkout-delivery-heading" class="checkout-page__section-heading">{{ __('shop.checkout_delivery') }}</h2>
             @if ($categoryRequiresPickupOnly)
                 <p class="muted" style="margin:0 0 0.75rem;line-height:1.5;font-size:0.95rem;">
-                    У кошику є товари з категорії, яку можна отримати лише <strong>самовивозом з магазину</strong> (відправка Новою Поштою недоступна).
+                    {!! __('shop.checkout_delivery_pickup_only') !!}
                 </p>
             @endif
 
             <div class="checkout-delivery-row" id="checkout-delivery-row">
-                <section class="card checkout-delivery__card checkout-delivery__card--info" aria-label="Спосіб доставки та адреса">
+                <section class="card checkout-delivery__card checkout-delivery__card--info" aria-label="{{ __('shop.checkout_delivery_card_aria') }}">
                 <div class="checkout-delivery__main">
                     <div>
-                        <label for="delivery_type">Спосіб доставки</label>
+                        <label for="delivery_type">{{ __('shop.checkout_delivery_type') }}</label>
                         @php($dt = $deliveryTypeCurrent)
                         <select id="delivery_type" name="delivery_type" required @if($categoryRequiresPickupOnly) class="checkout-delivery-type--locked" aria-readonly="true" @endif>
-                            <option value="{{ \App\Models\Order::DELIVERY_PICKUP }}" @selected($dt === \App\Models\Order::DELIVERY_PICKUP)>Самовивіз</option>
+                            <option value="{{ \App\Models\Order::DELIVERY_PICKUP }}" @selected($dt === \App\Models\Order::DELIVERY_PICKUP)>{{ __('shop.checkout_delivery_pickup') }}</option>
                             @unless ($categoryRequiresPickupOnly)
-                                <option value="{{ \App\Models\Order::DELIVERY_NOVA_POSHTA_WAREHOUSE }}" @selected($dt === \App\Models\Order::DELIVERY_NOVA_POSHTA_WAREHOUSE)>Нова Пошта — відділення</option>
-                                <option value="{{ \App\Models\Order::DELIVERY_NOVA_POSHTA_COURIER }}" @selected($dt === \App\Models\Order::DELIVERY_NOVA_POSHTA_COURIER)>Нова Пошта — кур’єр до адреси</option>
+                                <option value="{{ \App\Models\Order::DELIVERY_NOVA_POSHTA_WAREHOUSE }}" @selected($dt === \App\Models\Order::DELIVERY_NOVA_POSHTA_WAREHOUSE)>{{ __('shop.checkout_delivery_np_wh') }}</option>
+                                <option value="{{ \App\Models\Order::DELIVERY_NOVA_POSHTA_COURIER }}" @selected($dt === \App\Models\Order::DELIVERY_NOVA_POSHTA_COURIER)>{{ __('shop.checkout_delivery_np_courier') }}</option>
                             @endunless
                         </select>
                         @error('delivery_type') <p class="alert error">{{ $message }}</p> @enderror
@@ -782,11 +782,11 @@
 
                     <div id="pickup-block" class="pickup-delivery" hidden>
                         <div class="np-field">
-                            <p style="margin:0 0 0.35rem;font-weight:700;">Самовивіз</p>
+                            <p style="margin:0 0 0.35rem;font-weight:700;">{{ __('shop.checkout_pickup_title') }}</p>
                             @if (filled($pickupDisplay['address'] ?? null))
                                 <p style="margin:0;line-height:1.5;">{{ $pickupDisplay['address'] }}</p>
                             @else
-                                <p class="muted" style="margin:0;line-height:1.5;">Точну адресу пункту видачі повідомить менеджер після оформлення.</p>
+                                <p class="muted" style="margin:0;line-height:1.5;">{{ __('shop.checkout_pickup_hint') }}</p>
                             @endif
                         </div>
                     </div>
@@ -794,23 +794,23 @@
                     <div id="np-block" class="np-delivery" hidden>
                         @unless ($novaPoshtaConfigured)
                             <p class="muted" style="margin:0 0 1rem;font-size:0.92rem;line-height:1.5;">
-                                Автоматичний список міст і відділень з Нової Пошти працює лише з ключем API (НП видає його безкоштовно в особистому кабінеті на novaposhta.ua — це не обов’язково «бізнес-кабінет»).
-                                <strong>Якщо ключа немає</strong>, введіть місто та відділення або адресу кур’єра вручну — цього достатньо для доставки.
+                                {{ __('shop.checkout_np_api_hint') }}
+                                {!! __('shop.checkout_np_manual_hint') !!}
                             </p>
                         @endunless
 
                         @if ($novaPoshtaConfigured)
                             <div class="np-checkout-form-col">
                                 <div class="np-field">
-                                    <label for="np_region_select">Область</label>
+                                    <label for="np_region_select">{{ __('shop.checkout_region') }}</label>
                                     <select id="np_region_select" autocomplete="address-level1">
-                                        <option value="">Завантаження…</option>
+                                        <option value="">{{ __('shop.checkout_loading') }}</option>
                                     </select>
                                 </div>
                                 <div class="np-field">
-                                    <label for="np_city_select">Місто</label>
+                                    <label for="np_city_select">{{ __('shop.checkout_city') }}</label>
                                     <select id="np_city_select" autocomplete="address-level2" disabled>
-                                        <option value="">Спочатку оберіть область…</option>
+                                        <option value="">{{ __('shop.checkout_region_first') }}</option>
                                     </select>
                                     <input type="hidden" name="delivery_city" id="delivery_city" value="{{ old('delivery_city') }}">
                                     <input type="hidden" name="delivery_city_ref" id="delivery_city_ref" value="{{ old('delivery_city_ref') }}">
@@ -819,9 +819,9 @@
                                 </div>
 
                                 <div id="np-wh-block" class="np-field">
-                                    <label for="np_warehouse_select">Відділення</label>
+                                    <label for="np_warehouse_select">{{ __('shop.checkout_warehouse') }}</label>
                                     <select id="np_warehouse_select">
-                                        <option value="">Спочатку оберіть місто…</option>
+                                        <option value="">{{ __('shop.checkout_city_first') }}</option>
                                     </select>
                                     <input type="hidden" name="delivery_branch" id="delivery_branch" value="{{ old('delivery_branch') }}">
                                     <input type="hidden" name="delivery_warehouse_ref" id="delivery_warehouse_ref" value="{{ old('delivery_warehouse_ref') }}">
@@ -830,24 +830,24 @@
                                 </div>
 
                                 <div id="np-courier-address-block" class="np-field" hidden>
-                                    <label for="delivery_address_courier">Адреса доставки <span class="muted">(вулиця, будинок, під’їзд, поверх)</span></label>
-                                    <textarea id="delivery_address_courier" name="delivery_address" rows="3" placeholder="Наприклад: вул. Хрещатик, 1, під’їзд 2, кв. 5">{{ old('delivery_address') }}</textarea>
-                                    <button type="button" class="btn secondary np-courier-geocode-btn" id="courier-geocode-btn">Знайти за адресою</button>
+                                    <label for="delivery_address_courier">{!! __('shop.checkout_address_courier') !!}</label>
+                                    <textarea id="delivery_address_courier" name="delivery_address" rows="3" placeholder="{{ __('shop.checkout_address_placeholder') }}">{{ old('delivery_address') }}</textarea>
+                                    <button type="button" class="btn secondary np-courier-geocode-btn" id="courier-geocode-btn">{{ __('shop.checkout_geocode_btn') }}</button>
                                     @error('delivery_address') <p class="alert error">{{ $message }}</p> @enderror
                                 </div>
                             </div>
                         @else
                             <div id="np-manual-city-block" class="np-field" hidden>
-                                <label for="delivery_city_manual">Місто <span class="muted">(обов’язково)</span></label>
-                                <input type="text" name="delivery_city" id="delivery_city_manual" value="{{ old('delivery_city') }}" placeholder="Місто">
+                                <label for="delivery_city_manual">{!! __('shop.checkout_city_required') !!}</label>
+                                <input type="text" name="delivery_city" id="delivery_city_manual" value="{{ old('delivery_city') }}" placeholder="{{ __('shop.checkout_city_placeholder') }}">
                                 <input type="hidden" name="delivery_city_ref" id="delivery_city_ref_manual" value="{{ old('delivery_city_ref') }}">
                                 @error('delivery_city') <p class="alert error">{{ $message }}</p> @enderror
                                 @error('delivery_city_ref') <p class="alert error">{{ $message }}</p> @enderror
                             </div>
 
                             <div id="np-manual-warehouse-block" class="np-field" hidden>
-                                <label for="delivery_branch_manual">Відділення <span class="muted">(обов’язково)</span></label>
-                                <input type="text" name="delivery_branch" id="delivery_branch_manual" value="{{ old('delivery_branch') }}" placeholder="Наприклад: відділення № 12, вул. Хрещатик, 1">
+                                <label for="delivery_branch_manual">{!! __('shop.checkout_branch_required') !!}</label>
+                                <input type="text" name="delivery_branch" id="delivery_branch_manual" value="{{ old('delivery_branch') }}" placeholder="{{ __('shop.checkout_branch_placeholder') }}">
                                 <input type="hidden" name="delivery_warehouse_ref" id="delivery_warehouse_ref_manual" value="{{ old('delivery_warehouse_ref') }}">
                                 @error('delivery_branch') <p class="alert error">{{ $message }}</p> @enderror
                                 @error('delivery_warehouse_ref') <p class="alert error">{{ $message }}</p> @enderror
@@ -855,9 +855,9 @@
 
                             <div id="np-manual-courier-block" hidden>
                                 <div class="np-field">
-                                    <label for="delivery_address_manual">Адреса доставки кур’єром <span class="muted">(обов’язково)</span></label>
-                                    <textarea name="delivery_address" id="delivery_address_manual" rows="3" placeholder="Вулиця, будинок, під’їзд, поверх">{{ old('delivery_address') }}</textarea>
-                                    <button type="button" class="btn secondary np-courier-geocode-btn" id="courier-geocode-btn-manual">Знайти за адресою</button>
+                                    <label for="delivery_address_manual">{!! __('shop.checkout_address_manual') !!}</label>
+                                    <textarea name="delivery_address" id="delivery_address_manual" rows="3" placeholder="{{ __('shop.checkout_address_manual_placeholder') }}">{{ old('delivery_address') }}</textarea>
+                                    <button type="button" class="btn secondary np-courier-geocode-btn" id="courier-geocode-btn-manual">{{ __('shop.checkout_geocode_btn') }}</button>
                                     @error('delivery_address') <p class="alert error">{{ $message }}</p> @enderror
                                 </div>
                             </div>
@@ -871,38 +871,38 @@
                 @error('delivery_lng') <p class="alert error">{{ $message }}</p> @enderror
 
                 <div>
-                    <label for="customer_notes">Примітки до доставки</label>
+                    <label for="customer_notes">{{ __('shop.checkout_notes_label') }}</label>
                     <textarea id="customer_notes" name="customer_notes" rows="2">{{ old('customer_notes') }}</textarea>
                     @error('customer_notes') <p class="alert error">{{ $message }}</p> @enderror
                 </div>
                 </section>
 
                 <section id="checkout-delivery-map-card" class="card checkout-delivery__card checkout-delivery__card--map" aria-labelledby="checkout-delivery-map-title" hidden>
-                    <h3 id="checkout-delivery-map-title" class="checkout-delivery__map-heading">Карта доставки</h3>
+                    <h3 id="checkout-delivery-map-title" class="checkout-delivery__map-heading">{{ __('shop.checkout_map_delivery') }}</h3>
                     <div id="checkout-delivery-map-column" class="checkout-delivery__maps-inner">
                     @if ($pickupHasMap)
                         <div id="pickup-map-panel" class="checkout-delivery__map-panel np-checkout-map-col" @unless($showPickupMapPanel) hidden @endunless>
-                            <p class="np-map-caption muted">Як нас знайти</p>
-                            <div id="pickup-map" class="np-map" role="region" aria-label="Карта пункту самовивозу"></div>
+                            <p class="np-map-caption muted">{{ __('shop.checkout_map_how_find') }}</p>
+                            <div id="pickup-map" class="np-map" role="region" aria-label="{{ __('shop.checkout_map_pickup_aria') }}"></div>
                         </div>
                     @endif
 
                     @if ($novaPoshtaConfigured)
                         <div id="np-map-column" class="np-checkout-map-col" @unless($showNpWarehouseMap) hidden @endunless>
-                            <p class="np-map-caption muted">Відділення Нової Пошти на карті</p>
-                            <div id="np-map" class="np-map" role="region" aria-label="Карта відділень Нової Пошти"></div>
+                            <p class="np-map-caption muted">{{ __('shop.checkout_caption_np_map') }}</p>
+                            <div id="np-map" class="np-map" role="region" aria-label="{{ __('shop.checkout_map_np_aria') }}"></div>
                         </div>
                         <div id="np-courier-map-column" class="np-checkout-map-col" @unless($showNpCourierMapApi) hidden @endunless>
-                            <p class="np-map-caption muted">Адреса доставки на карті</p>
-                            <div id="courier-map" class="np-map" role="region" aria-label="Карта адреси кур’єра"></div>
-                            <p class="muted" style="font-size:0.86rem;line-height:1.45;margin:0.5rem 0 0;">Перетягніть мітку або клацніть по карті. Пошук за текстом — кнопка ліворуч від карти.</p>
+                            <p class="np-map-caption muted">{{ __('shop.checkout_caption_courier_map') }}</p>
+                            <div id="courier-map" class="np-map" role="region" aria-label="{{ __('shop.checkout_map_courier_aria') }}"></div>
+                            <p class="muted" style="font-size:0.86rem;line-height:1.45;margin:0.5rem 0 0;">{{ __('shop.checkout_map_drag_hint') }}</p>
                         </div>
                     @endif
                     @unless ($novaPoshtaConfigured)
                         <div id="np-courier-map-column-manual" class="np-checkout-map-col" @unless($showNpCourierMapManual) hidden @endunless>
-                            <p class="np-map-caption muted">Адреса на карті</p>
-                            <div id="courier-map-manual" class="np-map" role="region" aria-label="Карта адреси кур’єра"></div>
-                            <p class="muted" style="font-size:0.86rem;line-height:1.45;margin:0.5rem 0 0;">Перетягніть мітку або клацніть по карті. Пошук за текстом — кнопка ліворуч від карти.</p>
+                            <p class="np-map-caption muted">{{ __('shop.checkout_caption_address_map') }}</p>
+                            <div id="courier-map-manual" class="np-map" role="region" aria-label="{{ __('shop.checkout_map_address_aria') }}"></div>
+                            <p class="muted" style="font-size:0.86rem;line-height:1.45;margin:0.5rem 0 0;">{{ __('shop.checkout_map_drag_hint') }}</p>
                         </div>
                     @endunless
                     </div>
@@ -911,58 +911,58 @@
         </div>
 
         <section class="card" aria-labelledby="checkout-payment-heading">
-            <h2 id="checkout-payment-heading" class="checkout-page__section-heading">Спосіб оплати</h2>
+            <h2 id="checkout-payment-heading" class="checkout-page__section-heading">{{ __('shop.checkout_payment') }}</h2>
             @if ($checkoutPaymentIsMixed)
                 <p class="muted" style="margin:0 0 0.75rem;line-height:1.5;font-size:0.95rem;">
-                    У замовленні є позиції з оплатою «зараз» та позиції (наприклад, тварини), для яких онлайн-доплата буде <strong>після узгодження з менеджером</strong>.
-                    Якщо обираєте картку зараз — списується лише сума за частину без відкладеної категорії; решту можна сплатити онлайн після дозволу або накладним платежем за домовленістю.
+                    {!! __('shop.checkout_payment_split') !!}
+                    {!! __('shop.checkout_payment_split_2') !!}
                 </p>
             @elseif ($categoryDefersOnlinePayment)
                 <p class="muted" style="margin:0 0 0.75rem;line-height:1.5;font-size:0.95rem;">
-                    Онлайн-оплата карткою для цього замовлення буде доступна <strong>після узгодження з менеджером</strong> (зв’яжіться з нами або очікуйте дзвінок). Зараз можна обрати оплату при отриманні в магазині.
+                    {!! __('shop.checkout_payment_defer') !!}
                 </p>
             @endif
                 @if ($allowsOnlineAtCheckout)
                     <div class="checkout-payment-buttons" role="radiogroup" aria-labelledby="checkout-payment-heading">
                         <label class="checkout-payment-btn">
                             <input class="visually-hidden" type="radio" name="payment_method" value="cod" @checked($pmOld === 'cod') required>
-                            <span class="checkout-payment-btn__inner">При отриманні</span>
+                            <span class="checkout-payment-btn__inner">{{ __('shop.checkout_pay_cod') }}</span>
                         </label>
                         <label class="checkout-payment-btn">
                             <input class="visually-hidden" type="radio" name="payment_method" value="online" @checked($pmOld === 'online')>
-                            <span class="checkout-payment-btn__inner">Карткою онлайн</span>
+                            <span class="checkout-payment-btn__inner">{{ __('shop.checkout_pay_card') }}</span>
                         </label>
                     </div>
                 @elseif ($liqPayConfigured && $categoryDefersOnlinePayment && ! $checkoutPaymentIsMixed)
                     <input type="hidden" name="payment_method" value="cod">
                     <div class="checkout-payment-buttons" aria-labelledby="checkout-payment-heading">
                         <div class="checkout-payment-btn checkout-payment-btn--readonly" aria-current="true">
-                            <span class="checkout-payment-btn__inner">При отриманні</span>
+                            <span class="checkout-payment-btn__inner">{{ __('shop.checkout_pay_cod') }}</span>
                         </div>
                     </div>
                 @else
                     <input type="hidden" name="payment_method" value="cod">
                     <div class="checkout-payment-buttons" aria-labelledby="checkout-payment-heading">
                         <div class="checkout-payment-btn checkout-payment-btn--readonly" aria-current="true">
-                            <span class="checkout-payment-btn__inner">При отриманні</span>
+                            <span class="checkout-payment-btn__inner">{{ __('shop.checkout_pay_cod') }}</span>
                         </div>
                     </div>
-                    <p class="muted" style="margin:0.75rem 0 0;line-height:1.5;font-size:0.92rem;">Онлайн-оплата з’явиться після підключення в Інтеграціях (LiqPay або WayForPay).</p>
+                    <p class="muted" style="margin:0.75rem 0 0;line-height:1.5;font-size:0.92rem;">{{ __('shop.checkout_pay_online_hint') }}</p>
                 @endif
                 @error('payment_method') <p class="alert error">{{ $message }}</p> @enderror
         </section>
 
         <section class="card" aria-labelledby="checkout-comment-heading">
-            <h2 id="checkout-comment-heading" class="checkout-page__section-heading">Коментар до замовлення</h2>
+            <h2 id="checkout-comment-heading" class="checkout-page__section-heading">{{ __('shop.checkout_comment') }}</h2>
                 <div>
-                    <label for="comment">Коментар</label>
+                    <label for="comment">{{ __('shop.checkout_comment_label') }}</label>
                     <textarea id="comment" name="comment" rows="4">{{ old('comment') }}</textarea>
                     @error('comment') <p class="alert error">{{ $message }}</p> @enderror
                 </div>
         </section>
 
                 <div class="checkout-page__submit">
-                    <button class="btn btn-buy" type="submit">Підтвердити замовлення</button>
+                    <button class="btn btn-buy" type="submit">{{ __('shop.checkout_submit') }}</button>
                 </div>
         </form>
     </div>
@@ -971,6 +971,7 @@
         <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
         <script>
             (function () {
+                var T = (typeof window !== 'undefined' && window.__SHOP) ? window.__SHOP : {};
                 var cfg = {
                     npEnabled: {{ $novaPoshtaConfigured ? 'true' : 'false' }},
                     useGoogleMaps: {{ $checkoutUseGoogleMaps ? 'true' : 'false' }},
@@ -1124,15 +1125,15 @@
                         '<div class="np-map-wh-popup">' +
                         '<div class="np-map-wh-popup__card">' +
                         '<div class="np-map-wh-popup__accent" aria-hidden="true"></div>' +
-                        '<button type="button" class="np-map-wh-popup__close" aria-label="Закрити">&times;</button>' +
+                        '<button type="button" class="np-map-wh-popup__close" aria-label="' + (T.js_close || 'Закрити') + '">&times;</button>' +
                         '<div class="np-map-wh-popup__top">' +
-                        '<span class="np-map-wh-popup__brand">Доставка</span>' +
-                        '<span class="np-map-wh-popup__heading">Адреса на карті</span>' +
+                        '<span class="np-map-wh-popup__brand">' + (T.js_delivery || 'Доставка') + '</span>' +
+                        '<span class="np-map-wh-popup__heading">' + (T.js_address_on_map || 'Адреса на карті') + '</span>' +
                         '</div>' +
                         '<div class="np-map-wh-popup__body">' +
                         '<p class="np-map-wh-popup__name">' + npEscapeHtml(body) + '</p>' +
                         '</div>' +
-                        '<p class="np-map-wh-popup__hint">Перетягніть мітку або клацніть на карті</p>' +
+                        '<p class="np-map-wh-popup__hint">' + (T.js_map_drag_hint || 'Перетягніть мітку або клацніть на карті') + '</p>' +
                         '</div>' +
                         '</div>'
                     );
@@ -1178,18 +1179,18 @@
                                     if (ta) ta.value = j.address;
                                     courierOpenMapPopup(j.address);
                                 } else {
-                                    courierOpenMapPopup(getCourierPopupLine() || 'Не вдалося визначити адресу.');
+                                    courierOpenMapPopup(getCourierPopupLine() || (T.js_address_fail || 'Не вдалося визначити адресу.'));
                                 }
                             })
                             .catch(function () {
-                                courierOpenMapPopup(getCourierPopupLine() || 'Не вдалося визначити адресу.');
+                                courierOpenMapPopup(getCourierPopupLine() || (T.js_address_fail || 'Не вдалося визначити адресу.'));
                             });
                     }, 200);
                 }
 
                 function setCourierCoordsAndSyncAddress(lat, lng) {
                     setCourierHidden(lat, lng);
-                    courierOpenMapPopup('Уточнюємо адресу…');
+                    courierOpenMapPopup(T.js_address_resolving || 'Уточнюємо адресу…');
                     fillCourierAddressFromCoords(lat, lng);
                 }
 
@@ -1452,7 +1453,7 @@
                                     var msg = (j && j.message) ? String(j.message) : '';
                                     var text = raw || msg || ('HTTP ' + r.status);
                                     if (raw === 'API key incorrect' || /key incorrect/i.test(text)) {
-                                        text = 'Некоректний ключ API Нової Пошти. Відкрийте адмінку → Налаштування → Інтеграції та вставте повний ключ UUID з кабінету Нової Пошти.';
+                                        text = T.js_np_key_invalid || 'Некоректний ключ API Нової Пошти. Відкрийте адмінку → Налаштування → Інтеграції та вставте повний ключ UUID з кабінету Нової Пошти.';
                                     }
                                     throw new Error(text);
                                 }
@@ -1461,7 +1462,7 @@
                         })
                         .then(function (j) {
                             var rows = (j && j.data) ? j.data : [];
-                            regionSelect.innerHTML = '<option value="">Оберіть область…</option>';
+                            regionSelect.innerHTML = '<option value="">' + (T.js_select_region || 'Оберіть область…') + '</option>';
                             rows.forEach(function (row) {
                                 var opt = document.createElement('option');
                                 opt.value = row.ref;
@@ -1476,7 +1477,7 @@
                         })
                         .catch(function (err) {
                             areasLoading = false;
-                            var hint = (err && err.message) ? String(err.message) : 'Не вдалося завантажити області';
+                            var hint = (err && err.message) ? String(err.message) : (T.js_regions_load_fail || 'Не вдалося завантажити області');
                             regionSelect.innerHTML = '';
                             var optErr = document.createElement('option');
                             optErr.value = '';
@@ -1493,7 +1494,7 @@
                         if (afterLoad) afterLoad();
                         return;
                     }
-                    citySelect.innerHTML = '<option value="">Завантаження…</option>';
+                    citySelect.innerHTML = '<option value="">' + (T.checkout_loading || 'Завантаження…') + '</option>';
                     citySelect.disabled = true;
                     syncNpFieldLock();
                     fetch(cfg.citiesByAreaUrl + '?area_ref=' + encodeURIComponent(areaRef), { credentials: 'same-origin' })
@@ -1506,7 +1507,7 @@
                         .then(function (j) {
                             var rows = (j && j.data) ? j.data : [];
                             window.__npCityRows = rows;
-                            citySelect.innerHTML = '<option value="">Оберіть місто…</option>';
+                            citySelect.innerHTML = '<option value="">' + (T.js_select_city || 'Оберіть місто…') + '</option>';
                             rows.forEach(function (row) {
                                 var opt = document.createElement('option');
                                 opt.value = row.ref;
@@ -1518,7 +1519,7 @@
                             if (afterLoad) afterLoad();
                         })
                         .catch(function () {
-                            citySelect.innerHTML = '<option value="">Не вдалося завантажити міста</option>';
+                            citySelect.innerHTML = '<option value="">' + (T.js_cities_load_fail || 'Не вдалося завантажити міста') + '</option>';
                             citySelect.disabled = false;
                             syncNpFieldLock();
                             if (afterLoad) afterLoad();
@@ -1559,7 +1560,7 @@
                                     loadWarehouses();
                                 } else {
                                     if (whSelect) {
-                                        whSelect.innerHTML = '<option value="">Спочатку оберіть місто…</option>';
+                                        whSelect.innerHTML = '<option value="">' + (T.checkout_city_first || 'Спочатку оберіть місто…') + '</option>';
                                         whSelect.disabled = true;
                                     }
                                     if (branchH) branchH.value = '';
@@ -1578,7 +1579,7 @@
                         if (cityRefIn) cityRefIn.value = '';
                         if (cityNameIn) cityNameIn.value = '';
                         if (whSelect) {
-                            whSelect.innerHTML = '<option value="">Спочатку оберіть місто…</option>';
+                            whSelect.innerHTML = '<option value="">' + (T.checkout_city_first || 'Спочатку оберіть місто…') + '</option>';
                             whSelect.disabled = true;
                         }
                         if (branchH) branchH.value = '';
@@ -1611,7 +1612,7 @@
                         loadWarehouses();
                     } else {
                         if (whSelect) {
-                            whSelect.innerHTML = '<option value="">Спочатку оберіть місто…</option>';
+                            whSelect.innerHTML = '<option value="">' + (T.checkout_city_first || 'Спочатку оберіть місто…') + '</option>';
                             whSelect.disabled = true;
                         }
                         if (branchH) branchH.value = '';
@@ -1885,15 +1886,15 @@
                         '<div class="np-map-wh-popup">' +
                         '<div class="np-map-wh-popup__card">' +
                         '<div class="np-map-wh-popup__accent" aria-hidden="true"></div>' +
-                        '<button type="button" class="np-map-wh-popup__close" aria-label="Закрити">&times;</button>' +
+                        '<button type="button" class="np-map-wh-popup__close" aria-label="' + (T.js_close || 'Закрити') + '">&times;</button>' +
                         '<div class="np-map-wh-popup__top">' +
-                        '<span class="np-map-wh-popup__brand">Нова Пошта</span>' +
-                        '<span class="np-map-wh-popup__heading">Відділення</span>' +
+                        '<span class="np-map-wh-popup__brand">' + (T.js_np_brand || 'Нова Пошта') + '</span>' +
+                        '<span class="np-map-wh-popup__heading">' + (T.js_np_heading_branch || 'Відділення') + '</span>' +
                         '</div>' +
                         '<div class="np-map-wh-popup__body">' +
                         '<p class="np-map-wh-popup__name">' + npEscapeHtml(row.label || '') + '</p>' +
                         '</div>' +
-                        '<p class="np-map-wh-popup__hint">Обрано для замовлення</p>' +
+                        '<p class="np-map-wh-popup__hint">' + (T.js_np_selected_hint || 'Обрано для замовлення') + '</p>' +
                         '</div>' +
                         '</div>'
                     );
@@ -2183,7 +2184,7 @@
                     if (cfg.npEnabled && npCourierActive()) {
                         updateWarehouseMarkers([]);
                         if (whSelect) {
-                            whSelect.innerHTML = '<option value="">Спочатку оберіть місто…</option>';
+                            whSelect.innerHTML = '<option value="">' + (T.checkout_city_first || 'Спочатку оберіть місто…') + '</option>';
                             whSelect.disabled = true;
                         }
                         if (branchH) branchH.value = '';
@@ -2241,7 +2242,7 @@
                         return;
                     }
                     var url = cfg.warehousesUrl + '?city_ref=' + encodeURIComponent(cityRefIn.value.trim()) + '&kind=branch';
-                    whSelect.innerHTML = '<option value="">Завантаження…</option>';
+                    whSelect.innerHTML = '<option value="">' + (T.checkout_loading || 'Завантаження…') + '</option>';
                     whSelect.disabled = true;
                     fetch(url, { credentials: 'same-origin' })
                         .then(function (r) {
@@ -2252,7 +2253,7 @@
                         })
                         .then(function (j) {
                             var rows = (j && j.data) ? j.data : [];
-                            whSelect.innerHTML = '<option value="">Оберіть відділення…</option>';
+                            whSelect.innerHTML = '<option value="">' + (T.js_select_warehouse || 'Оберіть відділення…') + '</option>';
                             rows.forEach(function (row) {
                                 var opt = document.createElement('option');
                                 opt.value = JSON.stringify({ ref: row.ref, label: row.label, lat: row.lat, lng: row.lng });
@@ -2278,7 +2279,7 @@
                             }
                         })
                         .catch(function () {
-                            whSelect.innerHTML = '<option value="">Не вдалося завантажити відділення</option>';
+                            whSelect.innerHTML = '<option value="">' + (T.js_warehouses_load_fail || 'Не вдалося завантажити відділення') + '</option>';
                             whSelect.disabled = false;
                             updateWarehouseMarkers([]);
                         });
@@ -2345,13 +2346,13 @@
                             if (npAreaRef) {
                                 loadCitiesForArea(npAreaRef);
                             } else {
-                                citySelect.innerHTML = '<option value="">Спочатку оберіть область…</option>';
+                                citySelect.innerHTML = '<option value="">' + (T.checkout_region_first || 'Спочатку оберіть область…') + '</option>';
                                 citySelect.disabled = true;
                                 syncNpFieldLock();
                             }
                         }
                         if (whSelect) {
-                            whSelect.innerHTML = '<option value="">Спочатку оберіть місто…</option>';
+                            whSelect.innerHTML = '<option value="">' + (T.checkout_city_first || 'Спочатку оберіть місто…') + '</option>';
                             whSelect.disabled = true;
                         }
                         if (branchH) branchH.value = '';

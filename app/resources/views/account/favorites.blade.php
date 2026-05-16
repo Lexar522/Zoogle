@@ -1,14 +1,14 @@
 @extends('account.layout')
 
-@section('title', 'Обране — ZOOGLE')
+@section('title', __('shop.account_page_title_favorites'))
 
 @section('account_content')
     <section class="account-card">
         <div class="account-card__head account-card__head--hero">
-            <h1>Обране</h1>
+            <h1>{{ __('shop.account_favorites_h1') }}</h1>
         </div>
         @if ($products->isEmpty())
-            <p class="account-empty" style="margin:0;">Немає збережених товарів. Додавайте сердечком у каталозі.</p>
+            <p class="account-empty" style="margin:0;">{{ __('shop.account_favorites_empty') }}</p>
         @else
             <div class="account-fav-grid">
                 @foreach ($products as $product)
@@ -25,7 +25,7 @@
                             <div class="account-fav-card__img" role="presentation"></div>
                         @endif
                         <div class="account-fav-card__body">
-                            <p class="account-fav-card__title">{{ $product->title }}</p>
+                            <p class="account-fav-card__title">{{ mt($product->title) }}</p>
                             @if ($product->price !== null)
                                 <p class="account-fav-card__price">{{ number_format((float) $product->price, 2) }} UAH</p>
                             @endif
