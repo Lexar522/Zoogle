@@ -1,16 +1,11 @@
 @extends('layouts.shop')
 
-@section('title', 'Каталог — ZOOGLE')
-
-@php
-    $catalogMetaDescription = 'Каталог ZOOGLE: товари для домашніх улюбленців, зручні фільтри, комплекти, актуальні ціни та швидке оформлення замовлення.';
-@endphp
-
-@section('meta_description', $catalogMetaDescription)
+@section('title', __('shop.catalog_page_title'))
+@section('meta_description', __('shop.catalog_meta_description'))
 @section('canonical_url', route('catalog.index'))
 @section('robots', request()->query() === [] ? 'index,follow' : 'noindex,follow')
-@section('og_title', 'Каталог товарів для тварин — ZOOGLE')
-@section('og_description', $catalogMetaDescription)
+@section('og_title', __('shop.catalog_og_title'))
+@section('og_description', __('shop.catalog_meta_description'))
 
 @section('header_bottom')
     @include('catalog.partials.category-filters', ['inHeader' => true])

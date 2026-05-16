@@ -253,7 +253,7 @@
                 perHidden.remove();
             }
 
-            var qInput = form.querySelector('#q');
+            var qInput = form.querySelector('input[name="q"]');
             if (qInput) qInput.value = qVal;
 
             var resetLink = form.querySelector('a.btn.secondary');
@@ -399,6 +399,12 @@
             e.preventDefault();
             var fd = new FormData(searchForm);
             var params = new URLSearchParams(fd);
+            /* Текстовий пошук у шапці має шукати по всьому каталогу: інакше залишається прихований
+               category після кліку по чипу — запит «па» не знаходить «Папуга1» в іншій категорії. */
+            var qTrim = (params.get('q') || '').trim();
+            if (qTrim !== '') {
+                params.delete('category');
+            }
             var base = resultsEl.getAttribute('data-catalog-base') || '/catalog';
             var qs = params.toString();
             fetchCatalog(qs ? base + '?' + qs : base);

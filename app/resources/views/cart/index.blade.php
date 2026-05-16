@@ -1,12 +1,12 @@
 @extends('layouts.shop')
 
-@section('title', 'Кошик — ZOOGLE')
+@section('title', __('shop.cart_page_title'))
 @section('robots', 'noindex,follow')
 
 @section('content')
     <div class="card">
-        <h1>Кошик</h1>
-        <p class="muted">Сторінка лишається як резервний варіант, але основна робота з кошиком відбуватиметься у бічній панелі.</p>
+        <h1>{{ __('shop.cart_page_h1') }}</h1>
+        <p class="muted">{{ __('shop.cart_page_lead') }}</p>
     </div>
 
     <div class="card" data-cart-page-content>

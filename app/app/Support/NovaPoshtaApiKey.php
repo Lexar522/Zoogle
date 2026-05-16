@@ -8,7 +8,7 @@ class NovaPoshtaApiKey
 {
     public function current(): string
     {
-        $stored = ShopIntegrationSetting::query()->first()?->nova_poshta_api_key;
+        $stored = ShopIntegrationSetting::record()->nova_poshta_api_key;
         if (is_string($stored) && trim($stored) !== '') {
             return trim($stored);
         }
@@ -23,7 +23,7 @@ class NovaPoshtaApiKey
 
     public function hasStoredKey(): bool
     {
-        $stored = ShopIntegrationSetting::query()->first()?->nova_poshta_api_key;
+        $stored = ShopIntegrationSetting::record()->nova_poshta_api_key;
 
         return is_string($stored) && trim($stored) !== '';
     }

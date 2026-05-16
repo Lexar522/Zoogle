@@ -5,7 +5,7 @@
 @php
     $staticSeoDescription = trim(preg_replace('/\s+/u', ' ', strip_tags((string) ($body ?? ''))));
     if ($staticSeoDescription === '') {
-        $staticSeoDescription = 'Інформаційна сторінка зоомагазину ZOOGLE.';
+        $staticSeoDescription = __('shop.static_seo_default');
     }
 @endphp
 
@@ -17,6 +17,6 @@
 @section('content')
     <div class="card">
         <h1>{{ $title }}</h1>
-        <div class="muted" style="margin:0; line-height:1.6;">{!! nl2br(e($body ?? 'Сторінка в розробці. Оновлений контент зʼявиться незабаром.')) !!}</div>
+        <div class="muted" style="margin:0; line-height:1.6;">{!! nl2br(e($body ?? __('shop.static_under_development'))) !!}</div>
     </div>
 @endsection

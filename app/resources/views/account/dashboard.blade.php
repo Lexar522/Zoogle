@@ -1,6 +1,6 @@
 @extends('account.layout')
 
-@section('title', 'Мій акаунт — ZOOGLE')
+@section('title', __('shop.account_page_title_dashboard'))
 
 @section('account_content')
     @php
@@ -32,7 +32,7 @@
                 <div class="account-hero__avatar account-hero__avatar--initials" aria-hidden="true">{{ $initials }}</div>
             @endif
             <div class="account-hero__text">
-                <h1>Вітаємо, {{ $user->checkoutDisplayName() }}</h1>
+                <h1>{{ __('shop.account_dashboard_welcome', ['name' => $user->checkoutDisplayName()]) }}</h1>
                 @if ($user->email)
                     <p>{{ $user->email }}</p>
                 @endif
@@ -41,15 +41,15 @@
     </header>
 
     @if (session('status') === 'profile-saved')
-        <p class="alert success" style="margin:0 0 1rem;font-size:0.95rem;" role="status">Дані збережено. На сторінці оформлення замовлення вони підставляться автоматично.</p>
+        <p class="alert success" style="margin:0 0 1rem;font-size:0.95rem;" role="status">{{ __('shop.account_profile_saved_flash') }}</p>
     @endif
 
     <section class="account-card" id="profile">
         <div class="account-card__head">
-            <h2>Контактні дані для замовлень</h2>
+            <h2>{{ __('shop.account_profile_section_title') }}</h2>
         </div>
         <p class="muted" style="margin:0 0 1rem;font-size:0.92rem;line-height:1.5;">
-            Ім’я, прізвище та телефон зʼявляться у формі замовлення на чекауті (якщо ви увійшли в акаунт).
+            {{ __('shop.account_profile_section_lead') }}
         </p>
         <form method="POST" action="{{ route('account.profile.update') }}" class="account-profile-form">
             @csrf
@@ -63,44 +63,44 @@
                     </div>
                 @endif
                 <div>
-                    <label for="profile_first_name">Ім’я</label>
+                    <label for="profile_first_name">{{ __('shop.account_profile_first_name') }}</label>
                     <input id="profile_first_name" name="first_name" type="text" value="{{ old('first_name', $user->first_name) }}" maxlength="120" autocomplete="given-name">
                 </div>
                 <div>
-                    <label for="profile_last_name">Прізвище</label>
+                    <label for="profile_last_name">{{ __('shop.account_profile_last_name') }}</label>
                     <input id="profile_last_name" name="last_name" type="text" value="{{ old('last_name', $user->last_name) }}" maxlength="120" autocomplete="family-name">
                 </div>
             </div>
             <div style="margin-bottom:1rem;">
-                <label for="profile_phone">Телефон</label>
+                <label for="profile_phone">{{ __('shop.account_profile_phone') }}</label>
                 <input id="profile_phone" name="phone" type="tel" value="{{ old('phone', $user->phone) }}" maxlength="50" placeholder="+380971234567" autocomplete="tel">
             </div>
-            <button type="submit" class="btn secondary">Зберегти</button>
+            <button type="submit" class="btn secondary">{{ __('shop.account_profile_save') }}</button>
         </form>
     </section>
 
     <div class="account-tiles">
         <a class="account-tile account-tile--orders" href="{{ route('account.orders.index') }}">
-            <span class="account-tile__label">Замовлення</span>
+            <span class="account-tile__label">{{ __('shop.account_tile_orders') }}</span>
             <span class="account-tile__value">{{ $ordersTotal }}</span>
-            <span class="account-tile__hint">Переглянути історію покупок</span>
+            <span class="account-tile__hint">{{ __('shop.account_tile_orders_hint') }}</span>
         </a>
         <a class="account-tile account-tile--fav" href="{{ route('account.favorites') }}">
-            <span class="account-tile__label">Обране</span>
+            <span class="account-tile__label">{{ __('shop.account_tile_favorites') }}</span>
             <span class="account-tile__value">{{ $favoritesCount }}</span>
-            <span class="account-tile__hint">Товари з сердечком у каталозі</span>
+            <span class="account-tile__hint">{{ __('shop.account_tile_favorites_hint') }}</span>
         </a>
     </div>
 
     <section class="account-card">
         <div class="account-card__head">
-            <h2>Останні замовлення</h2>
+            <h2>{{ __('shop.account_recent_orders_title') }}</h2>
             @unless ($recentOrders->isEmpty())
-                <a href="{{ route('account.orders.index') }}">Усі замовлення</a>
+                <a href="{{ route('account.orders.index') }}">{{ __('shop.account_recent_orders_all') }}</a>
             @endunless
         </div>
         @if ($recentOrders->isEmpty())
-            <p class="account-empty" style="margin:0;">Ще немає замовлень у цьому акаунті.</p>
+            <p class="account-empty" style="margin:0;">{{ __('shop.account_recent_orders_empty') }}</p>
         @else
             <ul class="account-order-list">
                 @foreach ($recentOrders as $order)
@@ -109,7 +109,7 @@
                             <div>
                                 <div class="account-order-row__num">{{ $order->number }}</div>
                                 <div class="account-order-row__meta">
-                                    {{ $order->placed_at?->format('d.m.Y H:i') ?? '—' }}
+                                    {{ $order->placed_at?->format('d.m.Y H:i') ?? __('shop.account_order_row_date_dash') }}
                                 </div>
                             </div>
                             <div class="account-order-row__side">
@@ -117,7 +117,7 @@
                                     <span class="account-order-row__sum">{{ number_format((float) $order->total, 2) }} UAH</span>
                                     <span class="account-order-row__chev" aria-hidden="true"> ›</span>
                                 </div>
-                                <span class="account-order-row__status">{{ $order->status }}</span>
+                                <span class="account-order-row__status">{{ $order->statusLabel() }}</span>
                             </div>
                         </a>
                     </li>

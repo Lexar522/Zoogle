@@ -195,6 +195,16 @@
     z-index: 6;
 }
 
+/* У шапці li широкі (flex): міст на 100% ширини li ловить hover над контентом каталогу (чіпи тулбару) — звужуємо під пігулку. */
+.catalog-filters.catalog-filters--in-header .catalog-category-list > li:has(> .catalog-subcategory-list)::before {
+    left: 50%;
+    right: auto;
+    width: min(220px, 78%);
+    transform: translateX(-50%);
+    height: 10px;
+    z-index: 1;
+}
+
 .catalog-filters.catalog-filters--in-header .catalog-category-list__link {
     min-height: 62px;
     height: auto;
@@ -285,8 +295,12 @@
     z-index: 90;
     opacity: 0;
     pointer-events: none;
+    visibility: hidden;
     transform: translateY(8px) scale(.985);
-    transition: opacity .16s ease, transform .16s ease;
+    transition:
+        opacity .16s ease,
+        transform .16s ease,
+        visibility 0s linear .16s;
 }
 
 .catalog-filters .catalog-category-list > li:nth-last-child(-n+3) > .catalog-subcategory-list {
@@ -298,10 +312,17 @@
 .catalog-filters .catalog-category-list > li:focus-within > .catalog-subcategory-list {
     opacity: 1;
     pointer-events: auto;
+    visibility: visible;
     transform: translateY(0) scale(1);
+    transition:
+        opacity .16s ease,
+        transform .16s ease,
+        visibility 0s linear 0s;
 }
 
-/* Вкладені рівні в панелі: за замовчуванням згорнуті, розгортаються при hover / focus-within */
+/* Вкладені рівні в панелі: за замовчуванням згорнуті, розгортаються при hover / focus-within.
+   Не задавати visibility: visible на вкладених ul — інакше при глибокій категорії (:has(.is-active)) дочірній
+   блок може стати видимим/клікабельним поверх сторінки, коли кореневе меню ще закрите (visibility: hidden). */
 .catalog-filters .catalog-subcategory-list > li.has-children > .catalog-subcategory-list {
     position: static;
     width: auto;
@@ -337,6 +358,11 @@
     margin: 6px 0 10px 16px;
     padding: 2px 0 0 12px;
     border-left: 1px solid #e4e8f0;
+    transition:
+        max-height 0.22s cubic-bezier(0.32, 0.94, 0.34, 1),
+        opacity 0.16s ease,
+        margin 0.2s ease,
+        padding 0.2s ease;
 }
 
 .catalog-filters .catalog-subcategory-list > li {
@@ -345,9 +371,9 @@
 }
 
 .catalog-filters .catalog-category-list > li > .catalog-subcategory-list > li + li {
-    margin-top: 4px;
-    padding-top: 6px;
-    border-top: 1px solid #edf1f5;
+    margin-top: 8px;
+    padding-top: 0;
+    border-top: none;
 }
 
 .catalog-filters .catalog-subcategory-list .catalog-category-list__link {
@@ -574,7 +600,7 @@
                     href="{{ $promoOn ? $promoOffHref : $promoHref }}"
                     class="catalog-category-list__link catalog-category-list__link--promo @if ($promoOn) is-active @endif"
                     data-on-sale-link="1"
-                >Акції</a>
+                >{{ __('shop.catalog_promo_sales') }}</a>
             </li>
             @foreach ($categoryTree as $cat)
                 @include('catalog.partials.category-node', [

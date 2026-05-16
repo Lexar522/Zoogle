@@ -9,16 +9,22 @@ use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\GeocodeController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\NovaPoshtaApiController;
 use App\Http\Controllers\OrderTrackController;
 use App\Http\Controllers\Payments\LiqPayCallbackController;
 use App\Http\Controllers\Payments\WayForPayCallbackController;
 use App\Http\Controllers\ProductFavoriteController;
 use App\Http\Controllers\SeoController;
+use App\Http\Controllers\ShopInfoPageController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/robots.txt', [SeoController::class, 'robots'])->name('seo.robots');
 Route::get('/sitemap.xml', [SeoController::class, 'sitemap'])->name('seo.sitemap');
+
+Route::get('/locale/{locale}', [LocaleController::class, 'switch'])
+    ->whereIn('locale', ['uk', 'ru', 'en'])
+    ->name('locale.switch');
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
 
@@ -41,30 +47,34 @@ Route::middleware('auth')->group(function (): void {
 
 Route::get('/catalog', [CatalogController::class, 'index'])->name('catalog.index');
 
-Route::view('/about', 'pages.static', [
-    'title' => 'Про zOOGLE',
-    'body' => "zOOGLE — зоомагазин із зручним каталогом, варіантами товарів і прозорими цінами.\nМи допомагаємо швидко знайти потрібне для ваших улюбленців і оформити замовлення онлайн.",
-])->name('about');
+Route::get('/info/{slug}', [ShopInfoPageController::class, 'show'])
+    ->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*')
+    ->name('info.show');
 
-Route::view('/contacts', 'pages.static', [
-    'title' => 'Контакти',
-    'body' => "Звʼяжіться з нами для консультацій та питань щодо замовлень.\nEmail та телефон будуть опубліковані тут після фінального запуску.",
-])->name('contacts');
+Route::get('/about', fn () => view('pages.static', [
+    'title' => __('shop.static_about_title'),
+    'body' => __('shop.static_about_body'),
+]))->name('about');
 
-Route::view('/news', 'pages.static', [
-    'title' => 'Новини та статті',
-    'body' => "Тут зʼявлятимуться поради з догляду за тваринами, огляди товарів та новини магазину.\nСлідкуйте за оновленнями.",
-])->name('news');
+Route::get('/contacts', fn () => view('pages.static', [
+    'title' => __('shop.static_contacts_title'),
+    'body' => __('shop.static_contacts_body'),
+]))->name('contacts');
 
-Route::view('/delivery-payment', 'pages.static', [
-    'title' => 'Доставка та оплата',
-    'body' => "Доставка: самовивіз, курʼєр або Нова Пошта — спосіб обирається при оформленні замовлення.\nОплата: онлайн через LiqPay (якщо увімкнено в магазині) або за узгодженням з менеджером для інших способів.\nТочні тарифи доставки уточнюйте під час підтвердження замовлення.",
-])->name('delivery-payment');
+Route::get('/news', fn () => view('pages.static', [
+    'title' => __('shop.static_news_title'),
+    'body' => __('shop.static_news_body'),
+]))->name('news');
 
-Route::view('/privacy', 'pages.static', [
-    'title' => 'Політика конфіденційності',
-    'body' => "Ми обробляємо персональні дані (імʼя, телефон, email, адреса доставки) лише для виконання замовлення та звʼязку з вами.\nДані не передаються третім особам, окрім випадків, передбачених законом (наприклад, службам доставки).\nВи можете надіслати запит на зміну або видалення даних через контактні канали магазину.\n\nВхід через Google: при авторизації ми отримуємо від Google ідентифікатор акаунта, імʼя, email та (за наявності) зображення профілю. Ці дані зберігаються у вашому обліковому записі на сайті для входу, відображення в кабінеті та (де доречно) попереднього заповнення форми замовлення. Ви можете відкликати доступ у налаштуваннях безпеки Google.",
-])->name('privacy');
+Route::get('/delivery-payment', fn () => view('pages.static', [
+    'title' => __('shop.static_delivery_title'),
+    'body' => __('shop.static_delivery_body'),
+]))->name('delivery-payment');
+
+Route::get('/privacy', fn () => view('pages.static', [
+    'title' => __('shop.static_privacy_title'),
+    'body' => __('shop.static_privacy_body'),
+]))->name('privacy');
 Route::get('/catalog/{slug}/care', [CatalogController::class, 'careIndex'])->name('catalog.care.index');
 Route::get('/catalog/{slug}/care/{articleSlug}', [CatalogController::class, 'careShow'])->name('catalog.care.show');
 Route::get('/catalog/{slug}', [CatalogController::class, 'show'])->name('catalog.show');
@@ -104,3 +114,6 @@ Route::get('/orders/{order}/track', OrderTrackController::class)->name('orders.t
 Route::get('/bundles', [BundleController::class, 'index'])->name('bundles.index');
 Route::get('/bundles/{slug}', [BundleController::class, 'show'])->name('bundles.show');
 Route::post('/bundles/{bundle}/add-to-cart', [BundleController::class, 'addToCart'])->name('bundles.add-to-cart');
+
+/** @deprecated Старий шлях Filament-сторінки «Футер магазину» (slug був shop-footer). */
+Route::redirect('/admin/shop-footer', '/admin/footer', 301);

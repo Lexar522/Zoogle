@@ -8,6 +8,7 @@ use App\Models\ProductVariant;
 use App\Models\ShopIntegrationSetting;
 use App\Models\User;
 use App\Services\CartDrawerService;
+use App\Support\ShopFooterViewData;
 use App\Support\ShopHeaderContacts;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\View;
@@ -37,10 +38,11 @@ class AppServiceProvider extends ServiceProvider
 
         View::composer('layouts.shop', function ($view): void {
             $view->with('cartDrawerData', app(CartDrawerService::class)->forRequest(request()));
-            $record = ShopIntegrationSetting::query()->first();
+            $record = ShopIntegrationSetting::record();
             $shopHeaderContactItems = ShopHeaderContacts::itemsFrom($record);
             $view->with('shopHeaderContactItems', $shopHeaderContactItems);
             $view->with('hasShopHeaderContacts', $shopHeaderContactItems !== []);
+            $view->with('shopFooter', ShopFooterViewData::forRequest());
         });
     }
 }

@@ -1,10 +1,10 @@
 @extends('layouts.shop')
 
-@section('title', 'ZOOGLE — інтернет-магазин товарів для домашніх улюбленців')
-@section('meta_description', 'ZOOGLE — зоомагазин для домашніх улюбленців: товари для щоденного догляду, хіти продажів, рекомендовані позиції, доставка Новою Поштою та зручне онлайн-замовлення.')
+@section('title', __('shop.home_page_title'))
+@section('meta_description', __('shop.home_meta_description'))
 @section('canonical_url', route('home'))
-@section('og_title', 'ZOOGLE — зоомагазин для домашніх улюбленців')
-@section('og_description', 'Товари для домашніх улюбленців, комплекти, поради по догляду та швидке оформлення замовлення онлайн.')
+@section('og_title', __('shop.home_og_title'))
+@section('og_description', __('shop.home_og_description'))
 
 @section('header_bottom')
     @include('catalog.partials.category-filters', ['inHeader' => true])
@@ -17,30 +17,6 @@
         isolation: isolate;
         width: min(80vw, 100%);
         margin: clamp(6px, 1vw, 14px) auto clamp(20px, 3vw, 36px);
-    }
-    .home-page::before,
-    .home-page::after {
-        content: "";
-        position: fixed;
-        z-index: -1;
-        pointer-events: none;
-        border-radius: 999px;
-        opacity: 0.28;
-        filter: blur(2px);
-    }
-    .home-page::before {
-        width: min(380px, 38vw);
-        aspect-ratio: 1;
-        left: -80px;
-        top: 18vh;
-        background: radial-gradient(circle, rgba(54, 125, 241, 0.22), transparent 68%);
-    }
-    .home-page::after {
-        width: min(420px, 40vw);
-        aspect-ratio: 1;
-        right: -110px;
-        top: 52vh;
-        background: radial-gradient(circle, rgba(239, 56, 41, 0.16), transparent 70%);
     }
     .home-page .catalog-results--home-panels {
         width: 100%;
@@ -466,25 +442,25 @@
         <section class="home-shop-panel home-shop-panel--premium home-shop-panel--hits" aria-labelledby="home-hits-heading">
             <div class="home-shop-panel__head">
                 <div>
-                    <h2 id="home-hits-heading" class="home-shop-panel__title">Хіти продажів</h2>
-                    <p class="home-shop-panel__lead">Товари, які найчастіше обирають наші покупці.</p>
+                    <h2 id="home-hits-heading" class="home-shop-panel__title">{{ __('shop.home_hits_title') }}</h2>
+                    <p class="home-shop-panel__lead">{{ __('shop.home_hits_lead') }}</p>
                 </div>
-                <span class="home-section-badge home-section-badge--popular">Популярне</span>
+                <span class="home-section-badge home-section-badge--popular">{{ __('shop.home_badge_popular') }}</span>
             </div>
             @if ($hitsProducts->isEmpty())
-                <p class="home-shop-panel__empty">Поки немає обраних товарів. Додайте їх у адмінці: Каталог → Головна: хіти та рекомендовані.</p>
+                <p class="home-shop-panel__empty">{{ __('shop.home_hits_empty') }}</p>
             @else
                 <div
                     class="home-product-carousel"
                     data-home-carousel
                     role="region"
-                    aria-roledescription="карусель"
+                    aria-roledescription="{{ __('shop.aria_carousel') }}"
                     aria-labelledby="home-hits-heading"
                 >
                     <button
                         type="button"
                         class="home-product-carousel__btn home-product-carousel__btn--prev"
-                        aria-label="Попередні товари"
+                        aria-label="{{ __('shop.home_carousel_prev') }}"
                     >
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                             <path d="M15 18l-6-6 6-6" />
@@ -499,7 +475,7 @@
                                         'listingQuotes' => $listingQuotes ?? [],
                                         'bundleQuotes' => [],
                                         'cardImagePriority' => $loop->index,
-                                        'homeCardBadge' => 'Хіт',
+                                        'homeCardBadge' => __('shop.home_badge_hit'),
                                         'homeCardBadgeClass' => 'hit',
                                     ])
                                 </div>
@@ -509,7 +485,7 @@
                     <button
                         type="button"
                         class="home-product-carousel__btn home-product-carousel__btn--next"
-                        aria-label="Наступні товари"
+                        aria-label="{{ __('shop.home_carousel_next') }}"
                     >
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                             <path d="M9 18l6-6-6-6" />
@@ -521,31 +497,31 @@
 
         <section class="home-benefits" aria-labelledby="home-benefits-heading">
             <header class="home-benefits__head">
-                <h2 id="home-benefits-heading" class="home-benefits__title">Чому обирають саме нас</h2>
+                <h2 id="home-benefits-heading" class="home-benefits__title">{{ __('shop.home_benefits_title') }}</h2>
                 <p class="home-benefits__lead">
-                    Дбаємо про зручність замовлення, чесний асортимент і добробут ваших улюбленців — від доставки до підказок по догляду.
+                    {{ __('shop.home_benefits_lead') }}
                 </p>
             </header>
             <div class="home-benefits__grid">
             <article class="home-benefit-card">
                 <span class="home-benefit-card__icon">1</span>
-                <h3>Швидка доставка</h3>
-                <p>Відправляємо Новою Поштою або готуємо самовивіз з магазину.</p>
+                <h3>{{ __('shop.home_benefit_1_title') }}</h3>
+                <p>{{ __('shop.home_benefit_1_text') }}</p>
             </article>
             <article class="home-benefit-card">
                 <span class="home-benefit-card__icon">2</span>
-                <h3>Оплата онлайн</h3>
-                <p>Зручна оплата карткою для доступних категорій товарів.</p>
+                <h3>{{ __('shop.home_benefit_2_title') }}</h3>
+                <p>{{ __('shop.home_benefit_2_text') }}</p>
             </article>
             <article class="home-benefit-card">
                 <span class="home-benefit-card__icon">3</span>
-                <h3>Турбота про тварин</h3>
-                <p>Підказки по догляду й допомога з вибором потрібного товару.</p>
+                <h3>{{ __('shop.home_benefit_3_title') }}</h3>
+                <p>{{ __('shop.home_benefit_3_text') }}</p>
             </article>
             <article class="home-benefit-card">
                 <span class="home-benefit-card__icon">4</span>
-                <h3>Перевірені товари</h3>
-                <p>Підбираємо асортимент, який справді корисний у щоденному догляді.</p>
+                <h3>{{ __('shop.home_benefit_4_title') }}</h3>
+                <p>{{ __('shop.home_benefit_4_text') }}</p>
             </article>
             </div>
         </section>
@@ -553,25 +529,25 @@
         <section class="home-shop-panel home-shop-panel--premium home-shop-panel--recommended" aria-labelledby="home-recommended-heading">
             <div class="home-shop-panel__head">
                 <div>
-                    <h2 id="home-recommended-heading" class="home-shop-panel__title">Рекомендовані товари</h2>
-                    <p class="home-shop-panel__lead">Позиції, які добре доповнюють покупку або підходять більшості улюбленців.</p>
+                    <h2 id="home-recommended-heading" class="home-shop-panel__title">{{ __('shop.home_rec_title') }}</h2>
+                    <p class="home-shop-panel__lead">{{ __('shop.home_rec_lead') }}</p>
                 </div>
-                <span class="home-section-badge home-section-badge--recommended">Радимо</span>
+                <span class="home-section-badge home-section-badge--recommended">{{ __('shop.home_badge_suggested') }}</span>
             </div>
             @if ($recommendedProducts->isEmpty())
-                <p class="home-shop-panel__empty">Поки немає обраних товарів. Додайте їх у адмінці: Каталог → Головна: хіти та рекомендовані.</p>
+                <p class="home-shop-panel__empty">{{ __('shop.home_rec_empty') }}</p>
             @else
                 <div
                     class="home-product-carousel"
                     data-home-carousel
                     role="region"
-                    aria-roledescription="карусель"
+                    aria-roledescription="{{ __('shop.aria_carousel') }}"
                     aria-labelledby="home-recommended-heading"
                 >
                     <button
                         type="button"
                         class="home-product-carousel__btn home-product-carousel__btn--prev"
-                        aria-label="Попередні товари"
+                        aria-label="{{ __('shop.home_carousel_prev') }}"
                     >
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                             <path d="M15 18l-6-6 6-6" />
@@ -586,7 +562,7 @@
                                         'listingQuotes' => $listingQuotes ?? [],
                                         'bundleQuotes' => [],
                                         'cardImagePriority' => $loop->index,
-                                        'homeCardBadge' => 'Радимо',
+                                        'homeCardBadge' => __('shop.home_badge_recommended'),
                                         'homeCardBadgeClass' => 'recommended',
                                     ])
                                 </div>
@@ -596,7 +572,7 @@
                     <button
                         type="button"
                         class="home-product-carousel__btn home-product-carousel__btn--next"
-                        aria-label="Наступні товари"
+                        aria-label="{{ __('shop.home_carousel_next') }}"
                     >
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                             <path d="M9 18l6-6-6-6" />

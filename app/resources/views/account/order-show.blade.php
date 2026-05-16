@@ -1,6 +1,6 @@
 @extends('account.layout')
 
-@section('title', 'Замовлення '.$order->number.' — ZOOGLE')
+@section('title', __('shop.account_page_title_order', ['number' => $order->number]))
 
 @section('account_content')
     @if (session('error'))
@@ -12,6 +12,6 @@
     ])
 
     <div class="account-back-row">
-        <a class="btn secondary" href="{{ route('account.orders.index') }}">До списку замовлень</a>
+        <a class="btn secondary" href="{{ route('account.orders.index') }}">{{ __('shop.account_order_show_back') }}</a>
     </div>
 @endsection

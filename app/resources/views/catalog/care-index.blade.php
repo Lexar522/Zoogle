@@ -4,11 +4,11 @@
     @include('catalog.partials.category-filters', ['inHeader' => true])
 @endsection
 
-@section('title', 'Поради по догляду — '.$listing->title.' — ZOOGLE')
-@section('meta_description', 'Поради по догляду, використанню та щоденній турботі для товару '.$listing->title.' у зоомагазині ZOOGLE.')
+@section('title', __('shop.care_hub_page_title', ['product' => mt($listing->title)]))
+@section('meta_description', __('shop.care_hub_meta_description', ['product' => mt($listing->title)]))
 @section('canonical_url', route('catalog.care.index', $listing->slug))
-@section('og_title', 'Поради по догляду — '.$listing->title)
-@section('og_description', 'Корисні матеріали для догляду, використання товару та турботи про домашнього улюбленця.')
+@section('og_title', __('shop.care_hub_og_title', ['product' => mt($listing->title)]))
+@section('og_description', __('shop.care_hub_og_description'))
 
 @push('styles')
 <style>
@@ -122,7 +122,7 @@
 @section('content')
     <section class="care-page">
         <p class="care-page__eyebrow">Поради по догляду</p>
-        <h1 class="care-page__title">{{ $listing->title }}</h1>
+        <h1 class="care-page__title">{{ mt($listing->title) }}</h1>
         <p class="care-page__lead">
             Зібрали корисні матеріали для догляду, використання товару та щоденної турботи про улюбленця.
         </p>
@@ -136,9 +136,9 @@
                     <span class="care-card__meta">
                         {{ optional($article->published_at)->format('d.m.Y') ?? 'Порада' }}
                     </span>
-                    <h2 class="care-card__title">{{ $article->title }}</h2>
+                    <h2 class="care-card__title">{{ mt($article->title) }}</h2>
                     @if (filled($article->excerpt))
-                        <p class="care-card__excerpt">{{ $article->excerpt }}</p>
+                        <p class="care-card__excerpt">{{ mt($article->excerpt) }}</p>
                     @endif
                     <span class="care-card__more">Читати статтю</span>
                 </a>

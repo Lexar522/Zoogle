@@ -387,6 +387,103 @@ class CatalogController extends Controller
         });
     }
 
+    /**
+     * Варіанти рядка для LIKE у SQLite: LIKE там не згортає регістр для non-ASCII, а вбудована lower()
+     * кирилицю не змінює — залишаємо кілька варіантів регістру з PHP (зокрема title case «Па» для «па»).
+     *
+     * @return list<string>
+     */
+    private function catalogSearchCaseFoldLikeTerms(string $search): array
+    {
+        $search = trim($search);
+        if ($search === '') {
+            return [];
+        }
+
+        $terms = [
+            $search,
+            mb_strtolower($search, 'UTF-8'),
+            mb_strtoupper($search, 'UTF-8'),
+            mb_convert_case($search, MB_CASE_TITLE, 'UTF-8'),
+        ];
+
+        return array_values(array_unique(array_filter($terms, fn (string $s): bool => $s !== '')));
+    }
+
+    private function escapeSqlLikePattern(string $value): string
+    {
+        return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $value);
+    }
+
+    private function applyCatalogTextSearchToListingQuery(Builder $q, string $search, string $table): void
+    {
+        $search = trim($search);
+        if ($search === '') {
+            return;
+        }
+
+        $driver = DB::connection()->getDriverName();
+        $hasSku = DbSchema::hasColumn($table, 'sku');
+        $hasSearchTags = DbSchema::hasColumn($table, 'search_tags');
+
+        if ($driver === 'pgsql') {
+            $pattern = '%'.$this->escapeSqlLikePattern($search).'%';
+            $q->where(function (Builder $w) use ($pattern, $hasSku, $hasSearchTags): void {
+                $w->where('title', 'ilike', $pattern)
+                    ->orWhere('short_description', 'ilike', $pattern)
+                    ->orWhere('description', 'ilike', $pattern);
+                if ($hasSku) {
+                    $w->orWhere('sku', 'ilike', $pattern);
+                }
+                if ($hasSearchTags) {
+                    $w->orWhereRaw('CAST(search_tags AS TEXT) ILIKE ?', [$pattern]);
+                }
+            });
+
+            return;
+        }
+
+        if ($driver === 'mysql' || $driver === 'mariadb') {
+            $pattern = '%'.$this->escapeSqlLikePattern(mb_strtolower($search, 'UTF-8')).'%';
+            $q->where(function (Builder $w) use ($pattern, $hasSku, $hasSearchTags): void {
+                $w->whereRaw('LOWER(`title`) LIKE ?', [$pattern])
+                    ->orWhereRaw('LOWER(COALESCE(`short_description`, \'\')) LIKE ?', [$pattern])
+                    ->orWhereRaw('LOWER(COALESCE(`description`, \'\')) LIKE ?', [$pattern]);
+                if ($hasSku) {
+                    $w->orWhereRaw('LOWER(COALESCE(`sku`, \'\')) LIKE ?', [$pattern]);
+                }
+                if ($hasSearchTags) {
+                    $w->orWhereRaw('LOWER(CAST(`search_tags` AS CHAR(2048))) LIKE ?', [$pattern]);
+                }
+            });
+
+            return;
+        }
+
+        $terms = $this->catalogSearchCaseFoldLikeTerms($search);
+        if ($terms === []) {
+            return;
+        }
+
+        $q->where(function (Builder $outer) use ($terms, $hasSku, $hasSearchTags): void {
+            foreach ($terms as $i => $term) {
+                $pattern = '%'.$this->escapeSqlLikePattern($term).'%';
+                $method = $i === 0 ? 'where' : 'orWhere';
+                $outer->{$method}(function (Builder $inner) use ($pattern, $hasSku, $hasSearchTags): void {
+                    $inner->where('title', 'like', $pattern)
+                        ->orWhere('short_description', 'like', $pattern)
+                        ->orWhere('description', 'like', $pattern);
+                    if ($hasSku) {
+                        $inner->orWhere('sku', 'like', $pattern);
+                    }
+                    if ($hasSearchTags) {
+                        $inner->orWhere('search_tags', 'like', $pattern);
+                    }
+                });
+            }
+        });
+    }
+
     private function makeProductCatalogQuery(
         string $search,
         bool $onSaleOnly,
@@ -407,14 +504,9 @@ class CatalogController extends Controller
                 });
             })
             ->when($search !== '', function (Builder $q) use ($search): void {
-                $q->where(function (Builder $searchQuery) use ($search): void {
-                    $searchQuery
-                        ->where('title', 'like', "%{$search}%")
-                        ->orWhere('short_description', 'like', "%{$search}%")
-                        ->orWhere('description', 'like', "%{$search}%");
-                });
+                $this->applyCatalogTextSearchToListingQuery($q, $search, CatalogProductsTable::name());
             })
-            ->when($categoryValueId > 0, function (Builder $q) use (
+            ->when($categoryValueId > 0 && $search === '', function (Builder $q) use (
                 $categoryValueId,
                 $categoryFilterValueIds,
                 $selectedIsParentCategory,
@@ -456,14 +548,9 @@ class CatalogController extends Controller
                 });
             })
             ->when($search !== '', function (Builder $q) use ($search): void {
-                $q->where(function (Builder $searchQuery) use ($search): void {
-                    $searchQuery
-                        ->where('title', 'like', "%{$search}%")
-                        ->orWhere('short_description', 'like', "%{$search}%")
-                        ->orWhere('description', 'like', "%{$search}%");
-                });
+                $this->applyCatalogTextSearchToListingQuery($q, $search, (new Bundle)->getTable());
             })
-            ->when($categoryValueId > 0, function (Builder $q) use (
+            ->when($categoryValueId > 0 && $search === '', function (Builder $q) use (
                 $categoryValueId,
                 $categoryFilterValueIds,
                 $selectedIsParentCategory,

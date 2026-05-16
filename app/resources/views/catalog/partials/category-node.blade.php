@@ -7,7 +7,7 @@
         class="catalog-category-list__link @if ($depth === 0) catalog-category-list__link--parent @else catalog-category-list__link--sub @endif @if ((int) $filters['category'] === (int) $node['id']) is-active @endif"
         data-category-id="{{ $node['id'] }}"
     >
-        <span class="catalog-category-list__label">{{ $node['name'] }}</span>
+        <span class="catalog-category-list__label">{{ mt($node['name']) }}</span>
         @if (! empty($node['children']))
             <span class="catalog-category-list__chevron" aria-hidden="true">›</span>
         @endif
