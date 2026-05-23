@@ -198,6 +198,8 @@ return [
     'catalog_load_more' => 'Load more',
     'catalog_prompt' => 'Choose a category above or use search.',
     'catalog_promo_sales' => 'Sale',
+    'catalog_category_expand' => 'Expand subcategories “:name”',
+    'catalog_category_collapse' => 'Collapse subcategories “:name”',
 
     'pagination_aria' => 'Result pages',
     'pagination_shown' => 'Showing',

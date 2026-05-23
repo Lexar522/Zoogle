@@ -14,6 +14,7 @@ use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\CheckboxList;
+use App\Support\ListingPhotoUpload;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -67,9 +68,12 @@ class ProductVariantsRelationManager extends RelationManager
                 ->helperText('Як показувати цей варіант у каталозі та на сторінці товару.')
                 ->native(false),
 
-            FileUpload::make('photos')
+            ListingPhotoUpload::applyPublicPreviewUrl(
+                ListingPhotoUpload::applyAcceptedImageTypes(
+                    ListingPhotoUpload::make('photos')
+                )
+            )
                 ->label('Фото варіанта')
-                ->image()
                 ->fetchFileInformation(false)
                 ->maxParallelUploads(1)
                 ->multiple()

@@ -16,13 +16,18 @@ ZOOGLE — архів для завантаження на хостинг
 
      php artisan key:generate
      php artisan migrate --force
+     rm -f public/storage
      php artisan storage:link
+     ls -la public/images/zoogle-logo-new.png
      php artisan config:cache
      php artisan route:cache
      php artisan view:cache
      php artisan filament:upgrade
 
 4. Документ-root веб-сервера має вказувати на підкаталог public/ Laravel (не на корінь проєкту).
+
+5. Фото товарів і лого: див. hosting/HOSTING-MEDIA-CHECKLIST-UK.md
+   (після заливки обовʼязково rm -f public/storage && php artisan storage:link на сервері).
 
 Підготувати архів на комп’ютері знову
 -------------------------------------

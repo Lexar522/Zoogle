@@ -4,11 +4,13 @@ namespace App\Models;
 
 use App\Support\CatalogProductsTable;
 use App\Support\RichTextSanitizer;
+use App\Support\StoragePublicPath;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 
 class Product extends Model
 {
@@ -36,6 +38,24 @@ class Product extends Model
         'variant_options',
         'published_at',
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (Product $product): void {
+            if (! $product->isDirty('photos')) {
+                return;
+            }
+
+            $disk = Storage::disk('public');
+            $photos = StoragePublicPath::normalizeList($product->photos);
+
+            $product->photos = array_values(array_filter(
+                $photos,
+                fn (string $path): bool => ! str_starts_with($path, 'livewire-tmp/')
+                    && $disk->exists($path)
+            ));
+        });
+    }
 
     protected $casts = [
         'sku' => 'string',
@@ -85,9 +105,51 @@ class Product extends Model
         return $this->belongsToMany(User::class, 'product_favorites')->withTimestamps();
     }
 
+    /**
+     * Шляхи з БД, що реально існують на диску; якщо в БД порожньо — з каталогу products/{id}/photos.
+     *
+     * @return list<string>
+     */
+    public function resolvedListingPhotoPaths(): array
+    {
+        $disk = Storage::disk('public');
+        $fromDb = array_values(array_filter(
+            $this->normalizePhotoList($this->photos),
+            fn (string $path): bool => $disk->exists($path)
+        ));
+
+        if ($fromDb !== []) {
+            return $fromDb;
+        }
+
+        return $this->photosPathsFromDisk();
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function photosPathsFromDisk(): array
+    {
+        $id = (int) $this->id;
+        if ($id <= 0) {
+            return [];
+        }
+
+        $directory = 'products/'.$id.'/photos';
+        if (! Storage::disk('public')->exists($directory)) {
+            return [];
+        }
+
+        return collect(Storage::disk('public')->files($directory))
+            ->filter(fn (string $path): bool => (bool) preg_match('/\.(jpe?g|png|webp|gif)$/i', $path))
+            ->sort()
+            ->values()
+            ->all();
+    }
+
     public function firstCatalogPhotoPath(): ?string
     {
-        foreach ($this->normalizePhotoList($this->photos) as $path) {
+        foreach ($this->resolvedListingPhotoPaths() as $path) {
             return $path;
         }
 
@@ -95,7 +157,9 @@ class Product extends Model
 
         foreach ($variants as $variant) {
             foreach ($this->normalizePhotoList($variant->photos ?? null) as $path) {
-                return $path;
+                if (Storage::disk('public')->exists($path)) {
+                    return $path;
+                }
             }
         }
 
@@ -113,7 +177,7 @@ class Product extends Model
         $seen = [];
         $out = [];
 
-        foreach ($this->normalizePhotoList($this->photos ?? null) as $path) {
+        foreach ($this->resolvedListingPhotoPaths() as $path) {
             if (! isset($seen[$path])) {
                 $seen[$path] = true;
                 $out[] = $path;
@@ -175,23 +239,47 @@ class Product extends Model
     }
 
     /**
+     * Вузол дерева категорії для правил чекауту: лист, корінь (якщо товар лише в кореневій рубриці), або значення з variant_options.
+     */
+    public function resolvedCatalogCategoryNodeId(?int $categoryGroupId = null): int
+    {
+        $cv = (int) ($this->category_value_id ?? 0);
+        if ($cv > 0) {
+            return $cv;
+        }
+
+        $parent = (int) ($this->category_parent_value_id ?? 0);
+        if ($parent > 0) {
+            return $parent;
+        }
+
+        $groupId = $categoryGroupId ?? OptionGroup::systemCategoryGroupIdForCatalog();
+        if ($groupId <= 0) {
+            return 0;
+        }
+
+        $rows = is_array($this->variant_options) ? $this->variant_options : [];
+        foreach ($rows as $row) {
+            if ((int) ($row['option_group_id'] ?? 0) !== $groupId) {
+                continue;
+            }
+
+            $first = collect($row['option_value_ids'] ?? [])
+                ->map(fn ($id) => (int) $id)
+                ->filter(fn (int $id) => $id > 0)
+                ->first();
+
+            return $first ?? 0;
+        }
+
+        return 0;
+    }
+
+    /**
      * @return list<string>
      */
     private function normalizePhotoList(mixed $photos): array
     {
-        if (! is_array($photos)) {
-            return [];
-        }
-
-        $out = [];
-        foreach ($photos as $path) {
-            if (! is_string($path) || $path === '') {
-                continue;
-            }
-
-            $out[] = ltrim($path, '/');
-        }
-
-        return $out;
+        return StoragePublicPath::normalizeList($photos);
     }
 }

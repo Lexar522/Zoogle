@@ -9,6 +9,7 @@ use App\Models\OptionGroup;
 use App\Models\OptionValue;
 use App\Models\Product;
 use App\Support\CatalogCategoryTree;
+use App\Support\ListingPhotoUpload;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\ColorPicker;
 use Filament\Forms\Components\FileUpload;
@@ -106,20 +107,18 @@ class BundleForm
                 Section::make('Фото комплекту')
                     ->description('Галерея на сторінці комплекту.')
                     ->schema([
-                        ProductForm::applyListingPhotosLayout(
-                            FileUpload::make('photos')
-                                ->hiddenLabel()
-                                ->image()
-                                ->multiple()
-                                ->reorderable()
-                                ->appendFiles()
-                                ->disk('public')
-                                ->directory(fn (?Bundle $record): string => 'bundles/'.($record?->id ?? 'draft').'/photos')
-                                ->maxFiles(20)
-                                ->imageEditor()
-                                ->imageEditorViewportWidth(480)
-                                ->imageEditorViewportHeight(480)
-                                ->helperText('Формати: JPEG (.jpg, .jpeg), PNG, WebP, GIF. Дочекайтесь мініатюр перед збереженням. Порядок мініатюр = порядок у галереї на сайті.')
+                        ListingPhotoUpload::applyImageEditorIfAvailable(
+                            ProductForm::applyListingPhotosLayout(
+                                ListingPhotoUpload::make('photos')
+                                    ->hiddenLabel()
+                                    ->multiple()
+                                    ->reorderable()
+                                    ->appendFiles()
+                                    ->disk('public')
+                                    ->directory(fn (?Bundle $record, FileUpload $component): string => ListingPhotoUpload::bundleListingPhotosDirectory($record, $component))
+                                    ->maxFiles(20)
+                                    ->helperText('Формати: JPEG (.jpg, .jpeg), PNG, WebP, GIF. Дочекайтесь мініатюр перед збереженням. Порядок мініатюр = порядок у галереї на сайті.')
+                            )
                         ),
                     ]),
                 Section::make('Опції комплекту')
@@ -381,20 +380,18 @@ class BundleForm
                                                     ->all();
                                             })
                                             ->searchable(),
-                                        ProductForm::applyListingPhotosLayout(
-                                            FileUpload::make('photos')
-                                                ->label('Фото цього кольору')
-                                                ->image()
-                                                ->multiple()
-                                                ->reorderable()
-                                                ->appendFiles()
-                                                ->disk('public')
-                                                ->directory(fn (?Bundle $record): string => 'bundles/'.($record?->id ?? 'draft').'/option-value-photos')
-                                                ->maxFiles(20)
-                                                ->imageEditor()
-                                                ->imageEditorViewportWidth(480)
-                                                ->imageEditorViewportHeight(480)
-                                                ->helperText('Формати: JPEG (.jpg, .jpeg), PNG, WebP, GIF. Дочекайтесь мініатюр перед збереженням. Мініатюри зверху; олівець — кадр 1:1.')
+                                        ListingPhotoUpload::applyImageEditorIfAvailable(
+                                            ProductForm::applyListingPhotosLayout(
+                                                ListingPhotoUpload::make('photos')
+                                                    ->label('Фото цього кольору')
+                                                    ->multiple()
+                                                    ->reorderable()
+                                                    ->appendFiles()
+                                                    ->disk('public')
+                                                    ->directory(fn (?Bundle $record, FileUpload $component): string => ListingPhotoUpload::bundleOptionValuePhotosDirectory($record, $component))
+                                                    ->maxFiles(20)
+                                                    ->helperText('Формати: JPEG (.jpg, .jpeg), PNG, WebP, GIF. Дочекайтесь мініатюр перед збереженням. Мініатюри зверху; олівець — кадр 1:1.')
+                                            )
                                         ),
                                     ])
                                     ->columns(1),
@@ -435,31 +432,29 @@ class BundleForm
                                                     ->where('value_type', 'color')
                                                     ->exists();
                                             }),
-                                        ProductForm::applyListingPhotosLayout(
-                                            FileUpload::make('photos')
-                                                ->label('Фото цього кольору')
-                                                ->image()
-                                                ->multiple()
-                                                ->reorderable()
-                                                ->appendFiles()
-                                                ->disk('public')
-                                                ->directory(fn (?Bundle $record): string => 'bundles/'.($record?->id ?? 'draft').'/option-value-photos')
-                                                ->maxFiles(20)
-                                                ->imageEditor()
-                                                ->imageEditorViewportWidth(480)
-                                                ->imageEditorViewportHeight(480)
-                                                ->helperText('Формати: JPEG (.jpg, .jpeg), PNG, WebP, GIF. Дочекайтесь мініатюр перед збереженням. Мініатюри зверху; олівець — кадр 1:1.')
-                                                ->visible(function (Get $get): bool {
-                                                    $groupId = (int) ($get('../../option_group_id') ?? 0);
-                                                    if ($groupId <= 0) {
-                                                        return false;
-                                                    }
+                                        ListingPhotoUpload::applyImageEditorIfAvailable(
+                                            ProductForm::applyListingPhotosLayout(
+                                                ListingPhotoUpload::make('photos')
+                                                    ->label('Фото цього кольору')
+                                                    ->multiple()
+                                                    ->reorderable()
+                                                    ->appendFiles()
+                                                    ->disk('public')
+                                                    ->directory(fn (?Bundle $record, FileUpload $component): string => ListingPhotoUpload::bundleOptionValuePhotosDirectory($record, $component))
+                                                    ->maxFiles(20)
+                                                    ->helperText('Формати: JPEG (.jpg, .jpeg), PNG, WebP, GIF. Дочекайтесь мініатюр перед збереженням. Мініатюри зверху; олівець — кадр 1:1.')
+                                                    ->visible(function (Get $get): bool {
+                                                        $groupId = (int) ($get('../../option_group_id') ?? 0);
+                                                        if ($groupId <= 0) {
+                                                            return false;
+                                                        }
 
-                                                    return OptionGroup::query()
-                                                        ->whereKey($groupId)
-                                                        ->where('value_type', 'color')
-                                                        ->exists();
-                                                })
+                                                        return OptionGroup::query()
+                                                            ->whereKey($groupId)
+                                                            ->where('value_type', 'color')
+                                                            ->exists();
+                                                    })
+                                            )
                                         ),
                                     ]),
                             ])

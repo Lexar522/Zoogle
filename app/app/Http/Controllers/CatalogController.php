@@ -287,6 +287,57 @@ class CatalogController extends Controller
     }
 
     /**
+     * JSON_TABLE лишаємо лише для справжнього Oracle MySQL ≥ 8.0.4.
+     * На PDO з driver=mysql але сервером MariaDB (типово для shared-хостингів) — VERSION() містить «mariadb»;
+     * JSON_TABLE там часто падає з 1064, тому перехід на JSON_CONTAINS + JSON із PHP.
+     */
+    private function databaseSupportsCatalogJsonTable(): bool
+    {
+        if (DB::connection()->getDriverName() !== 'mysql') {
+            return false;
+        }
+
+        try {
+            $raw = trim((string) DB::scalar('SELECT VERSION()'));
+            if ($raw === '' || stripos($raw, 'mariadb') !== false) {
+                return false;
+            }
+
+            if (! preg_match('/^(\d+)\.(\d+)\.(\d+)/', $raw, $p)) {
+                return false;
+            }
+
+            $major = (int) $p[1];
+            $minor = (int) $p[2];
+            $patch = (int) $p[3];
+
+            if ($major < 8) {
+                return false;
+            }
+
+            if ($major === 8 && $minor === 0 && $patch < 4) {
+                return false;
+            }
+
+            return true;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /** JSON-підряд одного блоку категорії в variant_options (для JSON_CONTAINS під MariaDB/MySQL). */
+    private function encodedCatalogVariantOptionCategoryRow(int $categoryGroupId, int $categoryValueId): string
+    {
+        return json_encode(
+            [
+                'option_group_id' => $categoryGroupId,
+                'option_value_ids' => [$categoryValueId],
+            ],
+            JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
+    }
+
+    /**
      * Збіг у variant_options лише в рядку групи «Категорія» (option_group_id = системна група каталогу).
      * Інакше JSON_SEARCH знаходить id у будь-якій групі опцій і в каталозі з’являються зайві товари (наприклад «Єнот» у «аксесуарах для собак»).
      *
@@ -306,14 +357,24 @@ class CatalogController extends Controller
         }
 
         $driver = DB::connection()->getDriverName();
-
+        /** PDO driver часто mysql при реальній MariaDB — без CAST другого аргументу. */
+        $mariadbStyleJsonContain = ($driver === 'mariadb');
         if ($driver === 'mysql') {
+            try {
+                $mariadbStyleJsonContain = stripos((string) DB::scalar('SELECT VERSION()'), 'mariadb') !== false;
+            } catch (\Throwable) {
+                $mariadbStyleJsonContain = false;
+            }
+        }
+
+        if ($driver === 'mysql' && $this->databaseSupportsCatalogJsonTable()) {
             $builder->where(function (Builder $nested) use ($categoryFilterValueIds, $categoryGroupId): void {
                 $ors = [];
                 $bindings = [(int) $categoryGroupId];
                 foreach ($categoryFilterValueIds as $valueId) {
+                    // Скаляр як JSON через рядок: CAST(INTEGER) AS JSON на MariaDB ламається.
                     $ors[] = 'JSON_CONTAINS(COALESCE(jt.oids, JSON_ARRAY()), CAST(? AS JSON), \'$\')';
-                    $bindings[] = (int) $valueId;
+                    $bindings[] = json_encode((int) $valueId, JSON_THROW_ON_ERROR);
                 }
                 $sql = 'EXISTS (
                     SELECT 1 FROM JSON_TABLE(
@@ -327,6 +388,41 @@ class CatalogController extends Controller
                 )';
                 $nested->whereRaw($sql, $bindings);
             });
+
+            return;
+        }
+
+        if ($driver === 'mysql' || $driver === 'mariadb') {
+            /** Fallback для MariaDB і MySQL без JSON_TABLE: один JSON-параметр з PHP. */
+            $blobs = [];
+            foreach ($categoryFilterValueIds as $valueId) {
+                try {
+                    $blobs[] = $this->encodedCatalogVariantOptionCategoryRow($categoryGroupId, (int) $valueId);
+                } catch (\JsonException) {
+                    continue;
+                }
+            }
+
+            if ($blobs !== []) {
+                /** MariaDB або mysql+MariaDB-сервер: CAST(? AS JSON) ламається (1064); передаємо JSON-текст. */
+                $rawTemplate = $mariadbStyleJsonContain
+                    ? 'JSON_CONTAINS(COALESCE(variant_options, JSON_ARRAY()), ?, \'$\')'
+                    : 'JSON_CONTAINS(COALESCE(variant_options, JSON_ARRAY()), CAST(? AS JSON), \'$\')';
+
+                $builder->where(function (Builder $nested) use ($blobs, $rawTemplate): void {
+                    $nested->where(function (Builder $group) use ($blobs, $rawTemplate): void {
+                        $first = true;
+                        foreach ($blobs as $blob) {
+                            if ($first) {
+                                $group->whereRaw($rawTemplate, [$blob]);
+                                $first = false;
+                            } else {
+                                $group->orWhereRaw($rawTemplate, [$blob]);
+                            }
+                        }
+                    });
+                });
+            }
 
             return;
         }

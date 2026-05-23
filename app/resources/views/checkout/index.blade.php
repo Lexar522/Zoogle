@@ -41,32 +41,44 @@
 @push('styles')
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
     <style>
+            /* Flex у дереві форми знижує перевагу нативного [hidden]; блоки можуть лишатися у потоці
+               між «Доставка» та «Оплата». Примусово ховаємо лише для сторінки оформлення. */
+            .checkout-page [hidden] {
+                display: none !important;
+            }
             .checkout-delivery-section {
                 display: flex;
                 flex-direction: column;
                 gap: 14px;
                 min-width: 0;
             }
-            .checkout-delivery-row {
+            .checkout-page .checkout-delivery-row {
                 display: flex;
                 flex-wrap: nowrap;
                 align-items: stretch;
                 gap: 16px;
-                min-height: 0;
             }
-            .checkout-delivery-row > .checkout-delivery__card {
-                flex: 1 1 0;
+            .checkout-page .checkout-delivery-row > .checkout-delivery__card {
+                flex: 1 1 auto;
                 min-width: 0;
-                min-height: 0;
+                min-height: auto;
                 align-self: stretch;
             }
-            .checkout-delivery-row--single {
+            .checkout-page .checkout-delivery-row > .checkout-delivery__card--map {
+                flex: 1 1 0;
+                min-height: 0;
+            }
+            .checkout-page .checkout-delivery-row--single {
                 flex-direction: column;
             }
-            .checkout-delivery__card {
+            .checkout-page .checkout-delivery-row--single > .checkout-delivery__card {
+                flex: 0 0 auto;
+                min-height: auto;
+            }
+            .checkout-page .checkout-delivery__card {
                 display: flex;
                 flex-direction: column;
-                min-height: 0;
+                min-height: auto;
                 min-width: 0;
             }
             .checkout-delivery__card--info {
@@ -136,7 +148,7 @@
                 gap: 12px;
             }
             @media (max-width: 900px) {
-                .checkout-delivery-row {
+                .checkout-page .checkout-delivery-row {
                     flex-direction: column;
                 }
             }
@@ -336,11 +348,6 @@
                     grid-template-columns: 1fr;
                 }
 
-                .np-map {
-                    min-height: 220px;
-                    border-radius: 14px;
-                }
-
                 .np-map-wh-popup {
                     max-width: min(292px, calc(100vw - 44px));
                 }
@@ -348,11 +355,6 @@
                 .np-map-wh-popup__card {
                     padding: 12px 38px 12px 14px;
                     border-radius: 14px;
-                }
-
-                .checkout-payment-btn .checkout-payment-btn__inner {
-                    min-height: 46px;
-                    border-radius: 12px;
                 }
             }
             .checkout-payment-btn {
@@ -692,24 +694,308 @@
                 .checkout-page {
                     width: 100%;
                     margin-top: 0;
+                    margin-bottom: max(14px, env(safe-area-inset-bottom, 0px) + 8px);
+                    padding-left: max(12px, env(safe-area-inset-left, 0px));
+                    padding-right: max(12px, env(safe-area-inset-right, 0px));
                 }
-                .checkout-page__toolbar,
+                .checkout-page__toolbar {
+                    margin-bottom: 10px;
+                    padding: 12px 14px;
+                    border-radius: 16px;
+                    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+                }
+                .checkout-page__toolbar::after {
+                    width: 48px;
+                    right: 10px;
+                    bottom: 8px;
+                    opacity: 0.08;
+                }
+                .checkout-page__title {
+                    margin-bottom: 6px;
+                    font-size: 1.05rem;
+                    line-height: 1.22;
+                }
+                .checkout-page__lead {
+                    font-size: 0.8rem;
+                    line-height: 1.45;
+                }
                 .checkout-page .card,
                 .checkout-delivery-section {
-                    border-radius: 18px;
+                    border-radius: 16px;
+                    padding: 12px;
+                    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
                 }
-                .checkout-page__toolbar,
-                .checkout-page .card,
-                .checkout-delivery-section {
-                    padding: 16px;
+                .checkout-page .muted {
+                    font-size: 0.8rem;
+                    line-height: 1.45;
                 }
-                .checkout-payment-btn .checkout-payment-btn__inner,
+                .checkout-page .alert.error {
+                    font-size: 0.82rem;
+                    padding: 8px 10px;
+                    border-radius: 10px;
+                }
+                .checkout-page__form--blocks {
+                    gap: 10px;
+                }
+                .checkout-page__form--blocks > .card {
+                    gap: 14px;
+                }
+                .checkout-page__section-heading,
+                .checkout-delivery-section > .checkout-page__section-heading {
+                    margin-bottom: 10px;
+                    padding-bottom: 8px;
+                    font-size: 0.94rem;
+                    gap: 8px;
+                }
+                .checkout-page__section-heading::before {
+                    width: 8px;
+                    height: 8px;
+                    box-shadow: 0 0 0 4px rgba(54, 125, 241, 0.12);
+                }
+                .checkout-page label {
+                    margin-bottom: 5px;
+                    font-size: 0.78rem;
+                }
                 .checkout-page input,
                 .checkout-page select,
-                .checkout-page textarea,
-                .checkout-page__submit .btn-buy,
+                .checkout-page textarea {
+                    min-height: 40px;
+                    padding: 8px 12px;
+                    font-size: 0.875rem;
+                    font-weight: 400;
+                    line-height: 1.35;
+                    border-radius: 10px;
+                    box-shadow: none;
+                }
+                .checkout-page select {
+                    font-weight: 500;
+                }
+                .checkout-page input::placeholder,
+                .checkout-page textarea::placeholder {
+                    font-size: 0.875rem;
+                }
+                .checkout-page input:hover,
+                .checkout-page select:hover,
+                .checkout-page textarea:hover {
+                    transform: none;
+                    box-shadow: none;
+                }
+                .checkout-page input:focus,
+                .checkout-page select:focus,
+                .checkout-page textarea:focus {
+                    box-shadow: 0 0 0 3px rgba(54, 125, 241, 0.14);
+                }
+                .checkout-page textarea {
+                    min-height: 72px;
+                }
+                .checkout-page #comment {
+                    min-height: 88px;
+                }
+                .checkout-contact-grid {
+                    gap: 10px;
+                }
+                .checkout-page .cart-drawer__lines {
+                    gap: 8px;
+                }
+                .checkout-page .cart-drawer__line--checkout {
+                    grid-template-columns: 56px minmax(0, 1fr);
+                    gap: 8px;
+                    border-radius: 12px;
+                    padding: 8px;
+                    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+                }
+                .checkout-page .cart-drawer__line--checkout:hover {
+                    transform: none;
+                    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+                }
+                .checkout-page .cart-drawer__line-aside {
+                    flex-direction: row;
+                    align-items: center;
+                    justify-content: space-between;
+                    width: 100%;
+                    gap: 6px;
+                }
+                .checkout-page .cart-drawer__line-pricing--checkout-aside {
+                    flex-direction: row;
+                    align-items: baseline;
+                    gap: 8px;
+                }
+                .checkout-page .cart-drawer__line-media {
+                    width: 56px;
+                    height: 56px;
+                    border-radius: 10px;
+                }
+                .checkout-page .cart-drawer__line-main--checkout {
+                    gap: 8px;
+                }
+                .checkout-page .cart-drawer__line-body {
+                    gap: 6px;
+                }
+                .checkout-page .cart-drawer__line-title {
+                    font-size: 0.88rem;
+                    line-height: 1.35;
+                }
+                .checkout-page .cart-drawer__line-total {
+                    font-size: 0.92rem;
+                }
+                .checkout-page .cart-drawer__unit-price {
+                    font-size: 0.8rem;
+                }
+                .checkout-page .cart-drawer__option-badge {
+                    padding: 4px 8px;
+                    font-size: 11px;
+                }
+                .checkout-page .cart-drawer__remove-btn {
+                    width: 34px;
+                    height: 34px;
+                    min-width: 34px;
+                    min-height: 34px;
+                    font-size: 18px;
+                }
+                .checkout-page .cart-drawer__qty-btn {
+                    width: 34px;
+                    height: 34px;
+                    min-width: 34px;
+                    min-height: 34px;
+                }
+                .checkout-page .cart-drawer__qty-input {
+                    height: 34px;
+                    font-size: 0.88rem;
+                }
+                .cart-drawer__checkout-qty {
+                    min-width: 50px;
+                    height: 30px;
+                    font-size: 0.82rem;
+                    border-radius: 10px;
+                }
+                .checkout-page__total {
+                    margin-top: 10px;
+                    padding: 10px 0 0;
+                    font-size: 0.94rem;
+                }
+                .checkout-delivery-section {
+                    gap: 10px;
+                    overflow: visible;
+                }
+                .checkout-page .checkout-delivery-row {
+                    gap: 10px;
+                    min-height: auto;
+                }
+                .checkout-page .checkout-delivery-row > .checkout-delivery__card {
+                    flex: 0 0 auto;
+                    min-height: auto;
+                }
+                .checkout-page .checkout-delivery__card {
+                    min-height: auto;
+                    overflow: visible;
+                }
+                .checkout-delivery-section > .checkout-delivery-row > .checkout-delivery__card--info.card {
+                    margin-bottom: 0;
+                    padding: 0;
+                    border: none;
+                    box-shadow: none;
+                    background: transparent;
+                    border-radius: 0;
+                }
+                .checkout-delivery-section > .checkout-delivery-row > .checkout-delivery__card--info.card:hover {
+                    transform: none;
+                    box-shadow: none;
+                }
+                .checkout-delivery__main {
+                    gap: 0.75rem;
+                }
+                .np-checkout-form-col {
+                    gap: 8px;
+                }
+                .checkout-delivery__map-heading {
+                    margin-bottom: 6px;
+                    font-size: 0.92rem;
+                }
+                .np-map-caption {
+                    margin-bottom: 0.35rem;
+                    font-size: 0.82rem;
+                }
                 .np-map {
-                    border-radius: 18px;
+                    min-height: 200px;
+                    border-radius: 12px;
+                }
+                .checkout-delivery__card--map .np-map {
+                    min-height: 200px !important;
+                }
+                .np-delivery {
+                    gap: 10px;
+                    padding-top: 10px;
+                    margin-top: 6px;
+                }
+                .checkout-payment-buttons {
+                    gap: 8px;
+                }
+                .checkout-payment-btn .checkout-payment-btn__inner {
+                    min-height: 40px;
+                    padding: 8px 10px;
+                    font-size: 0.82rem;
+                    border-radius: 10px;
+                    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+                }
+                .checkout-payment-btn:has(:checked) .checkout-payment-btn__inner,
+                .checkout-payment-btn--readonly .checkout-payment-btn__inner {
+                    box-shadow: 0 0 0 3px rgba(54, 125, 241, 0.12);
+                }
+                .checkout-payment-btn:hover .checkout-payment-btn__inner {
+                    transform: none;
+                }
+                .checkout-page .btn.secondary,
+                .np-courier-geocode-btn {
+                    min-height: 38px;
+                    padding: 8px 14px;
+                    font-size: 0.86rem;
+                    border-radius: 12px;
+                }
+                .checkout-page__submit {
+                    padding-top: 0;
+                }
+                .checkout-page__submit .btn-buy {
+                    min-height: 44px;
+                    padding: 10px 16px;
+                    font-size: 0.94rem;
+                    border-radius: 12px;
+                    box-shadow: 0 8px 20px rgba(239, 56, 41, 0.28);
+                }
+                .checkout-page__submit .btn-buy:hover {
+                    transform: none;
+                }
+                .checkout-page .card:hover,
+                .checkout-delivery-section:hover,
+                .checkout-page__toolbar:hover {
+                    transform: none;
+                }
+            }
+            @media (max-width: 520px) {
+                .checkout-page__toolbar {
+                    padding: 10px 12px;
+                }
+                .checkout-page__title {
+                    font-size: 1rem;
+                }
+                .checkout-page .card,
+                .checkout-delivery-section {
+                    padding: 10px;
+                    border-radius: 14px;
+                }
+                .checkout-page .cart-drawer__line-media {
+                    width: 52px;
+                    height: 52px;
+                }
+                .np-map {
+                    min-height: 180px;
+                }
+                .checkout-delivery__card--map .np-map {
+                    min-height: 180px !important;
+                }
+                .checkout-payment-btn .checkout-payment-btn__inner {
+                    min-height: 40px;
+                    padding: 7px 10px;
+                    font-size: 0.82rem;
                 }
             }
     </style>

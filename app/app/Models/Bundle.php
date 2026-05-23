@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\StoragePublicPath;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -72,19 +73,6 @@ class Bundle extends Model
      */
     private function normalizePhotoList(mixed $photos): array
     {
-        if (! is_array($photos)) {
-            return [];
-        }
-
-        $out = [];
-        foreach ($photos as $path) {
-            if (! is_string($path) || $path === '') {
-                continue;
-            }
-
-            $out[] = ltrim($path, '/');
-        }
-
-        return $out;
+        return StoragePublicPath::normalizeList($photos);
     }
 }

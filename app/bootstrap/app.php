@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\ForceUrlFromIncomingRequest;
+use App\Http\Middleware\SetShopLocale;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -15,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Підписані URL (Livewire upload/preview) мають збігатися зі схемою/host за проксі (HTTPS).
         $middleware->trustProxies(at: '*');
         $middleware->prependToGroup('web', ForceUrlFromIncomingRequest::class);
+        $middleware->appendToGroup('web', SetShopLocale::class);
         $middleware->redirectGuestsTo(fn () => route('login'));
         $middleware->redirectUsersTo(fn () => route('account.index'));
         $middleware->validateCsrfTokens(except: [

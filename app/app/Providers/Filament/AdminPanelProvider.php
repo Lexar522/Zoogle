@@ -34,7 +34,8 @@ class AdminPanelProvider extends PanelProvider
             ->login()
             ->profile()
             ->brandName('ZOOGLE')
-            ->brandLogo(asset('images/zoogle-logo.png'))
+            ->favicon(asset('favicon.png'))
+            ->brandLogo(asset('images/zoogle-logo-new.png'))
             ->brandLogoHeight('2rem')
             ->renderHook(
                 PanelsRenderHook::HEAD_END,

@@ -32,8 +32,8 @@
         .home-product-carousel {
             /* Трохи більше однієї картки в вікні — зручніший snap і скрол, ніж рівно 2 вузькі колонки */
             --home-carousel-cols: 1.08;
-            --home-carousel-gap: 12px;
-            margin-top: 12px;
+            --home-carousel-gap: 8px;
+            margin-top: 8px;
         }
 
         .home-product-carousel.home-product-carousel--scrollable {
@@ -159,6 +159,43 @@
     .home-product-carousel .product-card__footer {
         margin-top: auto;
     }
+    /* Каталог / блоки без --show-excerpt: без опису в картці */
+    .home-product-carousel.home-product-carousel--mobile-feed:not(.home-product-carousel--show-excerpt) .product-card__title {
+        min-height: 0;
+    }
+    .home-product-carousel.home-product-carousel--mobile-feed:not(.home-product-carousel--show-excerpt) .product-card__excerpt {
+        display: none !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        -webkit-line-clamp: unset;
+    }
+    /* Хіти / рекомендовані на мобільній сітці */
+    .home-product-carousel.home-product-carousel--mobile-feed.home-product-carousel--show-excerpt .product-card__title {
+        min-height: 0;
+    }
+    .home-product-carousel.home-product-carousel--mobile-feed.home-product-carousel--show-excerpt .product-card__excerpt {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        min-height: 0;
+        margin: 0;
+    }
+    .home-product-carousel.home-product-carousel--mobile-feed .product-card__body,
+    .home-product-carousel.home-product-carousel--mobile-feed .product-card__actions {
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+    .home-product-carousel.home-product-carousel--mobile-feed .product-card__actions {
+        display: flex;
+        flex-direction: column;
+        margin-top: auto;
+    }
+    .home-product-carousel.home-product-carousel--mobile-feed .product-card__footer {
+        margin-top: auto;
+    }
     .home-product-carousel__btn {
         position: absolute;
         top: 50%;
@@ -200,9 +237,76 @@
         display: none;
     }
     @media (max-width: 768px) {
-        html.shop-layout--catalog-one-col .home-product-carousel {
+        html.shop-layout--catalog-one-col .home-product-carousel:not(.home-product-carousel--mobile-feed) {
             --home-carousel-cols: 1.12;
         }
+    }
+    /* Завжди сітка (не горизонтальна карусель) — хіти / рекомендовані */
+    .home-product-carousel.home-product-carousel--mobile-feed {
+        padding-inline: 0;
+        margin-top: 10px;
+        width: 100%;
+        max-width: 100%;
+    }
+    .home-product-carousel.home-product-carousel--mobile-feed .home-product-carousel__viewport {
+        container-type: normal;
+        container-name: none;
+        overflow-x: visible;
+        overflow-y: visible;
+        scroll-snap-type: none;
+        touch-action: manipulation;
+        cursor: default;
+        padding: 0 0 9px;
+        width: 100%;
+        max-width: 100%;
+    }
+    .home-product-carousel.home-product-carousel--mobile-feed .home-product-carousel__track {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: stretch;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0;
+        gap: 8px;
+        --product-card-photo-ratio: 10 / 11;
+    }
+    @media (min-width: 769px) {
+        .home-product-carousel.home-product-carousel--mobile-feed .home-product-carousel__track {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+    }
+    @media (min-width: 981px) {
+        .home-product-carousel.home-product-carousel--mobile-feed .home-product-carousel__track {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+    }
+    .home-product-carousel.home-product-carousel--mobile-feed .home-product-carousel__cell {
+        flex: none !important;
+        display: flex;
+        align-self: stretch;
+        max-width: none !important;
+        width: auto;
+        min-width: 0;
+        min-height: 0;
+        scroll-snap-align: none;
+    }
+    .home-product-carousel.home-product-carousel--mobile-feed .home-product-carousel__cell .product-card-shell {
+        display: flex;
+        flex: 1 1 auto;
+        width: 100%;
+        min-width: 0;
+        min-height: 0;
+        height: 100%;
+    }
+    .home-product-carousel.home-product-carousel--mobile-feed .home-product-carousel__cell .product-card {
+        flex: 1 1 auto;
+        width: 100%;
+        min-width: 0;
+        height: 100%;
+        min-height: 0;
+    }
+    .home-product-carousel.home-product-carousel--mobile-feed .home-product-carousel__btn {
+        display: none !important;
     }
 </style>
 @endpush
@@ -244,6 +348,8 @@
         if (!viewport || !prev || !next) return;
 
         var track = viewport.querySelector('.home-product-carousel__track');
+        var isMobileFeedRoot = root.classList.contains('home-product-carousel--mobile-feed');
+        var mqGrid = window.matchMedia('(max-width: 768px)');
         /** Ширина першого «ряду» карток; після клонів scrollLeft зміщуємо назад на це — без видимого стрибка */
         var firstSetWidth = 0;
 
@@ -339,10 +445,6 @@
             });
         }
 
-        buildLoopSlides();
-        ensureTrackLongEnoughForLoop();
-
-        /** Поки scrollLeft у зоні клонів — віднімаємо firstSetWidth (кілька разів, якщо потрібно) */
         function normalizeLoopPosition() {
             if (firstSetWidth <= 0) return;
             var guard = 0;
@@ -568,6 +670,81 @@
             autoTimer = setInterval(tickAutoAdvance, AUTO_INTERVAL_MS);
         }
 
+        function isGridMode() {
+            return isMobileFeedRoot && mqGrid.matches;
+        }
+
+        function removeCarouselClones() {
+            if (!track) {
+                return;
+            }
+            track.querySelectorAll('.home-product-carousel__cell[data-home-carousel-clone]').forEach(function (el) {
+                el.remove();
+            });
+            firstSetWidth = 0;
+        }
+
+        function applyA11yMode() {
+            if (!isMobileFeedRoot) {
+                return;
+            }
+            var carouselDesc = root.getAttribute('data-carousel-roledescription');
+            var listDesc = root.getAttribute('data-list-roledescription');
+            if (isGridMode()) {
+                if (listDesc) {
+                    root.setAttribute('aria-roledescription', listDesc);
+                } else {
+                    root.removeAttribute('aria-roledescription');
+                }
+            } else if (carouselDesc) {
+                root.setAttribute('aria-roledescription', carouselDesc);
+            }
+        }
+
+        function enterGridMode() {
+            stopAutoAdvance();
+            if (smoothAnimRaf !== null) {
+                cancelAnimationFrame(smoothAnimRaf);
+                smoothAnimRaf = null;
+            }
+            removeCarouselClones();
+            viewport.scrollLeft = 0;
+            viewport.classList.remove('is-dragging', 'is-suppress-snap');
+            root.classList.remove('home-product-carousel--scrollable');
+            wasScrollable = false;
+            prev.disabled = true;
+            next.disabled = true;
+            prev.setAttribute('aria-disabled', 'true');
+            next.setAttribute('aria-disabled', 'true');
+            applyA11yMode();
+        }
+
+        function enterCarouselMode() {
+            buildLoopSlides();
+            ensureTrackLongEnoughForLoop();
+            measureLoopWidth();
+            setScrollable();
+            applyA11yMode();
+        }
+
+        function refreshMode() {
+            if (isMobileFeedRoot) {
+                enterGridMode();
+                return;
+            }
+            if (isGridMode()) {
+                enterGridMode();
+                return;
+            }
+            enterCarouselMode();
+        }
+
+        if (typeof mqGrid.addEventListener === 'function') {
+            mqGrid.addEventListener('change', refreshMode);
+        } else if (typeof mqGrid.addListener === 'function') {
+            mqGrid.addListener(refreshMode);
+        }
+
         prev.addEventListener('click', function () {
             scrollByStep(-1);
         });
@@ -576,6 +753,9 @@
         });
 
         viewport.addEventListener('keydown', function (e) {
+            if (isGridMode()) {
+                return;
+            }
             if (e.key === 'ArrowLeft') {
                 e.preventDefault();
                 scrollByStep(-1);
@@ -603,12 +783,12 @@
 
         if (typeof ResizeObserver !== 'undefined') {
             var ro = new ResizeObserver(function () {
-                setScrollable();
+                refreshMode();
             });
             ro.observe(viewport);
         }
         window.addEventListener('resize', function () {
-            setScrollable();
+            refreshMode();
         });
 
         /* Drag-to-scroll: НЕ ставити setPointerCapture на pointerdown — інакше click по <a> не спрацьовує. Capture лише після DRAG_COMMIT_PX. */
@@ -690,6 +870,9 @@
         }
 
         function onPointerDown(e) {
+            if (isGridMode()) {
+                return;
+            }
             if (e.button !== undefined && e.button !== 0) return;
             if (e.pointerType !== 'mouse' && e.pointerType !== 'pen') return;
             if (isInteractiveTarget(e.target)) return;
@@ -706,7 +889,7 @@
 
         root.addEventListener('pointerdown', onPointerDown, true);
 
-        setScrollable();
+        refreshMode();
     }
 
     function boot() {

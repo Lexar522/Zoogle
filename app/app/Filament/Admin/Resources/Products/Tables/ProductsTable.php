@@ -24,33 +24,11 @@ use Illuminate\Support\Str;
 class ProductsTable
 {
     /**
-     * Перший збережений шлях до файлу: спочатку галерея товару, потім фото варіантів (як на вітрині в картках).
+     * Перший збережений шлях до файлу: спочатку галерея товару (БД або диск), потім фото варіантів.
      */
     public static function firstStoredPhotoPath(?Product $record): ?string
     {
-        if (! $record) {
-            return null;
-        }
-
-        $lists = [];
-        if (is_array($record->photos ?? null)) {
-            $lists[] = $record->photos;
-        }
-        foreach ($record->variants ?? [] as $variant) {
-            if (is_array($variant->photos ?? null)) {
-                $lists[] = $variant->photos;
-            }
-        }
-
-        foreach ($lists as $photos) {
-            foreach ($photos as $item) {
-                if (is_string($item) && $item !== '') {
-                    return ltrim($item, '/');
-                }
-            }
-        }
-
-        return null;
+        return $record?->firstCatalogPhotoPath();
     }
 
     /**

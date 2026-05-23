@@ -3,6 +3,7 @@
 namespace App\Filament\Admin\Resources\Products\Pages;
 
 use App\Filament\Admin\Concerns\HandlesListingVariantOptions;
+use App\Filament\Admin\Concerns\ProtectsListingPhotosOnSave;
 use App\Filament\Admin\Resources\Products\ProductResource;
 use App\Models\OptionGroup;
 use App\Support\CatalogCategoryTree;
@@ -13,6 +14,7 @@ use Illuminate\Support\Facades\Schema;
 class CreateProduct extends CreateRecord
 {
     use HandlesListingVariantOptions;
+    use ProtectsListingPhotosOnSave;
 
     protected static string $resource = ProductResource::class;
 
@@ -41,6 +43,12 @@ class CreateProduct extends CreateRecord
             unset($data['category_value_id']);
         }
 
-        return $this->normalizeVariantOptions($data);
+        $data = $this->normalizeVariantOptions($data);
+
+        if (array_key_exists('photos', $data)) {
+            $data['photos'] = $this->sanitizeListingPhotosForSave($data['photos'], null);
+        }
+
+        return $data;
     }
 }

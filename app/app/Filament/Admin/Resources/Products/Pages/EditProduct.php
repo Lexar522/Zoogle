@@ -3,18 +3,22 @@
 namespace App\Filament\Admin\Resources\Products\Pages;
 
 use App\Filament\Admin\Concerns\HandlesListingVariantOptions;
+use App\Filament\Admin\Concerns\ProtectsListingPhotosOnSave;
 use App\Filament\Admin\Resources\Products\ProductResource;
 use App\Models\OptionGroup;
 use App\Models\OptionValue;
+use App\Models\Product;
 use App\Support\CatalogCategoryTree;
 use App\Support\CatalogProductsTable;
 use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Schema;
 
 class EditProduct extends EditRecord
 {
     use HandlesListingVariantOptions;
+    use ProtectsListingPhotosOnSave;
 
     protected static string $resource = ProductResource::class;
 
@@ -50,12 +54,22 @@ class EditProduct extends EditRecord
             unset($data['category_value_id']);
         }
 
-        return $this->normalizeVariantOptions($data);
+        $data = $this->normalizeVariantOptions($data);
+
+        if (array_key_exists('photos', $data)) {
+            $data['photos'] = $this->sanitizeListingPhotosForSave(
+                $data['photos'],
+                $this->getRecord()
+            );
+        }
+
+        return $data;
     }
 
     protected function mutateFormDataBeforeFill(array $data): array
     {
         $data = $this->coerceProductRichTextFieldsForFill($data);
+        $data = $this->sanitizeListingPhotosForForm($data);
 
         $categoryGroupId = OptionGroup::systemCategoryGroupIdForCatalog();
 
@@ -154,6 +168,17 @@ class EditProduct extends EditRecord
             $data = array_merge($data, CatalogCategoryTree::levelFieldsForFormFill($data, $categoryGroupId));
         }
 
-        return $data;
+        return $this->mergeListingPhotosFromDisk($data, $this->getRecord());
+    }
+
+    protected function handleRecordUpdate(Model $record, array $data): Model
+    {
+        $record = parent::handleRecordUpdate($record, $data);
+
+        if ($record instanceof Product) {
+            $this->repairListingPhotosInDatabaseIfNeeded($record);
+        }
+
+        return $record;
     }
 }

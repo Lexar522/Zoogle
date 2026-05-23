@@ -1,0 +1,30 @@
+ZOOGLE — реліз 2026-05-25
+=========================
+
+Папка: hosting/deploy-package-2026-05-25/
+
+Виправлення
+-----------
+• Завантаження фото в адмінці: ListingPhotoFileUpload — валідація mimes:…
+  замість mimetypes:… (JPEG не відхиляється на shared-хостингу з кривим fileinfo).
+• Каталог upload: products/{id}/photos через getRecord(), не draft при редагуванні.
+• При збереженні: автоперенос products/draft/photos/ → products/{id}/photos/.
+
+Після заливки
+-------------
+cd ~/domains/zoogle.in.ua/deploy-package
+
+# Не перезаписуйте .env і storage/app/public
+rm -f public/storage && php artisan storage:link
+php artisan migrate --force
+php artisan config:clear && php artisan config:cache
+php artisan route:cache && php artisan view:clear
+
+# Якщо у товару photos в draft — один раз:
+php artisan tinker --execute="
+\$p = \App\Models\Product::find(2);
+if (\$p) { \$p->photos = \$p->photosPathsFromDisk(); \$p->saveQuietly(); echo json_encode(\$p->photos); }
+"
+
+Адмінка: https://zoogle.in.ua/admin (лише HTTPS)
+Дочекайтесь мініатюри перед «Зберегти».

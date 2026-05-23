@@ -41,14 +41,14 @@
     </header>
 
     @if (session('status') === 'profile-saved')
-        <p class="alert success" style="margin:0 0 1rem;font-size:0.95rem;" role="status">{{ __('shop.account_profile_saved_flash') }}</p>
+        <p class="alert success account-flash" role="status">{{ __('shop.account_profile_saved_flash') }}</p>
     @endif
 
     <section class="account-card" id="profile">
         <div class="account-card__head">
             <h2>{{ __('shop.account_profile_section_title') }}</h2>
         </div>
-        <p class="muted" style="margin:0 0 1rem;font-size:0.92rem;line-height:1.5;">
+        <p class="muted account-card__lead">
             {{ __('shop.account_profile_section_lead') }}
         </p>
         <form method="POST" action="{{ route('account.profile.update') }}" class="account-profile-form">

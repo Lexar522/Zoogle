@@ -10,13 +10,9 @@ final class PublicStorageUrl
 {
     public static function forPath(?string $relativePath): ?string
     {
-        if ($relativePath === null || $relativePath === '') {
+        $path = StoragePublicPath::normalize($relativePath);
+        if ($path === null) {
             return null;
-        }
-
-        $path = ltrim($relativePath, '/');
-        if (str_starts_with($path, 'storage/')) {
-            $path = substr($path, strlen('storage/'));
         }
 
         return asset('storage/'.$path);

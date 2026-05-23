@@ -198,6 +198,8 @@ return [
     'catalog_load_more' => 'Загрузить ещё',
     'catalog_prompt' => 'Выберите категорию в меню выше или воспользуйтесь поиском.',
     'catalog_promo_sales' => 'Акции',
+    'catalog_category_expand' => 'Развернуть подкатегории «:name»',
+    'catalog_category_collapse' => 'Свернуть подкатегории «:name»',
 
     'pagination_aria' => 'Страницы результатов',
     'pagination_shown' => 'Показано',

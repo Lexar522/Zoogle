@@ -286,9 +286,29 @@
             margin-top: 1.15rem;
         }
 
-        @media (max-width: 640px) {
+        .order-track__actions .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            min-height: 48px;
+            padding: 12px 22px;
+            border-radius: calc(var(--radius) + 4px);
+            font-size: 1rem;
+            font-weight: 700;
+            line-height: 1.2;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
             .order-track {
+                box-sizing: border-box;
+                width: 100%;
+                max-width: 100%;
                 margin: 0;
+                padding-left: max(12px, env(safe-area-inset-left, 0px));
+                padding-right: max(12px, env(safe-area-inset-right, 0px));
+                padding-bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 8px));
             }
 
             .order-track__hero {
@@ -347,9 +367,21 @@
                 font-size: 0.78rem;
             }
 
-            .order-track__actions,
-            .order-track__actions .btn {
+            .order-track__actions {
+                flex-direction: column;
+                align-items: stretch;
                 width: 100%;
+                margin-top: 1rem;
+                gap: 0.65rem;
+            }
+
+            .order-track__actions .btn,
+            .order-track__actions .btn-buy {
+                display: flex;
+                width: 100%;
+                max-width: 100%;
+                min-height: 44px;
+                justify-content: center;
             }
         }
     </style>
