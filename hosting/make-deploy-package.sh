@@ -5,8 +5,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 "$ROOT/hosting/prepare-deploy.sh"
 
-rm -rf "$ROOT/hosting/deploy-package"
-mkdir -p "$ROOT/hosting/deploy-package"
+PACKAGE_DIR="${DEPLOY_PACKAGE_DIR:-$ROOT/hosting/deploy-package}"
+
+rm -rf "$PACKAGE_DIR"
+mkdir -p "$PACKAGE_DIR"
 
 rsync -a \
   --exclude '.git' \
@@ -16,10 +18,20 @@ rsync -a \
   --exclude '.phpunit.cache' \
   --exclude 'storage/logs/*.log' \
   --exclude 'public/hot' \
+  --exclude 'public/storage' \
   --exclude '.DS_Store' \
-  "$ROOT/app/" "$ROOT/hosting/deploy-package/"
+  "$ROOT/app/" "$PACKAGE_DIR/"
 
-cp "$ROOT/hosting/env.production.template" "$ROOT/hosting/deploy-package/env.production.TEMPLATE"
-cp "$ROOT/hosting/ZOOOGLE-UPLOAD-README.txt" "$ROOT/hosting/deploy-package/ZOOOGLE-UPLOAD-README.txt"
+# Симлінк public/storage з локальної машини на хості не працює — створюється через storage:link на сервері.
+rm -f "$PACKAGE_DIR/public/storage"
 
-echo "Пакет готовий: $ROOT/hosting/deploy-package ($(du -sh "$ROOT/hosting/deploy-package" | cut -f1))"
+cp "$ROOT/hosting/env.production.template" "$PACKAGE_DIR/env.production.TEMPLATE"
+cp "$ROOT/hosting/ZOOOGLE-UPLOAD-README.txt" "$PACKAGE_DIR/ZOOOGLE-UPLOAD-README.txt"
+
+for release_note in "$ROOT"/hosting/DEPLOY-RELEASE-*.txt; do
+  [[ -f "$release_note" ]] || continue
+  cp "$release_note" "$PACKAGE_DIR/"
+done
+
+echo "Пакет готовий: $PACKAGE_DIR ($(du -sh "$PACKAGE_DIR" | cut -f1))"
+echo "Архів (опційно): tar -czf hosting/deploy-package.tar.gz -C hosting $(basename "$PACKAGE_DIR")"

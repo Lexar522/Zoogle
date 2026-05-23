@@ -243,6 +243,11 @@
             box-shadow: var(--shadow);
         }
         .account-card:last-child { margin-bottom: 0; }
+        .account-card__lead {
+            margin: 0 0 1rem;
+            font-size: 0.92rem;
+            line-height: 1.5;
+        }
         .account-card__head {
             display: flex;
             flex-wrap: wrap;
@@ -882,11 +887,11 @@
                 border-bottom: 0;
             }
             .account-order-item {
-                grid-template-columns: 64px minmax(0, 1fr);
+                grid-template-columns: 56px minmax(0, 1fr);
                 align-items: start;
             }
             .account-order-item__media {
-                width: 64px;
+                width: 56px;
             }
             .account-order-item__price {
                 grid-column: 2;
@@ -935,6 +940,11 @@
             color: var(--color-price);
             font-variant-numeric: tabular-nums;
         }
+        .account-flash {
+            margin: 0 0 1rem;
+            font-size: 0.92rem;
+        }
+
         .account-empty {
             margin: 0;
             padding: 1.5rem 1rem;
@@ -956,7 +966,7 @@
 
             .account-page__grid,
             .account-main {
-                gap: 0.9rem;
+                gap: 0.75rem;
             }
 
             .account-nav {
@@ -964,14 +974,15 @@
                 top: 0;
                 z-index: 20;
                 margin: 0 -12px;
-                border-radius: 0 0 18px 18px;
-                padding: 0.75rem 0.8rem;
-                box-shadow: 0 8px 22px rgba(31, 41, 55, 0.08);
+                border-radius: 0 0 16px 16px;
+                padding: 0.65rem 0.7rem;
+                box-shadow: 0 1px 3px rgba(31, 41, 55, 0.08);
             }
 
             .account-nav__links {
                 flex-wrap: nowrap;
                 overflow-x: auto;
+                overflow-y: hidden;
                 padding-bottom: 0.1rem;
                 scrollbar-width: none;
             }
@@ -982,10 +993,15 @@
 
             .account-nav__link {
                 flex: 0 0 auto;
-                min-height: 40px;
-                padding: 0.58rem 0.75rem;
+                min-height: 36px;
+                padding: 0.45rem 0.68rem;
                 border-radius: 999px;
                 white-space: nowrap;
+                font-size: 0.82rem;
+            }
+
+            .account-nav__link:hover {
+                box-shadow: none;
             }
 
             .account-nav__brand,
@@ -994,41 +1010,144 @@
             }
 
             .account-hero {
-                border-radius: 18px;
-                padding: 1rem;
-                margin-bottom: 0.95rem;
+                border-radius: 16px;
+                padding: 0.85rem 0.9rem;
+                margin-bottom: 0.75rem;
+                box-shadow: 0 6px 20px rgba(54, 125, 241, 0.18);
             }
 
             .account-hero__inner {
                 align-items: flex-start;
-                gap: 0.8rem;
+                gap: 0.65rem;
             }
 
             .account-hero__avatar {
-                width: 3.5rem;
-                height: 3.5rem;
+                width: 3rem;
+                height: 3rem;
+                border-width: 2px;
+            }
+
+            .account-hero__avatar--initials {
+                font-size: 1.15rem;
+            }
+
+            .account-hero__text h1 {
+                font-size: 1.05rem;
+            }
+
+            .account-hero__text p {
+                font-size: 0.8rem;
+            }
+
+            .account-section-title {
+                font-size: 0.94rem;
+                margin-bottom: 0.75rem;
             }
 
             .account-tiles {
-                grid-template-columns: 1fr;
-                gap: 0.75rem;
-                margin-bottom: 0.95rem;
+                grid-template-columns: 1fr 1fr;
+                gap: 0.55rem;
+                margin-bottom: 0.75rem;
+            }
+
+            .account-tile {
+                padding: 0.75rem 0.8rem;
+                border-radius: 14px;
+                box-shadow: 0 1px 3px rgba(31, 41, 55, 0.06);
+            }
+
+            .account-tile:hover {
+                transform: none;
+                box-shadow: 0 1px 3px rgba(31, 41, 55, 0.06);
+            }
+
+            .account-tile__label {
+                font-size: 0.68rem;
+            }
+
+            .account-tile__value {
+                font-size: 1.05rem;
+            }
+
+            .account-tile__hint {
+                font-size: 0.72rem;
+                line-height: 1.3;
             }
 
             .account-card {
-                border-radius: 18px;
-                padding: 1rem;
-                margin-bottom: 0.9rem;
+                border-radius: 16px;
+                padding: 0.85rem;
+                margin-bottom: 0.75rem;
+                box-shadow: 0 1px 3px rgba(31, 41, 55, 0.06);
             }
 
             .account-card__head {
                 align-items: flex-start;
-                margin-bottom: 0.85rem;
+                margin-bottom: 0.7rem;
+                padding-bottom: 0.65rem;
+                gap: 0.35rem 0.65rem;
+            }
+
+            .account-card__head h1,
+            .account-card__head h2 {
+                font-size: 0.94rem;
+            }
+
+            .account-card__head--hero h1 {
+                font-size: 1rem;
+            }
+
+            .account-card__head a {
+                font-size: 0.78rem;
+            }
+
+            .account-card__lead {
+                font-size: 0.8rem;
+                margin-bottom: 0.75rem;
+            }
+
+            .account-profile-form label {
+                font-size: 0.78rem;
+                margin-bottom: 4px;
+            }
+
+            .account-profile-form input {
+                padding: 8px 10px;
+                font-size: 0.88rem;
+                border-radius: 8px;
+            }
+
+            .account-profile-form .btn {
+                width: 100%;
+                min-height: 40px;
+                font-size: 0.88rem;
             }
 
             .account-order-row {
                 grid-template-columns: 1fr;
-                gap: 0.4rem;
+                gap: 0.35rem;
+                padding: 0.65rem 0;
+            }
+
+            .account-order-row__num {
+                font-size: 0.88rem;
+            }
+
+            .account-order-row__meta {
+                font-size: 0.72rem;
+            }
+
+            .account-order-row__sum {
+                font-size: 0.88rem;
+            }
+
+            .account-order-row__status {
+                font-size: 0.66rem;
+                padding: 0.15rem 0.42rem;
+            }
+
+            .account-order-row__chev {
+                font-size: 0.95rem;
             }
 
             .account-order-row__side {
@@ -1036,12 +1155,23 @@
                 text-align: left;
             }
 
+            .account-orders-index__head {
+                margin-bottom: 0.75rem;
+                gap: 0.55rem;
+            }
+
+            .account-orders-index__title {
+                font-size: 0.94rem;
+            }
+
             .account-orders-tabs {
                 flex-wrap: nowrap;
                 width: 100%;
                 overflow-x: auto;
-                padding-bottom: 0.15rem;
+                overflow-y: hidden;
+                padding-bottom: 0.1rem;
                 scrollbar-width: none;
+                gap: 0.35rem;
             }
 
             .account-orders-tabs::-webkit-scrollbar {
@@ -1050,34 +1180,97 @@
 
             .account-orders-tabs__link {
                 flex: 0 0 auto;
-                min-height: 40px;
+                min-height: 34px;
+                padding: 0.4rem 0.72rem;
+                font-size: 0.76rem;
+                box-shadow: 0 1px 3px rgba(31, 41, 55, 0.05);
+            }
+
+            .account-orders-tabs__link:hover {
+                transform: none;
+            }
+
+            .account-orders-list {
+                gap: 0.65rem;
             }
 
             .account-order-card {
-                padding: 1rem;
-                border-radius: 18px;
+                padding: 0.85rem;
+                border-radius: 16px;
+                gap: 0.65rem 0.85rem;
+                box-shadow: 0 1px 3px rgba(31, 41, 55, 0.06);
             }
 
             .account-order-card:hover {
                 transform: none;
+                box-shadow: 0 1px 3px rgba(31, 41, 55, 0.06);
+            }
+
+            .account-order-card__number {
+                font-size: 0.88rem;
+            }
+
+            .account-order-card__date {
+                font-size: 0.72rem;
+                margin-top: 0.2rem;
+            }
+
+            .account-order-card__sum {
+                font-size: 0.94rem;
+            }
+
+            .account-order-card__label {
+                font-size: 0.62rem;
+                margin-bottom: 0.2rem;
+            }
+
+            .account-order-card__payment-note {
+                font-size: 0.76rem;
+                margin-top: 0.45rem;
             }
 
             .account-order-card__state,
             .account-order-card__actions {
-                padding-top: 0.75rem;
+                padding-top: 0.6rem;
+            }
+
+            .account-order-card__actions .btn {
+                min-height: 38px;
+                font-size: 0.8rem;
+                padding: 0.42rem 0.75rem;
+            }
+
+            .account-order-card__open {
+                font-size: 0.76rem;
             }
 
             .account-order-badge,
             .account-order-detail__badge {
-                min-height: 2.05rem;
-                padding: 0.48rem 0.78rem;
-                font-size: 0.78rem;
+                min-height: 1.85rem;
+                padding: 0.38rem 0.65rem;
+                font-size: 0.72rem;
             }
 
             .account-order-detail__hero {
-                border-radius: 18px;
-                padding: 1rem;
-                margin-bottom: 1rem;
+                border-radius: 16px;
+                padding: 0.9rem;
+                margin-bottom: 0.75rem;
+                box-shadow: 0 6px 20px rgba(54, 125, 241, 0.18);
+            }
+
+            .account-order-detail__eyebrow {
+                font-size: 0.66rem;
+                padding: 0.28rem 0.55rem;
+                margin-bottom: 0.45rem;
+            }
+
+            .account-order-detail__title {
+                font-size: 1.05rem;
+            }
+
+            .account-order-detail__hint {
+                font-size: 0.8rem;
+                margin-top: 0.35rem;
             }
 
             .account-order-detail__hero-actions,
@@ -1085,29 +1278,125 @@
                 width: 100%;
             }
 
+            .account-order-detail__hero-actions .btn {
+                min-height: 40px;
+                font-size: 0.88rem;
+            }
+
             .account-order-detail__panel {
-                border-radius: 18px;
-                margin-bottom: 1rem;
+                border-radius: 16px;
+                margin-bottom: 0.75rem;
+                box-shadow: 0 1px 3px rgba(31, 41, 55, 0.06);
             }
 
             .account-order-detail__cell,
             .account-order-detail__body,
             .account-order-detail__items-head,
             .account-order-item {
-                padding: 1rem;
+                padding: 0.85rem;
+            }
+
+            .account-order-detail__label {
+                font-size: 0.66rem;
+            }
+
+            .account-order-detail__value {
+                font-size: 0.88rem;
+            }
+
+            .account-order-detail__value--price {
+                font-size: 0.94rem;
+            }
+
+            .account-order-detail__items-title {
+                font-size: 0.92rem;
+            }
+
+            .account-order-detail__delivery {
+                padding: 0.85rem;
+            }
+
+            .account-order-detail__delivery p {
+                font-size: 0.8rem;
             }
 
             .account-order-item {
-                gap: 0.8rem;
+                gap: 0.65rem;
+            }
+
+            .account-order-item__media {
+                width: 56px;
+                border-radius: 10px;
+            }
+
+            .account-order-item__title {
+                font-size: 0.86rem;
+            }
+
+            .account-order-item__meta {
+                font-size: 0.74rem;
+            }
+
+            .account-order-item__price {
+                font-size: 0.88rem;
             }
 
             .account-fav-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
-                gap: 0.75rem;
+                gap: 0.55rem;
+            }
+
+            .account-fav-card {
+                border-radius: 14px;
+                box-shadow: 0 1px 3px rgba(31, 41, 55, 0.06);
+            }
+
+            .account-fav-card:hover {
+                transform: none;
+                box-shadow: 0 1px 3px rgba(31, 41, 55, 0.06);
+            }
+
+            .account-fav-card__body {
+                padding: 0.55rem 0.6rem 0.65rem;
+            }
+
+            .account-fav-card__title {
+                font-size: 0.82rem;
+            }
+
+            .account-fav-card__price {
+                margin-top: 0.25rem;
+                font-size: 0.86rem;
+            }
+
+            .account-flash {
+                margin-bottom: 0.75rem;
+                font-size: 0.82rem;
+            }
+
+            .account-empty {
+                padding: 1rem 0.75rem;
+                font-size: 0.82rem;
+            }
+
+            .account-back-row .btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 100%;
+                min-height: 40px;
+                padding: 8px 12px;
+                font-size: 0.88rem;
+                text-align: center;
+                border-radius: 12px;
             }
         }
 
         @media (max-width: 420px) {
+            .account-tiles {
+                grid-template-columns: 1fr;
+            }
+
             .account-fav-grid {
                 grid-template-columns: 1fr;
             }

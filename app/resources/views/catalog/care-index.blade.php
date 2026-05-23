@@ -103,17 +103,101 @@
     }
     @media (max-width: 768px) {
         .care-page {
-            margin-top: 0;
-            padding: 14px;
-            border-radius: 18px;
+            width: calc(100% - (max(12px, env(safe-area-inset-left, 0px)) + max(12px, env(safe-area-inset-right, 0px))));
+            max-width: calc(100% - (max(12px, env(safe-area-inset-left, 0px)) + max(12px, env(safe-area-inset-right, 0px))));
+            margin: 0 auto max(14px, env(safe-area-inset-bottom, 0px) + 8px);
+            padding: 12px;
+            border-radius: 16px;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+            box-sizing: border-box;
         }
+
+        .care-page__eyebrow {
+            margin: 0 auto 0.55rem;
+            padding: 0.3rem 0.62rem;
+            font-size: 0.66rem;
+        }
+
+        .care-page__title {
+            font-size: 1.05rem;
+            line-height: 1.22;
+            letter-spacing: -0.02em;
+            text-align: center;
+        }
+
+        .care-page__lead {
+            max-width: none;
+            margin: 0.55rem auto 0;
+            font-size: 0.8rem;
+            line-height: 1.45;
+            text-align: center;
+        }
+
+        .care-page__actions {
+            gap: 0.5rem;
+            margin-top: 0.85rem;
+        }
+
         .care-page__actions,
         .care-page__actions .btn {
             width: 100%;
         }
+
         .care-page__actions .btn {
             display: inline-flex;
             justify-content: center;
+            min-height: 40px;
+            padding: 8px 12px;
+            font-size: 0.86rem;
+            border-radius: 12px;
+        }
+
+        .care-grid {
+            grid-template-columns: 1fr;
+            gap: 0.65rem;
+            margin-top: 0.85rem;
+        }
+
+        .care-card {
+            padding: 0.85rem;
+            border-radius: 14px;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+        }
+
+        .care-card:hover {
+            transform: none;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+        }
+
+        .care-card__meta {
+            font-size: 0.66rem;
+        }
+
+        .care-card__title {
+            margin-top: 0.4rem;
+            font-size: 0.9rem;
+        }
+
+        .care-card__excerpt {
+            margin-top: 0.45rem;
+            font-size: 0.78rem;
+            line-height: 1.4;
+        }
+
+        .care-card__more {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            align-self: flex-start;
+            margin-top: 0.6rem;
+            padding: 0.42rem 0.72rem;
+            border-radius: 999px;
+            border: 1px solid rgba(239, 56, 41, 0.22);
+            background: rgba(239, 56, 41, 0.06);
+            font-size: 0.76rem;
+            font-weight: 700;
+            line-height: 1.2;
+            letter-spacing: -0.01em;
         }
     }
 </style>

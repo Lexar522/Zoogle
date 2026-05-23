@@ -94,6 +94,9 @@
 
                         @if ($selectedCategoryId > 0 && $activeCategoryPath !== [])
                             @foreach ($activeCategoryPath as $index => $activeCategory)
+                                @if ($index >= count($activeCategoryPath) - 1)
+                                    @continue
+                                @endif
                                 @php
                                     $fallbackCategoryId = $index > 0 ? ($activeCategoryPath[$index - 1]['id'] ?? null) : null;
                                 @endphp
@@ -129,38 +132,44 @@
     </div>
 </div>
 
-<div class="grid catalog-results__grid">
+<div class="grid catalog-results__grid" data-catalog-product-grid>
     @forelse ($listings as $listing)
         @include('catalog.partials.product-card', ['listing' => $listing, 'listingQuotes' => $listingQuotes ?? [], 'bundleQuotes' => $bundleQuotes ?? []])
     @empty
-        <div class="card" style="grid-column: 1 / -1;">
+        <div class="card catalog-results__empty" style="grid-column: 1 / -1;">
             <p style="margin:0;">{{ __('shop.catalog_empty') }} <a href="{{ route('catalog.index') }}">{{ __('shop.catalog_empty_reset') }}</a>.</p>
         </div>
     @endforelse
 </div>
 
-@if ($listings->hasMorePages())
-    <div class="catalog-results-more" role="region" aria-label="{{ __('shop.catalog_more_aria') }}">
-        <p class="catalog-results-more__hint">{{ __('shop.catalog_more_hint') }}</p>
-        <div class="catalog-results-more__actions">
-            <a
-                href="{{ $listings->nextPageUrl() }}"
-                class="btn secondary catalog-results-more__next"
-                data-catalog-page-nav
-            >{{ __('shop.catalog_next_page') }}</a>
-            <button
-                type="button"
-                class="btn secondary catalog-results-more__load"
-                data-catalog-load-more
-                data-catalog-next-url="{{ $listings->nextPageUrl() }}"
-            >{{ __('shop.catalog_load_more') }}</button>
+@if ($listings->total() > 0)
+    <footer
+        class="catalog-listing-footer"
+        data-catalog-total="{{ $listings->total() }}"
+        data-catalog-per-page="{{ $listings->perPage() }}"
+        data-catalog-current-page="{{ $listings->currentPage() }}"
+        data-pagination-shown="{{ __('shop.pagination_shown') }}"
+        data-pagination-of="{{ __('shop.pagination_of') }}"
+    >
+        <div class="pagination-wrap catalog-listing-footer__pages">
+            {{ $listings->links('vendor.pagination.shop') }}
         </div>
-    </div>
-@endif
 
-<div class="pagination-wrap">
-    {{ $listings->links('vendor.pagination.shop') }}
-</div>
+        @if ($listings->hasMorePages())
+            <div class="catalog-results-more catalog-listing-footer__more" role="region" aria-label="{{ __('shop.catalog_more_aria') }}">
+                <p class="catalog-results-more__hint">{{ __('shop.catalog_more_hint') }}</p>
+                <div class="catalog-results-more__actions">
+                    <button
+                        type="button"
+                        class="btn secondary catalog-results-more__load"
+                        data-catalog-load-more
+                        data-catalog-next-url="{{ $listings->nextPageUrl() }}"
+                    >{{ __('shop.catalog_load_more') }}</button>
+                </div>
+            </div>
+        @endif
+    </footer>
+@endif
 </div>
 @else
 <div class="home-shop-panel catalog-listing-panel catalog-listing-panel--prompt">

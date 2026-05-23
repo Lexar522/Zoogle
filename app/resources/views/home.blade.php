@@ -15,8 +15,16 @@
     .home-page {
         position: relative;
         isolation: isolate;
-        width: min(80vw, 100%);
-        margin: clamp(6px, 1vw, 14px) auto clamp(20px, 3vw, 36px);
+        width: 100%;
+        max-width: 100%;
+        margin: clamp(6px, 1vw, 14px) 0 clamp(20px, 3vw, 36px);
+    }
+    @media (min-width: 981px) {
+        .home-page {
+            width: min(80vw, 100%);
+            margin-left: auto;
+            margin-right: auto;
+        }
     }
     .home-page .catalog-results--home-panels {
         width: 100%;
@@ -339,8 +347,9 @@
         }
     }
     .home-page .home-product-carousel__cell .product-card {
-        border-radius: 20px;
+        border-radius: var(--shop-radius-catalog, 14px);
         box-shadow: 0 12px 28px rgba(15, 23, 42, 0.09);
+        padding: 0;
     }
     .home-page .home-product-carousel__cell .product-card:hover {
         transform: translateY(-8px);
@@ -391,15 +400,72 @@
     @media (max-width: 768px) {
         .home-page {
             width: 100%;
+            max-width: 100%;
             margin-top: 0;
+            margin-bottom: clamp(14px, 3vw, 28px);
         }
-        .home-benefits,
-        .home-shop-panel.home-shop-panel--premium {
-            border-radius: var(--shop-radius-catalog, 20px);
+        .home-page .catalog-results--home-panels {
+            gap: 11px;
+        }
+        .home-benefits {
+            border-radius: var(--shop-radius-catalog, 14px);
+            padding: 11px !important;
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
+        }
+        .home-shop-panel.home-shop-panel--premium.home-shop-panel--hits,
+        .home-shop-panel.home-shop-panel--premium.home-shop-panel--recommended {
+            /* Відступи та radius — у layouts/shop (full-bleed на мобілці) */
+            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
         }
         .home-shop-panel__head {
             align-items: flex-start;
             flex-direction: column;
+            margin-bottom: 9px;
+            padding-bottom: 8px;
+            gap: 0.5rem;
+        }
+        .home-shop-panel__title {
+            font-size: clamp(1.06rem, 4vw, 1.28rem);
+        }
+        .home-shop-panel__lead {
+            font-size: 0.82rem;
+            margin-top: 0.2rem;
+        }
+        .home-section-badge {
+            min-height: 27px;
+            padding: 0 10px;
+            font-size: 0.68rem;
+            border-radius: 14px;
+            box-shadow: 0 6px 14px rgba(15, 23, 42, 0.12);
+        }
+        .home-benefits__head {
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+        }
+        .home-benefits__title {
+            font-size: clamp(1.04rem, 3.8vw, 1.22rem);
+        }
+        .home-benefits__lead {
+            font-size: 0.82rem;
+        }
+        .home-benefits__grid {
+            gap: 9px;
+        }
+        .home-benefit-card {
+            padding: 11px 12px;
+            border-radius: 14px;
+        }
+        .home-benefit-card__icon {
+            width: 36px;
+            height: 36px;
+            margin-bottom: 8px;
+            border-radius: 13px;
+        }
+        .home-benefit-card h3 {
+            font-size: 0.88rem;
+        }
+        .home-benefit-card p {
+            font-size: 0.79rem;
         }
     }
     @media (max-width: 560px) {
@@ -451,9 +517,11 @@
                 <p class="home-shop-panel__empty">{{ __('shop.home_hits_empty') }}</p>
             @else
                 <div
-                    class="home-product-carousel"
+                    class="home-product-carousel home-product-carousel--mobile-feed home-product-carousel--show-excerpt"
                     data-home-carousel
                     role="region"
+                    data-carousel-roledescription="{{ __('shop.aria_carousel') }}"
+                    data-list-roledescription="{{ __('shop.aria_product_list') }}"
                     aria-roledescription="{{ __('shop.aria_carousel') }}"
                     aria-labelledby="home-hits-heading"
                 >
@@ -477,6 +545,64 @@
                                         'cardImagePriority' => $loop->index,
                                         'homeCardBadge' => __('shop.home_badge_hit'),
                                         'homeCardBadgeClass' => 'hit',
+                                    ])
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        class="home-product-carousel__btn home-product-carousel__btn--next"
+                        aria-label="{{ __('shop.home_carousel_next') }}"
+                    >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path d="M9 18l6-6-6-6" />
+                        </svg>
+                    </button>
+                </div>
+            @endif
+        </section>
+
+        <section class="home-shop-panel home-shop-panel--premium home-shop-panel--recommended" aria-labelledby="home-recommended-heading">
+            <div class="home-shop-panel__head">
+                <div>
+                    <h2 id="home-recommended-heading" class="home-shop-panel__title">{{ __('shop.home_rec_title') }}</h2>
+                    <p class="home-shop-panel__lead">{{ __('shop.home_rec_lead') }}</p>
+                </div>
+                <span class="home-section-badge home-section-badge--recommended">{{ __('shop.home_badge_suggested') }}</span>
+            </div>
+            @if ($recommendedProducts->isEmpty())
+                <p class="home-shop-panel__empty">{{ __('shop.home_rec_empty') }}</p>
+            @else
+                <div
+                    class="home-product-carousel home-product-carousel--mobile-feed home-product-carousel--show-excerpt"
+                    data-home-carousel
+                    role="region"
+                    data-carousel-roledescription="{{ __('shop.aria_carousel') }}"
+                    data-list-roledescription="{{ __('shop.aria_product_list') }}"
+                    aria-roledescription="{{ __('shop.aria_carousel') }}"
+                    aria-labelledby="home-recommended-heading"
+                >
+                    <button
+                        type="button"
+                        class="home-product-carousel__btn home-product-carousel__btn--prev"
+                        aria-label="{{ __('shop.home_carousel_prev') }}"
+                    >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <path d="M15 18l-6-6 6-6" />
+                        </svg>
+                    </button>
+                    <div class="home-product-carousel__viewport" tabindex="0">
+                        <div class="home-product-carousel__track">
+                            @foreach ($recommendedProducts as $product)
+                                <div class="home-product-carousel__cell">
+                                    @include('catalog.partials.product-card', [
+                                        'listing' => $product,
+                                        'listingQuotes' => $listingQuotes ?? [],
+                                        'bundleQuotes' => [],
+                                        'cardImagePriority' => $loop->index,
+                                        'homeCardBadge' => __('shop.home_badge_recommended'),
+                                        'homeCardBadgeClass' => 'recommended',
                                     ])
                                 </div>
                             @endforeach
@@ -525,62 +651,6 @@
             </article>
             </div>
         </section>
-
-        <section class="home-shop-panel home-shop-panel--premium home-shop-panel--recommended" aria-labelledby="home-recommended-heading">
-            <div class="home-shop-panel__head">
-                <div>
-                    <h2 id="home-recommended-heading" class="home-shop-panel__title">{{ __('shop.home_rec_title') }}</h2>
-                    <p class="home-shop-panel__lead">{{ __('shop.home_rec_lead') }}</p>
-                </div>
-                <span class="home-section-badge home-section-badge--recommended">{{ __('shop.home_badge_suggested') }}</span>
-            </div>
-            @if ($recommendedProducts->isEmpty())
-                <p class="home-shop-panel__empty">{{ __('shop.home_rec_empty') }}</p>
-            @else
-                <div
-                    class="home-product-carousel"
-                    data-home-carousel
-                    role="region"
-                    aria-roledescription="{{ __('shop.aria_carousel') }}"
-                    aria-labelledby="home-recommended-heading"
-                >
-                    <button
-                        type="button"
-                        class="home-product-carousel__btn home-product-carousel__btn--prev"
-                        aria-label="{{ __('shop.home_carousel_prev') }}"
-                    >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                            <path d="M15 18l-6-6 6-6" />
-                        </svg>
-                    </button>
-                    <div class="home-product-carousel__viewport" tabindex="0">
-                        <div class="home-product-carousel__track">
-                            @foreach ($recommendedProducts as $product)
-                                <div class="home-product-carousel__cell">
-                                    @include('catalog.partials.product-card', [
-                                        'listing' => $product,
-                                        'listingQuotes' => $listingQuotes ?? [],
-                                        'bundleQuotes' => [],
-                                        'cardImagePriority' => $loop->index,
-                                        'homeCardBadge' => __('shop.home_badge_recommended'),
-                                        'homeCardBadgeClass' => 'recommended',
-                                    ])
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-                    <button
-                        type="button"
-                        class="home-product-carousel__btn home-product-carousel__btn--next"
-                        aria-label="{{ __('shop.home_carousel_next') }}"
-                    >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                            <path d="M9 18l6-6-6-6" />
-                        </svg>
-                    </button>
-                </div>
-            @endif
-        </section>
         </div>
     </div>
 @endsection
@@ -593,22 +663,22 @@
 @push('styles')
 <style>
     /* Карусель хітів/рекомендованих: 4 картки у вікні (після базових стилів partial). */
-    .home-page .home-shop-panel .home-product-carousel {
+    .home-page .home-shop-panel .home-product-carousel:not(.home-product-carousel--mobile-feed) {
         --home-carousel-cols: 4;
     }
     @media (max-width: 1380px) {
-        .home-page .home-shop-panel .home-product-carousel {
+        .home-page .home-shop-panel .home-product-carousel:not(.home-product-carousel--mobile-feed) {
             --home-carousel-cols: 3;
         }
     }
     @media (max-width: 980px) {
-        .home-page .home-shop-panel .home-product-carousel {
+        .home-page .home-shop-panel .home-product-carousel:not(.home-product-carousel--mobile-feed) {
             --home-carousel-cols: 2;
         }
     }
-    @media (max-width: 560px) {
-        .home-page .home-shop-panel .home-product-carousel {
-            --home-carousel-cols: 1.08;
+    @media (max-width: 768px) {
+        .home-page .home-shop-panel .home-product-carousel:not(.home-product-carousel--mobile-feed) {
+            --home-carousel-cols: 1.12;
             --home-carousel-gap: 12px;
         }
     }

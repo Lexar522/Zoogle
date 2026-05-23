@@ -24,7 +24,12 @@ class ForceUrlFromIncomingRequest
     public function handle(Request $request, Closure $next): Response
     {
         if (config('app.force_url_from_incoming_request', true)) {
-            $root = $request->getSchemeAndHttpHost().$request->getBasePath();
+            $scheme = $request->getScheme();
+            if (app()->environment('production') && str_starts_with((string) config('app.url'), 'https://')) {
+                $scheme = 'https';
+            }
+
+            $root = $scheme.'://'.$request->getHttpHost().$request->getBasePath();
             URL::forceRootUrl($root);
 
             config([

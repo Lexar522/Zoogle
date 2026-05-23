@@ -6,6 +6,7 @@ use App\Filament\Admin\Schemas\CatalogCategoryCascadeFields;
 use App\Models\OptionGroup;
 use App\Models\OptionValue;
 use App\Models\Product;
+use App\Support\ListingPhotoUpload;
 use App\Models\ProductCareArticle;
 use App\Support\CatalogCategoryTree;
 use Filament\Forms\Components\CheckboxList;
@@ -33,7 +34,9 @@ class ProductForm
      */
     public static function applyListingPhotosLayout(FileUpload $upload): FileUpload
     {
-        return $upload
+        return ListingPhotoUpload::applyPublicPreviewUrl(
+            ListingPhotoUpload::applyAcceptedImageTypes($upload)
+        )
             ->itemPanelAspectRatio('1:1')
             ->imagePreviewHeight('88')
             // Менше залежність від бекенд-метаданих по кожному файлу; разом із коректним URL public disk зменшує зависання FilePond («Waiting for size»).
@@ -123,21 +126,19 @@ class ProductForm
                 Section::make('Фото товару')
                     ->description('Базова галерея товару. Якщо для кольору задані свої фото — на вітрині вони матимуть пріоритет.')
                     ->schema([
-                        self::applyListingPhotosLayout(
-                            FileUpload::make('photos')
-                                ->hiddenLabel()
-                                ->image()
-                                ->multiple()
-                                ->reorderable()
-                                ->appendFiles()
-                                ->disk('public')
-                                ->directory(fn (?Product $record): string => 'products/'.($record?->id ?? 'draft').'/photos')
-                                ->maxFiles(20)
-                                // Без imageAspectRatio: інакше FilePond часто вимагає зберегти кадр через олівець, і без цього не відпускає форму.
-                                ->imageEditor()
-                                ->imageEditorViewportWidth(480)
-                                ->imageEditorViewportHeight(480)
-                                ->helperText('Формати: JPEG (.jpg, .jpeg), PNG, WebP, GIF. Бажане кадрування 1:1 — через олівець (необов’язково). Дочекайтесь мініатюр перед збереженням.')
+                        ListingPhotoUpload::applyImageEditorIfAvailable(
+                            self::applyListingPhotosLayout(
+                                ListingPhotoUpload::make('photos')
+                                    ->hiddenLabel()
+                                    ->multiple()
+                                    ->reorderable()
+                                    ->appendFiles()
+                                    ->disk('public')
+                                    ->visibility('public')
+                                    ->directory(fn (?Product $record, FileUpload $component): string => ListingPhotoUpload::productListingPhotosDirectory($record, $component))
+                                    ->maxFiles(20)
+                                    ->helperText('Формати: JPEG (.jpg, .jpeg), PNG, WebP, GIF. Бажане кадрування 1:1 — через олівець (необов’язково, якщо увімкнено GD на сервері). Дочекайтесь мініатюр перед збереженням. Адмінку відкривайте через https://.')
+                            )
                         ),
                     ]),
                 Section::make('Поради по догляду')
@@ -463,20 +464,18 @@ class ProductForm
                                                     ->all();
                                             })
                                             ->searchable(),
-                                        self::applyListingPhotosLayout(
-                                            FileUpload::make('photos')
-                                                ->label('Фото цього кольору')
-                                                ->image()
-                                                ->multiple()
-                                                ->reorderable()
-                                                ->appendFiles()
-                                                ->disk('public')
-                                                ->directory(fn (?Product $record): string => 'products/'.($record?->id ?? 'draft').'/option-value-photos')
-                                                ->maxFiles(20)
-                                                ->imageEditor()
-                                                ->imageEditorViewportWidth(480)
-                                                ->imageEditorViewportHeight(480)
-                                                ->helperText('Формати: JPEG (.jpg, .jpeg), PNG, WebP, GIF. Кадр 1:1 — за бажанням через олівець.')
+                                        ListingPhotoUpload::applyImageEditorIfAvailable(
+                                            self::applyListingPhotosLayout(
+                                                ListingPhotoUpload::make('photos')
+                                                    ->label('Фото цього кольору')
+                                                    ->multiple()
+                                                    ->reorderable()
+                                                    ->appendFiles()
+                                                    ->disk('public')
+                                                    ->directory(fn (?Product $record, FileUpload $component): string => ListingPhotoUpload::productOptionValuePhotosDirectory($record, $component))
+                                                    ->maxFiles(20)
+                                                    ->helperText('Формати: JPEG (.jpg, .jpeg), PNG, WebP, GIF. Кадр 1:1 — за бажанням через олівець.')
+                                            )
                                         ),
                                     ])
                                     ->columns(1),
@@ -517,31 +516,29 @@ class ProductForm
                                                     ->where('value_type', 'color')
                                                     ->exists();
                                             }),
-                                        self::applyListingPhotosLayout(
-                                            FileUpload::make('photos')
-                                                ->label('Фото цього кольору')
-                                                ->image()
-                                                ->multiple()
-                                                ->reorderable()
-                                                ->appendFiles()
-                                                ->disk('public')
-                                                ->directory(fn (?Product $record): string => 'products/'.($record?->id ?? 'draft').'/option-value-photos')
-                                                ->maxFiles(20)
-                                                ->imageEditor()
-                                                ->imageEditorViewportWidth(480)
-                                                ->imageEditorViewportHeight(480)
-                                                ->helperText('Формати: JPEG (.jpg, .jpeg), PNG, WebP, GIF. Кадр 1:1 — за бажанням через олівець.')
-                                                ->visible(function (Get $get): bool {
-                                                    $groupId = (int) ($get('../../option_group_id') ?? 0);
-                                                    if ($groupId <= 0) {
-                                                        return false;
-                                                    }
+                                        ListingPhotoUpload::applyImageEditorIfAvailable(
+                                            self::applyListingPhotosLayout(
+                                                ListingPhotoUpload::make('photos')
+                                                    ->label('Фото цього кольору')
+                                                    ->multiple()
+                                                    ->reorderable()
+                                                    ->appendFiles()
+                                                    ->disk('public')
+                                                    ->directory(fn (?Product $record, FileUpload $component): string => ListingPhotoUpload::productOptionValuePhotosDirectory($record, $component))
+                                                    ->maxFiles(20)
+                                                    ->helperText('Формати: JPEG (.jpg, .jpeg), PNG, WebP, GIF. Кадр 1:1 — за бажанням через олівець.')
+                                                    ->visible(function (Get $get): bool {
+                                                        $groupId = (int) ($get('../../option_group_id') ?? 0);
+                                                        if ($groupId <= 0) {
+                                                            return false;
+                                                        }
 
-                                                    return OptionGroup::query()
-                                                        ->whereKey($groupId)
-                                                        ->where('value_type', 'color')
-                                                        ->exists();
-                                                })
+                                                        return OptionGroup::query()
+                                                            ->whereKey($groupId)
+                                                            ->where('value_type', 'color')
+                                                            ->exists();
+                                                    })
+                                            )
                                         ),
                                     ]),
                             ])

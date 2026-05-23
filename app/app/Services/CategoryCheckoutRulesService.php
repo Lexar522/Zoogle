@@ -68,15 +68,15 @@ class CategoryCheckoutRulesService
 
         $products = Product::query()
             ->whereIn('id', $productIds)
-            ->get(['id', 'category_value_id']);
+            ->get(['id', 'category_value_id', 'category_parent_value_id', 'variant_options']);
 
         $rootIds = [];
         foreach ($products as $p) {
-            $cv = $p->category_value_id;
-            if ($cv === null || (int) $cv <= 0) {
+            $nodeId = $p->resolvedCatalogCategoryNodeId($groupId);
+            if ($nodeId <= 0) {
                 continue;
             }
-            $root = CatalogCategoryTree::rootIdFromNode((int) $cv, $groupId);
+            $root = CatalogCategoryTree::rootIdFromNode($nodeId, $groupId);
             if ($root > 0) {
                 $rootIds[$root] = true;
             }
@@ -123,18 +123,18 @@ class CategoryCheckoutRulesService
 
         $product = Product::query()
             ->whereKey($productId)
-            ->first(['id', 'category_value_id']);
+            ->first(['id', 'category_value_id', 'category_parent_value_id', 'variant_options']);
 
         if ($product === null) {
             return false;
         }
 
-        $cv = $product->category_value_id;
-        if ($cv === null || (int) $cv <= 0) {
+        $nodeId = $product->resolvedCatalogCategoryNodeId($groupId);
+        if ($nodeId <= 0) {
             return false;
         }
 
-        $root = CatalogCategoryTree::rootIdFromNode((int) $cv, $groupId);
+        $root = CatalogCategoryTree::rootIdFromNode($nodeId, $groupId);
         if ($root <= 0) {
             return false;
         }
