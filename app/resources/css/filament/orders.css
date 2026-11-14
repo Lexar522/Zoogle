@@ -1,0 +1,292 @@
+/* Показники над списком */
+.zo-tiles {
+    display: grid;
+    gap: var(--zo-gap);
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.zo-tile {
+    display: block;
+    min-width: 0;
+    padding: 14px var(--zo-pad);
+}
+
+.zo-tile--link {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.zo-tile--link:hover {
+    transform: translateY(-1px);
+}
+
+.zo-tile--link:focus-visible {
+    outline: 2px solid #007aff;
+    outline-offset: 2px;
+}
+
+.zo-tile__label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.zo-tile__value {
+    margin-top: 12px;
+    font-size: 30px;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+}
+
+.zo-tile__hint {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--zo-secondary);
+}
+
+.zo-icon {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    color: #ffffff;
+    background: var(--zo-tone, #007aff);
+}
+
+.zo-icon svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* Шапка картки замовлення */
+.zo-summary {
+    padding: var(--zo-pad);
+}
+
+.zo-summary__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.zo-summary__title {
+    min-width: 0;
+}
+
+.zo-summary__number {
+    font-size: clamp(22px, 3.2vw, 30px);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.03em;
+    overflow-wrap: anywhere;
+}
+
+.zo-summary__date {
+    margin-top: 4px;
+    font-size: 13px;
+    color: var(--zo-secondary);
+}
+
+.zo-summary__pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.zo-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    color: color-mix(in srgb, var(--zo-tone) 78%, #000000);
+    background: color-mix(in srgb, var(--zo-tone) 14%, transparent);
+}
+
+html.dark .zo-pill {
+    color: color-mix(in srgb, var(--zo-tone) 70%, #ffffff);
+    background: color-mix(in srgb, var(--zo-tone) 24%, transparent);
+}
+
+.zo-pill::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--zo-tone);
+}
+
+.zo-summary__total {
+    display: flex;
+    flex-direction: column;
+    text-align: right;
+}
+
+.zo-summary__total span {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--zo-secondary);
+}
+
+.zo-summary__total strong {
+    font-size: clamp(32px, 5vw, 44px);
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.035em;
+    font-variant-numeric: tabular-nums;
+}
+
+.zo-summary__total small {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--zo-secondary);
+}
+
+.zo-summary__facts {
+    display: grid;
+    gap: 14px 24px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    margin: 18px 0 0;
+    padding-top: 16px;
+    border-top: 1px solid var(--zo-separator);
+}
+
+.zo-summary__facts dt {
+    font-size: 12px;
+    color: var(--zo-secondary);
+}
+
+.zo-summary__facts dd {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 3px 0 0;
+    font-size: 14px;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+
+.zo-summary__facts dd span {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--zo-secondary);
+}
+
+.zo-summary__facts a {
+    font-weight: 400;
+    color: #007aff;
+}
+
+.zo-summary__facts a:hover {
+    text-decoration: underline;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .zo-tile--link {
+        transition: none;
+    }
+
+    .zo-tile--link:hover {
+        transform: none;
+    }
+}
+
+@media (max-width: 640px) {
+    .zo-summary__total {
+        width: 100%;
+        text-align: left;
+    }
+
+    .zo-tiles {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .zo-tile__value {
+        font-size: 24px;
+    }
+
+    /* На телефоні рядок таблиці стає компактною карткою: сума завжди на видноті */
+    .zoogle-orders-page .fi-ta-ctn > .fi-ta-main .fi-ta-table thead {
+        display: none;
+    }
+
+    .zoogle-orders-page .fi-ta-table,
+    .zoogle-orders-page .fi-ta-table tbody {
+        display: block;
+    }
+
+    .zoogle-orders-page .fi-ta-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        padding: 8px 0;
+    }
+
+    .zoogle-orders-page .fi-ta-row .fi-ta-cell {
+        padding: 2px 16px;
+    }
+
+    .zoogle-orders-page .fi-ta-row .fi-ta-cell .fi-ta-text,
+    .zoogle-orders-page .fi-ta-row .fi-ta-cell .fi-ta-col {
+        padding: 0;
+    }
+
+    .zoogle-orders-page .fi-ta-row .fi-ta-cell:last-child .fi-ta-actions {
+        padding: 0;
+    }
+
+    .zoogle-orders-page .fi-ta-row .fi-ta-cell-number {
+        grid-column: 1;
+        grid-row: 1;
+        min-width: 0;
+    }
+
+    .zoogle-orders-page .fi-ta-row .fi-ta-cell-total {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .zoogle-orders-page .fi-ta-row .fi-ta-cell-status {
+        grid-column: 1;
+        grid-row: 2;
+        min-width: 0;
+    }
+
+    .zoogle-orders-page .fi-ta-row .fi-ta-cell:last-child {
+        grid-column: 2;
+        grid-row: 2;
+        justify-self: end;
+    }
+
+    .zoogle-orders-page .fi-ta-row .fi-ta-cell-number .fi-ta-text-description,
+    .zoogle-orders-page .fi-ta-row .fi-ta-cell-status .fi-ta-text-description,
+    .zoogle-orders-page .fi-ta-row .fi-ta-cell-status .fi-badge {
+        white-space: normal;
+    }
+}
+
+.zo-payment-issue {
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem;
+    background: rgba(255, 59, 48, 0.1);
+    color: #c9190f;
+    font-weight: 500;
+}
+
+.dark .zo-payment-issue {
+    background: rgba(255, 69, 58, 0.18);
+    color: #ff9f99;
+}

@@ -60,3 +60,11 @@
         </div>
     </div>
 @endsection
+
+@if (\App\Support\MarketingTags::shouldTrackPurchase($order))
+    @push('scripts')
+        <script>
+            window.zgTrack('purchase', @json(\App\Support\MarketingTags::purchasePayload($order)));
+        </script>
+    @endpush
+@endif

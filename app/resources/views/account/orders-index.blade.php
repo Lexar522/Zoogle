@@ -28,6 +28,9 @@
                 @endforeach
             </nav>
         </div>
+        @guest
+            <p class="account-orders-index__hint">{{ __('shop.account_guest_orders_hint') }}</p>
+        @endguest
         <div class="account-orders-list">
             @forelse ($orders as $order)
                 @php

@@ -5,8 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Bundle;
 use App\Models\OptionGroup;
 use App\Models\OptionValue;
+use App\Models\ProductVariant;
 use App\Services\BundlePricingService;
+use App\Services\ShopAnalytics;
+use App\Services\BundleShowPageService;
 use App\Services\CartDrawerService;
+use App\Services\CartPersistence;
+use App\Services\InventoryService;
+use App\Services\ListingOptionSelectionService;
 use App\Services\VariantPricingService;
 use App\Support\ShopCart;
 use Illuminate\Http\JsonResponse;
@@ -22,6 +28,9 @@ class BundleController extends Controller
         private readonly BundlePricingService $bundlePricing,
         private readonly VariantPricingService $variantPricing,
         private readonly CartDrawerService $cartDrawer,
+        private readonly BundleShowPageService $bundleShowPage,
+        private readonly InventoryService $inventory,
+        private readonly CartPersistence $cartPersistence,
     ) {}
 
     public function index(): View
@@ -32,10 +41,7 @@ class BundleController extends Controller
             ->orderBy('title')
             ->get();
 
-        $quotes = [];
-        foreach ($bundles as $bundle) {
-            $quotes[$bundle->id] = $this->bundlePricing->quote($bundle);
-        }
+        $quotes = $this->bundlePricing->quoteMany($bundles);
 
         return view('bundles.index', [
             'bundles' => $bundles,
@@ -52,10 +58,12 @@ class BundleController extends Controller
             ->firstOrFail();
 
         $bundle->load(['items.product.variants']);
+        ShopAnalytics::recordBundleView($request, (int) $bundle->id, (string) $bundle->title);
 
         $itemRows = $bundle->items->map(function ($item): array {
             $product = $item->product;
             $lineQuote = $this->bundlePricing->lineQuote($item);
+            $optionValueIds = is_array($item->option_value_ids ?? null) ? $item->option_value_ids : [];
 
             $excerpt = '';
             if ($product) {
@@ -71,38 +79,46 @@ class BundleController extends Controller
                 'title' => $product
                     ? (string) $product->title
                     : __('shop.bundles_line_missing_product', ['id' => $item->product_id]),
-                'url' => $product ? route('catalog.show', $product->slug) : null,
-                'photo' => $product ? $this->firstProductPhotoPath($product) : null,
+                'photo' => $item->displayPhotoPath(),
                 'excerpt' => $excerpt,
                 'qty' => max(1, (int) $item->qty),
+                'option_value_ids' => $optionValueIds,
+                'option_labels' => $product
+                    ? app(ListingOptionSelectionService::class)->describeSelection($product, $optionValueIds)
+                    : [],
                 'unit_price' => (float) $lineQuote['unit'],
                 'line_total' => (float) $lineQuote['total'],
                 'old_unit_price' => $oldUnitPrice !== null ? (float) $oldUnitPrice : null,
             ];
         })->values();
 
-        $galleryPhotos = collect(is_array($bundle->photos ?? null) ? $bundle->photos : [])
-            ->filter(fn ($path): bool => is_string($path) && $path !== '')
-            ->map(fn (string $path): string => ltrim($path, '/'))
-            ->values();
-
-        if ($galleryPhotos->isEmpty() && ($fallback = $bundle->firstCatalogPhotoPath())) {
-            $galleryPhotos = collect([$fallback]);
-        }
+        $galleryPhotos = $bundle->galleryPhotoPaths();
 
         $categoryBreadcrumb = $this->resolveCategoryBreadcrumb($bundle);
+        $subcategoryFilterChip = $this->resolveSubcategoryFilterChip($request);
         $breadcrumbQueryBase = array_filter([
-            'q' => $request->query('q'),
             'on_sale' => $request->boolean('on_sale') ? 1 : null,
+            'category' => $request->integer('category') > 0 ? $request->integer('category') : null,
         ], fn ($value) => $value !== null && $value !== '');
+
+        $bundleOptionsDisplay = $this->bundleShowPage->buildOptionDisplayBlocks($bundle);
+        $quote = $this->bundlePricing->quote($bundle);
 
         return view('bundles.show', [
             'bundle' => $bundle,
-            'quote' => $this->bundlePricing->quote($bundle),
+            'quote' => $quote,
             'bundleItems' => $itemRows,
-            'galleryPhotos' => $galleryPhotos->all(),
+            'galleryPhotos' => $galleryPhotos,
             'categoryBreadcrumb' => $categoryBreadcrumb,
+            'subcategoryFilterChip' => $subcategoryFilterChip,
             'breadcrumbQueryBase' => $breadcrumbQueryBase,
+            'bundleOptionsDisplay' => $bundleOptionsDisplay,
+            'bundleShowConfig' => [
+                'baseSubtotal' => (float) ($quote['subtotal'] ?? 0),
+                'baseDiscount' => (float) ($quote['discount'] ?? 0),
+                'baseTotal' => (float) ($quote['total'] ?? 0),
+                'optionBlocks' => $bundleOptionsDisplay,
+            ],
         ]);
     }
 
@@ -112,7 +128,7 @@ class BundleController extends Controller
             abort(404);
         }
 
-        $bundle->load(['items.product']);
+        $bundle->load(['items.product.variants']);
         if ($bundle->items->isEmpty()) {
             return $this->errorResponse($request, 'У комплекті немає товарів для замовлення.');
         }
@@ -124,9 +140,40 @@ class BundleController extends Controller
             if (! $product || ! $product->is_available) {
                 return $this->errorResponse($request, 'Один з товарів комплекту недоступний.');
             }
+            if (! $this->bundleItemConfigurationIsSellable($item)) {
+                return $this->errorResponse($request, 'Один з товарів комплекту недоступний у обраній конфігурації.');
+            }
         }
 
-        $cartKey = $this->makeBundleCartKey((int) $bundle->id);
+        $selectedOptionValueIds = app(ListingOptionSelectionService::class)
+            ->normalizeOptionValueIds($request->input('option_value_ids'));
+        $safeSelection = $this->bundleShowPage->sanitizeSelectionForBundle($bundle, $selectedOptionValueIds);
+        if ($safeSelection !== $selectedOptionValueIds) {
+            return $this->errorResponse($request, 'Обрані опції комплекту недійсні.');
+        }
+        if (! $this->bundleShowPage->selectionIsCompleteForBundle($bundle, $safeSelection)) {
+            if ($safeSelection === []) {
+                if ($this->wantsCartFragment($request)) {
+                    return $this->errorResponse($request, __('shop.card_bundle_choose_options'));
+                }
+
+                return redirect()
+                    ->route('bundles.show', $bundle)
+                    ->with('error', __('shop.card_bundle_choose_options'));
+            }
+
+            return $this->errorResponse($request, 'Оберіть усі опції комплекту.');
+        }
+
+        $cartKey = BundleShowPageService::makeCartKey((int) $bundle->id, $safeSelection);
+        $nextQty = isset($cart[$cartKey])
+            ? max(1, (int) ($cart[$cartKey]['qty'] ?? 1)) + 1
+            : 1;
+        $bundleError = $this->inventory->bundlePurchaseErrorForBundle($bundle, $nextQty);
+        if ($bundleError !== null) {
+            return $this->errorResponse($request, $bundleError);
+        }
+
         if (isset($cart[$cartKey])) {
             $cart[$cartKey]['qty'] = max(1, (int) ($cart[$cartKey]['qty'] ?? 1)) + 1;
         } else {
@@ -134,11 +181,13 @@ class BundleController extends Controller
                 'line_kind' => 'bundle',
                 'bundle_id' => (int) $bundle->id,
                 'qty' => 1,
-                'option_value_ids' => [],
+                'option_value_ids' => $safeSelection,
             ];
         }
 
         $request->session()->put('cart', $cart);
+        $this->cartPersistence->persist($request, $request->user());
+        ShopAnalytics::recordCart($request, (int) $bundle->id, (string) $bundle->title, 1);
 
         if ($this->wantsCartFragment($request)) {
             return $this->fragmentResponse(
@@ -152,26 +201,22 @@ class BundleController extends Controller
 
     private function makeBundleCartKey(int $bundleId): string
     {
-        return 'bundle:'.$bundleId;
+        return BundleShowPageService::makeCartKey($bundleId, []);
     }
 
-    private function firstProductPhotoPath($product): ?string
+    private function bundleItemConfigurationIsSellable($item): bool
     {
-        foreach (is_array($product->photos ?? null) ? $product->photos : [] as $path) {
-            if (is_string($path) && $path !== '') {
-                return ltrim($path, '/');
-            }
+        $product = $item->product;
+        if (! $product) {
+            return false;
         }
 
-        foreach ($product->variants ?? [] as $variant) {
-            foreach (is_array($variant->photos ?? null) ? $variant->photos : [] as $path) {
-                if (is_string($path) && $path !== '') {
-                    return ltrim($path, '/');
-                }
-            }
-        }
+        $product->loadMissing('variants');
+        $optionValueIds = is_array($item->option_value_ids ?? null) ? $item->option_value_ids : [];
+        $variant = app(ListingOptionSelectionService::class)->resolveVariantForLine($product, $optionValueIds);
+        $error = $this->inventory->purchaseError($product, $variant, max(1, (int) $item->qty));
 
-        return null;
+        return $error === null;
     }
 
     /**
@@ -216,6 +261,66 @@ class BundleController extends Controller
         }
 
         return $path;
+    }
+
+    /**
+     * @return array{label: string, href: string}|null
+     */
+    private function resolveSubcategoryFilterChip(Request $request): ?array
+    {
+        $categoryId = (int) $request->integer('category');
+        /** @var list<int> $selectedIds */
+        $selectedIds = collect($request->input('subcategories', []))
+            ->map(fn ($id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($categoryId <= 0 || $selectedIds === []) {
+            return null;
+        }
+
+        $categoryGroupId = OptionGroup::systemCategoryGroupIdForCatalog();
+        if ($categoryGroupId <= 0) {
+            return null;
+        }
+
+        $byId = OptionValue::query()
+            ->where('option_group_id', $categoryGroupId)
+            ->where('is_active', true)
+            ->whereIn('id', $selectedIds)
+            ->get(['id', 'name'])
+            ->keyBy('id');
+
+        if ($byId->isEmpty()) {
+            return null;
+        }
+
+        $labels = [];
+        foreach ($selectedIds as $selectedId) {
+            $node = $byId->get($selectedId);
+            if ($node === null) {
+                continue;
+            }
+
+            $name = trim((string) ($node->name ?? ''));
+            if ($name !== '') {
+                $labels[] = mt($name);
+            }
+        }
+
+        if ($labels === []) {
+            return null;
+        }
+
+        return [
+            'label' => implode(', ', $labels).' ×',
+            'href' => route('catalog.index', array_filter([
+                'on_sale' => $request->boolean('on_sale') ? 1 : null,
+                'category' => $categoryId,
+            ], fn ($value) => $value !== null && $value !== '')),
+        ];
     }
 
     private function wantsCartFragment(Request $request): bool

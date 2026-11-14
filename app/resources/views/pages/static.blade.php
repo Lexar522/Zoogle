@@ -11,8 +11,6 @@
 
 @section('meta_description', \Illuminate\Support\Str::limit($staticSeoDescription, 155, ''))
 @section('canonical_url', url()->current())
-@section('og_title', $title.' — ZOOGLE')
-@section('og_description', \Illuminate\Support\Str::limit($staticSeoDescription, 155, ''))
 
 @section('content')
     <div class="card">

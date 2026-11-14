@@ -7,6 +7,8 @@ use App\Models\OptionValue;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Support\ListingOptionValuePrices;
+use App\Support\StorefrontMemo;
+use App\Support\StorefrontOptionCatalog;
 use App\Support\VariantOptionsAllowlist;
 
 class ListingOptionSelectionService
@@ -61,6 +63,26 @@ class ListingOptionSelectionService
      */
     public function storefrontOptionBlocks(Product $product): array
     {
+        // Кошик, ціни комплектів і картки питають блоки того самого товару десятки разів за запит.
+        // Підпис з опцій товару й варіантів: змінений у тому ж запиті товар отримає нові блоки.
+        $variantRows = $product->relationLoaded('variants')
+            ? $product->variants->map(fn (ProductVariant $variant): array => $variant->only([
+                'id', 'options', 'photos', 'is_visible', 'is_available', 'is_sold', 'allows_preorder', 'quantity',
+            ]))->all()
+            : null;
+        $signature = md5(serialize([(int) $product->id, $product->variant_options, $variantRows]));
+
+        return StorefrontMemo::remember(
+            'option-blocks.'.spl_object_id($product).'.'.$signature,
+            fn (): array => $this->buildStorefrontOptionBlocks($product),
+        );
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildStorefrontOptionBlocks(Product $product): array
+    {
         $categoryGroupId = OptionGroup::systemCategoryGroupIdForCatalog();
         $orderedGids = collect($product->variant_options ?? [])
             ->map(fn ($row): int => (int) ($row['option_group_id'] ?? 0))
@@ -73,10 +95,7 @@ class ListingOptionSelectionService
             return [];
         }
 
-        $groups = OptionGroup::query()
-            ->whereIn('id', $orderedGids)
-            ->get(['id', 'name', 'slug', 'selection_mode', 'value_type', 'is_active'])
-            ->keyBy('id');
+        $groups = StorefrontOptionCatalog::groupsByIds($orderedGids);
 
         $blocks = [];
         foreach ($orderedGids as $gid) {
@@ -104,11 +123,7 @@ class ListingOptionSelectionService
                 continue;
             }
 
-            $values = OptionValue::query()
-                ->where('option_group_id', $gid)
-                ->whereIn('id', $valueIds)
-                ->orderBy('sort_order')
-                ->get(['id', 'name', 'color_hex'])
+            $values = StorefrontOptionCatalog::valuesIn($gid, $valueIds)
                 ->map(fn (OptionValue $value): array => [
                     'id' => (int) $value->id,
                     'name' => $this->mtLine((string) $value->name),
@@ -132,6 +147,7 @@ class ListingOptionSelectionService
                 'name' => $this->mtLine((string) ($group->name ?? '')),
                 'selection_mode' => (string) ($group->selection_mode ?? 'single'),
                 'value_type' => (string) ($group->value_type ?? 'text'),
+                'exclusivity_key' => \App\Support\OptionGroupExclusivity::keyFromName((string) ($group->name ?? '')),
                 'affects_variant_matching' => $this->optionGroupPinsAnyVisibleVariant($product, $gid, $categoryGroupId),
                 'exclusive_for_variant_id' => $exclusiveVariantId = $this->exclusiveVariantIdForGroupIfSingle($product, $gid, $categoryGroupId),
                 'exclusive_variant_value_count' => $exclusiveVariantId
@@ -145,6 +161,11 @@ class ListingOptionSelectionService
     }
 
     /**
+     * Розбиття вибору на окремі рядки кошика.
+     * Multi-select групи (і варіантні, і addon без affects_variant_matching) розбиваються
+     * на окремі позиції — як на PDP («Обрано позицій: N»), щоб ціна збігалася.
+     * Single-select addon (подарунок тощо) додається до кожного рядка.
+     *
      * @param  list<int>  $selectedOptionValueIds
      * @return list<list<int>>
      */
@@ -163,20 +184,25 @@ class ListingOptionSelectionService
         $blockByValueId = $this->blockByValueId($optionBlocks);
 
         $groups = [];
-        $nonMatchingIds = [];
+        $sharedAddonIds = [];
         foreach ($safeSelection as $valueId) {
             $block = $blockByValueId[$valueId] ?? null;
             if (! $block) {
                 continue;
             }
 
-            if (! $this->blockAffectsVariantMatching($block)) {
-                $nonMatchingIds[] = $valueId;
+            $gid = (int) ($block['id'] ?? 0);
+            $isMultiple = ($block['selection_mode'] ?? 'single') === 'multiple';
+            $affectsMatching = $this->blockAffectsVariantMatching($block);
+
+            // Single-select addon (не впливає на SKU) — спільний для всіх рядків.
+            if (! $affectsMatching && ! $isMultiple) {
+                $sharedAddonIds[] = $valueId;
 
                 continue;
             }
 
-            $gid = (int) ($block['id'] ?? 0);
+            // Варіантні групи або multi-select (об'єм 1л+3л тощо) — у декартове розбиття.
             $groups[$gid][] = $valueId;
         }
 
@@ -192,8 +218,9 @@ class ListingOptionSelectionService
                 continue;
             }
 
-            $block = $optionBlocks[$gid];
-            $shouldSplit = ($block['selection_mode'] ?? 'single') === 'multiple'
+            $block = $optionBlocks[$gid] ?? null;
+            $shouldSplit = is_array($block)
+                && ($block['selection_mode'] ?? 'single') === 'multiple'
                 && count($ids) > 1;
 
             $choices = $shouldSplit ? array_map(fn (int $id): array => [$id], $ids) : [$ids];
@@ -215,7 +242,7 @@ class ListingOptionSelectionService
         $unique = [];
         $seen = [];
         foreach ($lineSets as $row) {
-            $row = array_values(array_unique(array_merge($row, $nonMatchingIds)));
+            $row = array_values(array_unique(array_merge($row, $sharedAddonIds)));
             sort($row);
             $key = implode(',', $row);
             if (isset($seen[$key])) {
@@ -238,23 +265,164 @@ class ListingOptionSelectionService
             return [];
         }
 
+        $blocks = $this->storefrontOptionBlocks($product);
         $allowed = [];
-        foreach ($this->storefrontOptionBlocks($product) as $block) {
+        $valueExclusivityKey = [];
+        foreach ($blocks as $block) {
+            $exclusivityKey = is_string($block['exclusivity_key'] ?? null)
+                ? trim((string) $block['exclusivity_key'])
+                : '';
+            if ($exclusivityKey === '') {
+                $exclusivityKey = (string) (\App\Support\OptionGroupExclusivity::keyFromName((string) ($block['name'] ?? '')) ?? '');
+            }
+            $mode = (string) ($block['selection_mode'] ?? 'single');
             foreach ($block['values'] as $row) {
                 $id = (int) ($row['id'] ?? 0);
-                if ($id > 0) {
-                    $allowed[$id] = true;
+                if ($id <= 0) {
+                    continue;
+                }
+                $allowed[$id] = true;
+                // Single-select сімʼї «Назва: …» — лише одне значення з усієї сімʼї.
+                if ($exclusivityKey !== '' && $mode !== 'multiple') {
+                    $valueExclusivityKey[$id] = $exclusivityKey;
                 }
             }
         }
 
-        $safeIds = array_values(array_filter(
-            $selectedOptionValueIds,
-            fn (int $id): bool => isset($allowed[$id])
-        ));
-        sort($safeIds);
+        $safeIds = [];
+        foreach ($selectedOptionValueIds as $rawId) {
+            $id = (int) $rawId;
+            if ($id > 0 && isset($allowed[$id])) {
+                $safeIds[] = $id;
+            }
+        }
 
-        return $safeIds;
+        if ($valueExclusivityKey === []) {
+            $safeIds = array_values(array_unique($safeIds));
+            sort($safeIds);
+
+            return $safeIds;
+        }
+
+        $claimedKeys = [];
+        $kept = [];
+        foreach (array_reverse($safeIds) as $id) {
+            $key = $valueExclusivityKey[$id] ?? null;
+            if ($key !== null) {
+                if (isset($claimedKeys[$key])) {
+                    continue;
+                }
+                $claimedKeys[$key] = true;
+            }
+            $kept[] = $id;
+        }
+        $kept = array_values(array_unique(array_reverse($kept)));
+        sort($kept);
+
+        return $kept;
+    }
+
+    /**
+     * @param  list<int>  $selectedOptionValueIds
+     * @return list<string>
+     */
+    public function missingRequiredOptionGroupNames(Product $product, array $selectedOptionValueIds): array
+    {
+        $blocks = $this->storefrontOptionBlocks($product);
+        if ($blocks === []) {
+            return [];
+        }
+
+        $safeSelection = $this->sanitizeSelectionForProduct($product, $selectedOptionValueIds);
+        $selectedCountByGroup = [];
+        foreach ($blocks as $block) {
+            $groupId = (int) ($block['id'] ?? 0);
+            foreach ($block['values'] as $value) {
+                if (in_array((int) ($value['id'] ?? 0), $safeSelection, true)) {
+                    $selectedCountByGroup[$groupId] = ($selectedCountByGroup[$groupId] ?? 0) + 1;
+                }
+            }
+        }
+
+        $missing = [];
+        $handledExclusivityKeys = [];
+
+        foreach ($blocks as $block) {
+            $groupId = (int) ($block['id'] ?? 0);
+            $values = is_array($block['values'] ?? null) ? $block['values'] : [];
+            if (count($values) < 2) {
+                continue;
+            }
+
+            $exclusivityKey = is_string($block['exclusivity_key'] ?? null)
+                ? trim((string) $block['exclusivity_key'])
+                : '';
+            if ($exclusivityKey === '') {
+                $exclusivityKey = (string) (\App\Support\OptionGroupExclusivity::keyFromName((string) ($block['name'] ?? '')) ?? '');
+            }
+
+            if ($exclusivityKey !== '') {
+                if (isset($handledExclusivityKeys[$exclusivityKey])) {
+                    continue;
+                }
+                $handledExclusivityKeys[$exclusivityKey] = true;
+
+                $familyComplete = false;
+                $familyLabel = '';
+                foreach ($blocks as $familyBlock) {
+                    $familyValues = is_array($familyBlock['values'] ?? null) ? $familyBlock['values'] : [];
+                    if (count($familyValues) < 2) {
+                        continue;
+                    }
+                    $familyKey = is_string($familyBlock['exclusivity_key'] ?? null)
+                        ? trim((string) $familyBlock['exclusivity_key'])
+                        : '';
+                    if ($familyKey === '') {
+                        $familyKey = (string) (\App\Support\OptionGroupExclusivity::keyFromName((string) ($familyBlock['name'] ?? '')) ?? '');
+                    }
+                    if ($familyKey !== $exclusivityKey) {
+                        continue;
+                    }
+                    if ($familyLabel === '') {
+                        $familyLabel = trim((string) ($familyBlock['name'] ?? ''));
+                    }
+                    $familyGroupId = (int) ($familyBlock['id'] ?? 0);
+                    $selectedCount = $selectedCountByGroup[$familyGroupId] ?? 0;
+                    $mode = (string) ($familyBlock['selection_mode'] ?? 'single');
+                    $isComplete = $mode === 'multiple' ? $selectedCount >= 1 : $selectedCount === 1;
+                    if ($isComplete) {
+                        $familyComplete = true;
+                        break;
+                    }
+                }
+
+                if (! $familyComplete && $familyLabel !== '') {
+                    $missing[] = $familyLabel;
+                }
+
+                continue;
+            }
+
+            $selectedCount = $selectedCountByGroup[$groupId] ?? 0;
+            $mode = (string) ($block['selection_mode'] ?? 'single');
+            $isComplete = $mode === 'multiple' ? $selectedCount >= 1 : $selectedCount === 1;
+            if (! $isComplete) {
+                $name = trim((string) ($block['name'] ?? ''));
+                if ($name !== '') {
+                    $missing[] = $name;
+                }
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
+     * @param  list<int>  $selectedOptionValueIds
+     */
+    public function hasCompleteStorefrontOptionSelection(Product $product, array $selectedOptionValueIds): bool
+    {
+        return $this->missingRequiredOptionGroupNames($product, $selectedOptionValueIds) === [];
     }
 
     /**
@@ -355,10 +523,9 @@ class ListingOptionSelectionService
             ->whereIn('id', $safeIds)
             ->get(['id', 'name', 'option_group_id'])
             ->keyBy('id');
-        $groupNames = OptionGroup::query()
-            ->whereIn('id', $values->pluck('option_group_id')->map(fn ($id): int => (int) $id)->unique()->values()->all())
-            ->pluck('name', 'id')
-            ->all();
+        $groupNames = StorefrontOptionCatalog::groupsByIds(
+            $values->pluck('option_group_id')->map(fn ($id): int => (int) $id)->unique()->values()->all()
+        )->map(fn (OptionGroup $group): string => (string) $group->name)->all();
 
         $parts = [];
         foreach ($safeIds as $id) {

@@ -33,6 +33,38 @@ final class StoragePublicPath
     }
 
     /**
+     * Один файл зі стану Filament FileUpload (рядок або масив з шляхом у ключі/значенні).
+     */
+    public static function normalizeFileUploadState(mixed $state): ?string
+    {
+        if (is_string($state)) {
+            return self::normalize($state);
+        }
+
+        if (! is_array($state)) {
+            return null;
+        }
+
+        foreach ($state as $key => $value) {
+            if (is_string($key) && ! is_numeric($key)) {
+                $normalized = self::normalize($key);
+                if ($normalized !== null) {
+                    return $normalized;
+                }
+            }
+
+            if (is_string($value)) {
+                $normalized = self::normalize($value);
+                if ($normalized !== null) {
+                    return $normalized;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @return list<string>
      */
     public static function normalizeList(mixed $photos): array
@@ -42,7 +74,16 @@ final class StoragePublicPath
         }
 
         $out = [];
-        foreach ($photos as $path) {
+        foreach ($photos as $key => $path) {
+            if (is_string($key) && ! is_numeric($key)) {
+                $normalized = self::normalize($key);
+                if ($normalized !== null) {
+                    $out[] = $normalized;
+
+                    continue;
+                }
+            }
+
             $normalized = self::normalize($path);
             if ($normalized !== null) {
                 $out[] = $normalized;

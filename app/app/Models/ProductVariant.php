@@ -5,11 +5,11 @@ namespace App\Models;
 use App\Models\Concerns\HasVariantStockBehavior;
 use App\Services\VariantPricingService;
 use App\Support\CatalogProductVariantsTable;
+use App\Support\SchemaCache;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Schema;
 
 class ProductVariant extends Model
 {
@@ -60,7 +60,7 @@ class ProductVariant extends Model
 
     public function product(): BelongsTo
     {
-        $fk = Schema::hasColumn($this->getTable(), 'product_id')
+        $fk = SchemaCache::hasColumn($this->getTable(), 'product_id')
             ? 'product_id'
             : 'animal_listing_id';
 

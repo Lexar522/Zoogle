@@ -34,15 +34,32 @@ class CartLineResolver
         );
 
         $variant = $this->listingOptionSelection->resolveVariantForLine($product, $lineSelection);
+        $requestedVariantId = (int) ($row['variant_id'] ?? 0);
+        if ($lineSelection === [] && $requestedVariantId > 0) {
+            $product->loadMissing(['variants']);
+            $requested = $product->variants->first(
+                fn (ProductVariant $candidate): bool => (int) $candidate->id === $requestedVariantId
+                    && $candidate->isVisibleOnStorefront()
+            );
+            if ($requested instanceof ProductVariant) {
+                $variant = $requested;
+            } elseif ($requireSellable) {
+                return null;
+            }
+        } elseif ($requestedVariantId > 0 && $variant instanceof ProductVariant && (int) $variant->id !== $requestedVariantId) {
+            $variant = $this->listingOptionSelection->resolveVariantForLine($product, $lineSelection);
+        } elseif ($requestedVariantId > 0 && $variant === null && $lineSelection !== [] && $requireSellable) {
+            return null;
+        }
         $quote = null;
 
         if ($variant !== null) {
-            if ($requireSellable && ! $variant->isSellable()) {
+            if ($requireSellable && ! $variant->isSellable() && ! $product->allowsPreorder() && ! $variant->allows_preorder) {
                 return null;
             }
             $quote = $this->variantPricing->quoteProductVariant($variant);
         } else {
-            if ($requireSellable && ! $product->is_available) {
+            if ($requireSellable && (! $product->is_available || ! $product->isOrderable())) {
                 return null;
             }
             $quote = $this->variantPricing->quoteProduct($product);

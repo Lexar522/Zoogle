@@ -2,6 +2,7 @@
 
 namespace App\Filament\Admin\Pages;
 
+use App\Models\ShopContactItem;
 use App\Models\ShopIntegrationSetting;
 use App\Services\Payments\LiqPayClient;
 use App\Services\Payments\WayForPayClient;
@@ -12,9 +13,11 @@ use App\Support\ShopHeaderContacts;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Checkbox;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Components\ViewField;
 use Filament\Notifications\Notification;
 use Filament\Pages\Concerns\CanUseDatabaseTransactions;
@@ -29,6 +32,7 @@ use Filament\Support\Enums\Alignment;
 use Filament\Support\Exceptions\Halt;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Support\Facades\Schema as DbSchema;
 use Illuminate\Support\HtmlString;
 use Throwable;
 use UnitEnum;
@@ -69,6 +73,17 @@ class ManageShopIntegrations extends Page
         $this->data['pickup_lng'] = round($lng, 7);
     }
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()?->hasRole('admin') ?? false;
+    }
+
+    /** Діє і на кожен запит Livewire, зокрема на збереження ключів. */
+    public function boot(): void
+    {
+        abort_unless(static::canAccess(), 403);
+    }
+
     public function mount(): void
     {
         $record = ShopIntegrationSetting::record();
@@ -81,12 +96,8 @@ class ManageShopIntegrations extends Page
             'pickup_address' => $record?->pickup_address ?? '',
             'pickup_lat' => $record?->pickup_lat,
             'pickup_lng' => $record?->pickup_lng,
-            'contact_phone' => $record?->contact_phone ?? '',
-            'contact_email' => $record?->contact_email ?? '',
-            'contact_instagram' => $record?->contact_instagram ?? '',
-            'contact_viber' => $record?->contact_viber ?? '',
-            'contact_whatsapp' => $record?->contact_whatsapp ?? '',
-            'contact_telegram' => $record?->contact_telegram ?? '',
+            'pickup_enabled' => $record->isPickupEnabled(),
+            'contact_items' => self::contactItemsFormState(),
             'online_payment_provider' => $record?->online_payment_provider ?? 'liqpay',
             'wayforpay_merchant_account' => $record?->wayforpay_merchant_account ?? '',
             'wayforpay_secret_key' => '',
@@ -303,7 +314,7 @@ class ManageShopIntegrations extends Page
 
             $record = ShopIntegrationSetting::record();
 
-            $previousStoredMapsKey = is_string($record->google_maps_api_key) ? trim($record->google_maps_api_key) : '';
+            $previousStoredMapsKey = $record->readEncrypted('google_maps_api_key') ?? '';
 
             $pickupAddr = $data['pickup_address'] ?? null;
             $record->pickup_address = is_string($pickupAddr) && trim($pickupAddr) !== '' ? trim($pickupAddr) : null;
@@ -312,6 +323,7 @@ class ManageShopIntegrations extends Page
             $lngRaw = $data['pickup_lng'] ?? null;
             $record->pickup_lat = ($latRaw !== null && $latRaw !== '') ? (float) $latRaw : null;
             $record->pickup_lng = ($lngRaw !== null && $lngRaw !== '') ? (float) $lngRaw : null;
+            $record->pickup_enabled = (bool) ($data['pickup_enabled'] ?? true);
 
             $mapsKeyFromForm = $data['google_maps_api_key'] ?? null;
             $trimmedMaps = is_string($mapsKeyFromForm) ? trim($mapsKeyFromForm) : '';
@@ -336,9 +348,11 @@ class ManageShopIntegrations extends Page
         $this->refreshFormFromRecord();
 
         $record = ShopIntegrationSetting::record();
+        $pickupEnabled = $record->isPickupEnabled();
         $hasAddr = is_string($record?->pickup_address) && trim($record->pickup_address) !== '';
         $hasCoords = $record?->pickup_lat !== null && $record?->pickup_lng !== null;
         $body = match (true) {
+            ! $pickupEnabled => 'Самовивіз вимкнено — на чекауті доступна лише доставка Новою Поштою.',
             $hasAddr && $hasCoords => 'Адреса та координати збережені — на чекауті буде текст і карта самовивозу.',
             $hasAddr => 'Адресу збережено; координати опційні для мітки на карті.',
             default => 'Дані самовивозу очищено або ще не заповнені.',
@@ -378,12 +392,8 @@ class ManageShopIntegrations extends Page
             'pickup_address' => $record?->pickup_address ?? '',
             'pickup_lat' => $record?->pickup_lat,
             'pickup_lng' => $record?->pickup_lng,
-            'contact_phone' => $record?->contact_phone ?? '',
-            'contact_email' => $record?->contact_email ?? '',
-            'contact_instagram' => $record?->contact_instagram ?? '',
-            'contact_viber' => $record?->contact_viber ?? '',
-            'contact_whatsapp' => $record?->contact_whatsapp ?? '',
-            'contact_telegram' => $record?->contact_telegram ?? '',
+            'pickup_enabled' => $record->isPickupEnabled(),
+            'contact_items' => self::contactItemsFormState(),
             'online_payment_provider' => $record?->online_payment_provider ?? 'liqpay',
             'wayforpay_merchant_account' => $record?->wayforpay_merchant_account ?? '',
             'wayforpay_secret_key' => '',
@@ -402,12 +412,13 @@ class ManageShopIntegrations extends Page
             $this->callHook('beforeSave');
 
             $record = ShopIntegrationSetting::record();
-            $record->contact_phone = self::nullIfBlank($data['contact_phone'] ?? null);
-            $record->contact_email = self::nullIfBlank($data['contact_email'] ?? null);
-            $record->contact_instagram = self::nullIfBlank($data['contact_instagram'] ?? null);
-            $record->contact_viber = self::nullIfBlank($data['contact_viber'] ?? null);
-            $record->contact_whatsapp = self::nullIfBlank($data['contact_whatsapp'] ?? null);
-            $record->contact_telegram = self::nullIfBlank($data['contact_telegram'] ?? null);
+            self::syncContactItems(is_array($data['contact_items'] ?? null) ? $data['contact_items'] : []);
+            $record->contact_phone = null;
+            $record->contact_email = null;
+            $record->contact_instagram = null;
+            $record->contact_viber = null;
+            $record->contact_whatsapp = null;
+            $record->contact_telegram = null;
             $record->save();
             $this->callHook('afterSave');
         } catch (Halt $exception) {
@@ -445,6 +456,89 @@ class ManageShopIntegrations extends Page
         $t = trim($v);
 
         return $t === '' ? null : $t;
+    }
+
+    /**
+     * @return list<array{kind: string, value: string}>
+     */
+    private static function contactItemsFormState(): array
+    {
+        if (DbSchema::hasTable('shop_contact_items')) {
+            $rows = ShopContactItem::query()->ordered()->get();
+            if ($rows->isNotEmpty()) {
+                return $rows->map(static fn (ShopContactItem $row): array => [
+                    'kind' => $row->kind,
+                    'value' => $row->value,
+                ])->all();
+            }
+        }
+
+        $record = ShopIntegrationSetting::record();
+        $legacyMap = [
+            'phone' => $record->contact_phone,
+            'email' => $record->contact_email,
+            'instagram' => $record->contact_instagram,
+            'viber' => $record->contact_viber,
+            'whatsapp' => $record->contact_whatsapp,
+            'telegram' => $record->contact_telegram,
+        ];
+        $out = [];
+        foreach ($legacyMap as $kind => $value) {
+            $value = self::nullIfBlank($value);
+            if ($value !== null) {
+                $out[] = ['kind' => $kind, 'value' => $value];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  list<mixed>  $rows
+     */
+    private static function syncContactItems(array $rows): void
+    {
+        if (! DbSchema::hasTable('shop_contact_items')) {
+            return;
+        }
+
+        ShopContactItem::query()->delete();
+        $sort = 0;
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $kind = trim((string) ($row['kind'] ?? ''));
+            $value = trim((string) ($row['value'] ?? ''));
+            if ($kind === '' || $value === '') {
+                continue;
+            }
+            if (! in_array($kind, ShopContactItem::KINDS, true)) {
+                continue;
+            }
+            ShopContactItem::query()->create([
+                'sort_order' => $sort,
+                'kind' => $kind,
+                'value' => $value,
+            ]);
+            $sort++;
+        }
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function contactKindOptions(): array
+    {
+        return [
+            'phone' => 'Телефон',
+            'email' => 'Email',
+            'instagram' => 'Instagram',
+            'tiktok' => 'TikTok',
+            'viber' => 'Viber',
+            'whatsapp' => 'WhatsApp',
+            'telegram' => 'Telegram',
+        ];
     }
 
     /**
@@ -535,9 +629,11 @@ class ManageShopIntegrations extends Page
                                 $np = app(NovaPoshtaApiKey::class);
                                 $envHas = trim((string) config('services.nova_poshta.api_key')) !== '';
                                 $lines = [
-                                    $np->hasStoredKey()
-                                        ? 'Ключ у базі: так (зашифровано).'
-                                        : 'Ключ у базі: ні.',
+                                    match (true) {
+                                        $np->hasStoredKey() && ! $np->isStoredKeyReadable() => 'Ключ у базі: є, але не читається (змінився APP_KEY або пошкоджено) — введіть ключ заново.',
+                                        $np->hasStoredKey() => 'Ключ у базі: так (зашифровано).',
+                                        default => 'Ключ у базі: ні.',
+                                    },
                                     $envHas
                                         ? 'Змінна NOVA_POSHTA_API_KEY у .env: задана.'
                                         : 'Змінна NOVA_POSHTA_API_KEY у .env: не задана.',
@@ -586,9 +682,11 @@ class ManageShopIntegrations extends Page
                                 $maps = app(GoogleMapsApiKey::class);
                                 $envHas = trim((string) config('services.google.maps_api_key')) !== '';
                                 $lines = [
-                                    $maps->hasStoredKey()
-                                        ? 'Ключ у базі: так (зашифровано).'
-                                        : 'Ключ у базі: ні.',
+                                    match (true) {
+                                        $maps->hasStoredKey() && ! $maps->isStoredKeyReadable() => 'Ключ у базі: є, але не читається (змінився APP_KEY або пошкоджено) — введіть ключ заново.',
+                                        $maps->hasStoredKey() => 'Ключ у базі: так (зашифровано).',
+                                        default => 'Ключ у базі: ні.',
+                                    },
                                     $envHas
                                         ? 'Змінна GOOGLE_MAPS_API_KEY у .env: задана.'
                                         : 'Змінна GOOGLE_MAPS_API_KEY у .env: не задана.',
@@ -689,7 +787,7 @@ class ManageShopIntegrations extends Page
                     ])
                     ->columnSpanFull(),
                 Section::make('Самовивіз з магазину')
-                    ->description('Показується на оформленні замовлення, коли покупець обирає «Самовивіз». Якщо в блоці «Google Maps» ви ввели новий ключ і натискаєте лише «Зберегти блок» тут — ключ теж збережеться в базу (не потрібно двічі зберігати).')
+                    ->description('Увімкніть перемикач, щоб покупець міг обрати самовивіз на чекауті. Адреса та карта — нижче. Якщо в блоці «Google Maps» ви ввели новий ключ і натискаєте лише «Зберегти блок» тут — ключ теж збережеться в базу (не потрібно двічі зберігати).')
                     ->footerActionsAlignment(Alignment::End)
                     ->footerActions([
                         Action::make('savePickup')
@@ -702,9 +800,13 @@ class ManageShopIntegrations extends Page
                             ->view('filament.admin.shop-integration-status')
                             ->viewData(function (): array {
                                 $r = ShopIntegrationSetting::record();
+                                $pickupEnabled = $r->isPickupEnabled();
                                 $hasAddr = is_string($r?->pickup_address) && trim((string) $r->pickup_address) !== '';
                                 $hasCoords = $r?->pickup_lat !== null && $r?->pickup_lng !== null;
                                 $lines = [
+                                    $pickupEnabled
+                                        ? 'Самовивіз на чекауті: увімкнено.'
+                                        : 'Самовивіз на чекауті: вимкнено (лише Нова Пошта).',
                                     $hasAddr
                                         ? 'Адреса для покупця: задана.'
                                         : 'Адреса для покупця: не задана.',
@@ -712,6 +814,7 @@ class ManageShopIntegrations extends Page
                                         ? 'Координати для карти: задані (потрібні для карти в підвалі сайту).'
                                         : 'Координати для карти: не задані — вбудована карта в підвалі без координат не показується.',
                                     match (true) {
+                                        ! $pickupEnabled => 'Підсумок: самовивіз прихований на чекауті.',
                                         $hasAddr && $hasCoords => 'Підсумок: текст і мітка на карті на чекауті.',
                                         $hasAddr => 'Підсумок: лише текст адреси.',
                                         default => 'Підсумок: блок самовивозу для покупця порожній.',
@@ -720,14 +823,22 @@ class ManageShopIntegrations extends Page
 
                                 return [
                                     'html' => self::integrationStatusHtml(
-                                        $hasAddr,
-                                        'Заповнено — самовивіз показується покупцю',
-                                        'Не заповнено — адреса самовивозу відсутня',
+                                        $pickupEnabled && $hasAddr,
+                                        'Працює — самовивіз доступний на чекауті',
+                                        $pickupEnabled
+                                            ? 'Не заповнено — адреса самовивозу відсутня'
+                                            : 'Вимкнено — самовивіз недоступний покупцям',
                                         $lines,
                                     ),
                                 ];
                             })
                             ->dehydrated(false),
+                        Toggle::make('pickup_enabled')
+                            ->label('Самовивіз увімкнено')
+                            ->helperText('Якщо вимкнено, на чекауті залишається лише доставка Новою Поштою. Категорії «лише самовивіз» не можна оформити, поки самовивіз вимкнено.')
+                            ->default(true)
+                            ->inline(false)
+                            ->columnSpanFull(),
                         Textarea::make('pickup_address')
                             ->label('Адреса пункту видачі')
                             ->rows(3)
@@ -757,7 +868,7 @@ class ManageShopIntegrations extends Page
                     ->columns(2)
                     ->columnSpanFull(),
                 Section::make('Контакти (шапка сайту)')
-                    ->description('Телефон, пошта та посилання в лівому блоці шапки. Порожнє поле — відповідна іконка на сайті не з’являється. Якщо нічого не заповнено, весь блок контактів сховано.')
+                    ->description('Телефони, пошта та посилання в лівому блоці шапки. Можна додати кілька значень кожного типу. Порядок у списку = порядок на сайті (стрілки вгору/вниз або перетягування). Порожній рядок ігнорується. Якщо нічого не заповнено, весь блок контактів сховано.')
                     ->footerActionsAlignment(Alignment::End)
                     ->footerActions([
                         Action::make('saveHeaderContacts')
@@ -789,32 +900,39 @@ class ManageShopIntegrations extends Page
                                 ];
                             })
                             ->dehydrated(false),
-                        TextInput::make('contact_phone')
-                            ->label('Телефон')
-                            ->maxLength(64)
-                            ->helperText('Текст для відображення, напр. +38 099 403 43 59. Для дзвінка використовуються цифри з номера.'),
-                        TextInput::make('contact_email')
-                            ->label('Email')
-                            ->email()
-                            ->maxLength(255),
-                        TextInput::make('contact_instagram')
-                            ->label('Instagram')
-                            ->maxLength(512)
-                            ->helperText('Повне https-посилання або нік, напр. @zoogle / zoogle.'),
-                        TextInput::make('contact_viber')
-                            ->label('Viber')
-                            ->maxLength(512)
-                            ->helperText('Посилання https://… на viber.com / viber.me або deep link, що починається з viber:'),
-                        TextInput::make('contact_whatsapp')
-                            ->label('WhatsApp')
-                            ->maxLength(512)
-                            ->helperText('Напр. https://wa.me/38099… або посилання з api.whatsapp.com / whatsapp.com'),
-                        TextInput::make('contact_telegram')
-                            ->label('Telegram')
-                            ->maxLength(255)
-                            ->helperText('https://t.me/… / telegram.me/… або @username (латиниця, цифри, _)'),
+                        Repeater::make('contact_items')
+                            ->collapsible()
+                            ->collapsed()
+                            ->label('Контакти')
+                            ->helperText('Порядок рядків = порядок у шапці. Перетягніть за іконку або натисніть стрілки вгору/вниз, потім збережіть блок.')
+                            ->reorderable()
+                            ->reorderableWithButtons()
+                            ->addActionLabel('Додати контакт')
+                            ->defaultItems(0)
+                            ->schema([
+                                Select::make('kind')
+                                    ->label('Тип')
+                                    ->options(self::contactKindOptions())
+                                    ->default('phone')
+                                    ->native(false),
+                                TextInput::make('value')
+                                    ->label('Значення')
+                                    ->maxLength(512)
+                                    ->helperText('Телефон / Viber / WhatsApp: номер +380… · Email: адреса · Instagram / Telegram / TikTok: @nick або URL · Viber також: viber:… або https://… · WhatsApp також: https://wa.me/…'),
+                            ])
+                            ->itemLabel(function (array $state): ?string {
+                                $kind = trim((string) ($state['kind'] ?? ''));
+                                $value = trim((string) ($state['value'] ?? ''));
+                                $label = self::contactKindOptions()[$kind] ?? $kind;
+                                if ($value === '') {
+                                    return $label !== '' ? $label : 'Контакт';
+                                }
+
+                                return $label.': '.(mb_strlen($value) > 48 ? mb_substr($value, 0, 45).'…' : $value);
+                            })
+                            ->columns(2)
+                            ->columnSpanFull(),
                     ])
-                    ->columns(2)
                     ->columnSpanFull(),
             ]);
     }

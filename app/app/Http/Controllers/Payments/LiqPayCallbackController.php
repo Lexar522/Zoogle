@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Payments;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Services\Payments\ApplyApprovedOrderPayment;
+use App\Services\Payments\ApplyUnsuccessfulOrderPayment;
 use App\Services\Payments\LiqPayClient;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -46,12 +47,19 @@ class LiqPayCallbackController extends Controller
         }
         $order->save();
 
-        $paidStatuses = ['success', 'sandbox'];
+        // Тестовий платіж не приносить грошей: зараховуємо лише в явно увімкненому sandbox-режимі.
+        $paidStatuses = config('services.liqpay.sandbox') ? ['success', 'sandbox'] : ['success'];
         if (! in_array($status, $paidStatuses, true)) {
+            if ($status === 'sandbox') {
+                Log::warning('LiqPay callback: sandbox payment ignored', ['order_id' => $order->id]);
+            }
+
+            app(ApplyUnsuccessfulOrderPayment::class)->apply($order, $status);
+
             return response('OK', 200);
         }
 
-        app(ApplyApprovedOrderPayment::class)->apply($order->fresh(), $paymentLeg, $amount);
+        app(ApplyApprovedOrderPayment::class)->apply($order->fresh(), $paymentLeg, $amount, (string) ($payload['currency'] ?? ''));
 
         return response('OK', 200);
     }

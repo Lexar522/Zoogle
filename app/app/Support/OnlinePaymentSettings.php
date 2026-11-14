@@ -43,7 +43,7 @@ final class OnlinePaymentSettings
         $r = ShopIntegrationSetting::query()->first();
 
         return is_string($r?->wayforpay_merchant_account) && trim($r->wayforpay_merchant_account) !== ''
-            && is_string($r?->wayforpay_secret_key) && trim($r->wayforpay_secret_key) !== '';
+            && ($r?->hasEncryptedRaw('wayforpay_secret_key') ?? false);
     }
 
     public function hasLiqPayInEnv(): bool

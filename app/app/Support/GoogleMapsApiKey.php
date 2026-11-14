@@ -8,9 +8,9 @@ class GoogleMapsApiKey
 {
     public function current(): string
     {
-        $stored = ShopIntegrationSetting::record()->google_maps_api_key;
-        if (is_string($stored) && trim($stored) !== '') {
-            return trim($stored);
+        $stored = ShopIntegrationSetting::storefront()->readEncrypted('google_maps_api_key');
+        if ($stored !== null) {
+            return $stored;
         }
 
         return trim((string) config('services.google.maps_api_key'));
@@ -23,8 +23,11 @@ class GoogleMapsApiKey
 
     public function hasStoredKey(): bool
     {
-        $stored = ShopIntegrationSetting::record()->google_maps_api_key;
+        return ShopIntegrationSetting::storefront()->hasEncryptedRaw('google_maps_api_key');
+    }
 
-        return is_string($stored) && trim($stored) !== '';
+    public function isStoredKeyReadable(): bool
+    {
+        return ShopIntegrationSetting::storefront()->isEncryptedReadable('google_maps_api_key');
     }
 }

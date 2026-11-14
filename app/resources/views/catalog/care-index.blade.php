@@ -1,14 +1,9 @@
 @extends('layouts.shop')
 
-@section('header_bottom')
-    @include('catalog.partials.category-filters', ['inHeader' => true])
-@endsection
-
 @section('title', __('shop.care_hub_page_title', ['product' => mt($listing->title)]))
 @section('meta_description', __('shop.care_hub_meta_description', ['product' => mt($listing->title)]))
 @section('canonical_url', route('catalog.care.index', $listing->slug))
-@section('og_title', __('shop.care_hub_og_title', ['product' => mt($listing->title)]))
-@section('og_description', __('shop.care_hub_og_description'))
+@section('robots', config('shop.seo_index_product_pages') ? 'index,follow' : 'noindex,follow')
 
 @push('styles')
 <style>
@@ -22,30 +17,12 @@
         box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
         color: #202124;
     }
-    .care-page__eyebrow {
-        display: inline-flex;
-        margin: 0 0 0.8rem;
-        padding: 0.4rem 0.75rem;
-        border-radius: 999px;
-        background: rgba(54, 125, 241, 0.1);
-        color: #1d5fd6;
-        font-size: 0.75rem;
-        font-weight: 800;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-    }
     .care-page__title {
         margin: 0;
         color: #367df1;
         font-size: clamp(1.55rem, 4vw, 2.35rem);
         line-height: 1.08;
         letter-spacing: -0.04em;
-    }
-    .care-page__lead {
-        max-width: 46rem;
-        margin: 0.8rem 0 0;
-        color: #5f6368;
-        line-height: 1.55;
     }
     .care-page__actions {
         display: flex;
@@ -103,8 +80,8 @@
     }
     @media (max-width: 768px) {
         .care-page {
-            width: calc(100% - (max(12px, env(safe-area-inset-left, 0px)) + max(12px, env(safe-area-inset-right, 0px))));
-            max-width: calc(100% - (max(12px, env(safe-area-inset-left, 0px)) + max(12px, env(safe-area-inset-right, 0px))));
+            width: 100%;
+            max-width: 100%;
             margin: 0 auto max(14px, env(safe-area-inset-bottom, 0px) + 8px);
             padding: 12px;
             border-radius: 16px;
@@ -112,24 +89,10 @@
             box-sizing: border-box;
         }
 
-        .care-page__eyebrow {
-            margin: 0 auto 0.55rem;
-            padding: 0.3rem 0.62rem;
-            font-size: 0.66rem;
-        }
-
         .care-page__title {
             font-size: 1.05rem;
             line-height: 1.22;
             letter-spacing: -0.02em;
-            text-align: center;
-        }
-
-        .care-page__lead {
-            max-width: none;
-            margin: 0.55rem auto 0;
-            font-size: 0.8rem;
-            line-height: 1.45;
             text-align: center;
         }
 
@@ -205,21 +168,15 @@
 
 @section('content')
     <section class="care-page">
-        <p class="care-page__eyebrow">Поради по догляду</p>
         <h1 class="care-page__title">{{ mt($listing->title) }}</h1>
-        <p class="care-page__lead">
-            Зібрали корисні матеріали для догляду, використання товару та щоденної турботи про улюбленця.
-        </p>
         <div class="care-page__actions">
             <a class="btn secondary" href="{{ route('catalog.show', $listing->slug) }}">Назад до товару</a>
         </div>
 
         <div class="care-grid">
             @foreach ($careArticles as $article)
-                <a class="care-card" href="{{ route('catalog.care.show', [$listing->slug, $article->slug]) }}">
-                    <span class="care-card__meta">
-                        {{ optional($article->published_at)->format('d.m.Y') ?? 'Порада' }}
-                    </span>
+                <a class="care-card" href="{{ $article->storefrontUrl() }}">
+                    <span class="care-card__meta">Інформація</span>
                     <h2 class="care-card__title">{{ mt($article->title) }}</h2>
                     @if (filled($article->excerpt))
                         <p class="care-card__excerpt">{{ mt($article->excerpt) }}</p>

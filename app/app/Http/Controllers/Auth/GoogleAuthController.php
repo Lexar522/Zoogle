@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\CartPersistence;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -55,7 +56,6 @@ class GoogleAuthController extends Controller
         }
 
         return Socialite::driver('google')
-            ->stateless()
             ->redirectUrl($this->googleOAuthCallbackUrl($request))
             ->redirect();
     }
@@ -69,7 +69,6 @@ class GoogleAuthController extends Controller
 
         try {
             $googleUser = Socialite::driver('google')
-                ->stateless()
                 ->redirectUrl($this->googleOAuthCallbackUrl($request))
                 ->user();
         } catch (InvalidStateException) {
@@ -93,6 +92,12 @@ class GoogleAuthController extends Controller
         if ($email === null || $email === '') {
             return redirect()->route('catalog.index')
                 ->with('error', 'Google не надав email для акаунта.');
+        }
+
+        $emailVerified = $googleUser->getRaw()['email_verified'] ?? true;
+        if (! filter_var($emailVerified, FILTER_VALIDATE_BOOLEAN)) {
+            return redirect()->route('catalog.index')
+                ->with('error', 'Email цього Google-акаунта не підтверджено.');
         }
 
         $email = strtolower(trim($email));
@@ -138,6 +143,7 @@ class GoogleAuthController extends Controller
         }
 
         Auth::login($user, true);
+        app(CartPersistence::class)->mergeSavedIntoSession($request, $user);
 
         return redirect()->intended(route('account.index'));
     }

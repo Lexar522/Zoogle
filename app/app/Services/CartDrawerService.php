@@ -15,6 +15,8 @@ class CartDrawerService
         private readonly CartLineResolver $cartLineResolver,
         private readonly BundlePricingService $bundlePricing,
         private readonly ListingOptionSelectionService $listingOptionSelection,
+        private readonly BundleShowPageService $bundleShowPage,
+        private readonly InventoryService $inventory,
     ) {}
 
     /**
@@ -48,14 +50,19 @@ class CartDrawerService
     public function fromCart(array $cart, bool $forCheckout = false): array
     {
         $items = $this->resolveItems($cart, $forCheckout);
+        $blocked = $items->first(fn (array $line): bool => ! empty($line['unavailable']));
 
         return [
             'items' => $items,
             'summary' => [
                 'lines_count' => $items->count(),
                 'items_count' => (int) $items->sum('qty'),
-                'total' => round((float) $items->sum('line_total'), 2),
+                'total' => round((float) $items->sum(
+                    fn (array $line): float => empty($line['unavailable']) ? (float) ($line['line_total'] ?? 0) : 0.0
+                ), 2),
                 'is_empty' => $items->isEmpty(),
+                'can_checkout' => $items->isNotEmpty() && $blocked === null,
+                'blocked_reason' => is_array($blocked) ? (string) ($blocked['unavailable_reason'] ?? '') : null,
             ],
         ];
     }
@@ -130,7 +137,7 @@ class CartDrawerService
                     return null;
                 }
 
-                $line = $this->cartLineResolver->resolveLine($row, $product, requireSellable: $forCheckout);
+                $line = $this->cartLineResolver->resolveLine($row, $product, requireSellable: false);
                 if (! $line) {
                     return null;
                 }
@@ -139,7 +146,7 @@ class CartDrawerService
                     is_array($line['option_value_ids'] ?? null) ? $line['option_value_ids'] : []
                 );
 
-                return array_merge($line, [
+                return $this->decorateInventory(array_merge($line, [
                     'line_kind' => 'product',
                     'key' => $cartKey,
                     'title' => (string) $product->title,
@@ -156,7 +163,7 @@ class CartDrawerService
                     'bundle' => null,
                     'bundle_items' => [],
                     'bundle_snapshot' => null,
-                ]);
+                ]));
             })
             ->filter()
             ->values();
@@ -168,25 +175,23 @@ class CartDrawerService
      */
     private function resolveBundleLine(array $row, string $cartKey, Bundle $bundle, bool $forCheckout = false): ?array
     {
-        if ($forCheckout && (! $bundle->is_active || ! $bundle->is_visible)) {
-            return null;
-        }
-
         $bundleItems = [];
         foreach ($bundle->items->sortBy('sort_order') as $item) {
             $product = $item->product;
             if (! $product) {
                 return null;
             }
-            if ($forCheckout && ! $product->is_available) {
-                return null;
-            }
 
             $lineQuote = $this->bundlePricing->lineQuote($item);
+            $itemOptionValueIds = is_array($item->option_value_ids ?? null) ? $item->option_value_ids : [];
+            $variant = $this->listingOptionSelection->resolveVariantForLine($product, $itemOptionValueIds);
             $bundleItems[] = [
                 'product_id' => (int) $product->id,
+                'variant_id' => $variant?->id,
                 'slug' => (string) $product->slug,
                 'title' => (string) $product->title,
+                'option_value_ids' => $itemOptionValueIds,
+                'option_labels' => $this->listingOptionSelection->describeSelection($product, $itemOptionValueIds),
                 'qty' => max(1, (int) $item->qty),
                 'unit_price' => round((float) ($lineQuote['unit'] ?? 0), 2),
                 'line_total' => round((float) ($lineQuote['total'] ?? 0), 2),
@@ -197,7 +202,14 @@ class CartDrawerService
             return null;
         }
 
-        $quote = $this->bundlePricing->quote($bundle);
+        $optionValueIds = is_array($row['option_value_ids'] ?? null) ? $row['option_value_ids'] : [];
+        $optionValueIds = $this->bundleShowPage->sanitizeSelectionForBundle($bundle, $optionValueIds);
+        $quote = $this->bundlePricing->quote($bundle, null, $optionValueIds);
+        $optionDisplayItems = $this->bundleShowPage->selectionDisplayItems($bundle, $optionValueIds);
+        $optionLabels = array_values(array_filter(array_map(
+            fn (array $item): string => trim((string) ($item['label'] ?? '')),
+            $optionDisplayItems
+        )));
         $qty = max(1, (int) ($row['qty'] ?? 1));
         $unitPrice = round((float) ($quote['total'] ?? 0), 2);
         $oldUnitPrice = null;
@@ -205,7 +217,7 @@ class CartDrawerService
             $oldUnitPrice = round((float) ($quote['subtotal'] ?? 0), 2);
         }
 
-        return [
+        $resolved = [
             'line_kind' => 'bundle',
             'key' => $cartKey,
             'bundle' => $bundle,
@@ -216,24 +228,54 @@ class CartDrawerService
             'old_unit_price' => $oldUnitPrice,
             'line_total' => round($unitPrice * $qty, 2),
             'old_line_total' => $oldUnitPrice !== null ? round($oldUnitPrice * $qty, 2) : null,
-            'option_value_ids' => [],
-            'option_labels' => [],
-            'option_badges' => [],
-            'option_swatches' => [],
+            'option_value_ids' => $optionValueIds,
+            'option_labels' => $optionLabels,
+            'option_badges' => array_values(array_filter(
+                $optionDisplayItems,
+                fn (array $item): bool => ($item['value_type'] ?? 'text') !== 'color'
+            )),
+            'option_swatches' => array_values(array_filter(
+                $optionDisplayItems,
+                fn (array $item): bool => ($item['value_type'] ?? 'text') === 'color'
+            )),
             'photo' => $bundle->firstCatalogPhotoPath(),
             'title' => (string) $bundle->title,
             'title_url' => route('bundles.show', $bundle->slug),
             'bundle_items' => $bundleItems,
-            'bundle_snapshot' => $this->makeBundleSnapshot($bundle, $bundleItems, $quote),
+            'bundle_snapshot' => $this->makeBundleSnapshot($bundle, $bundleItems, $quote, $optionValueIds, $optionLabels),
         ];
+
+        if (! $bundle->is_active || ! $bundle->is_visible) {
+            $resolved['unavailable'] = true;
+            $resolved['unavailable_reason'] = (string) __('shop.cart_product_out_of_stock');
+
+            return $resolved;
+        }
+
+        return $this->decorateInventory($resolved);
+    }
+
+    /**
+     * @param  array<string, mixed>  $line
+     * @return array<string, mixed>
+     */
+    private function decorateInventory(array $line): array
+    {
+        $error = $this->inventory->purchaseErrorForResolvedLine($line);
+        $line['unavailable'] = $error !== null;
+        $line['unavailable_reason'] = $error;
+
+        return $line;
     }
 
     /**
      * @param  list<array<string, mixed>>  $bundleItems
      * @param  array{subtotal: float, discount: float, total: float}  $quote
+     * @param  list<int>  $optionValueIds
+     * @param  list<string>  $optionLabels
      * @return array<string, mixed>
      */
-    private function makeBundleSnapshot(Bundle $bundle, array $bundleItems, array $quote): array
+    private function makeBundleSnapshot(Bundle $bundle, array $bundleItems, array $quote, array $optionValueIds = [], array $optionLabels = []): array
     {
         return [
             'bundle_id' => (int) $bundle->id,
@@ -243,6 +285,8 @@ class CartDrawerService
             'subtotal' => round((float) ($quote['subtotal'] ?? 0), 2),
             'discount' => round((float) ($quote['discount'] ?? 0), 2),
             'total' => round((float) ($quote['total'] ?? 0), 2),
+            'option_value_ids' => $optionValueIds,
+            'option_labels' => $optionLabels,
             'items' => $bundleItems,
         ];
     }

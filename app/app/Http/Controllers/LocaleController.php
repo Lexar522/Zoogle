@@ -23,9 +23,11 @@ class LocaleController extends Controller
     {
         $return = $request->query('return');
         if (! is_string($return) || $return === '') {
-            return url()->previous() !== '' ? url()->previous() : route('home');
+            $previous = url()->previous();
+
+            return parse_url($previous, PHP_URL_HOST) === $request->getHost() ? $previous : route('home');
         }
-        if (! str_starts_with($return, '/') || str_starts_with($return, '//')) {
+        if (! str_starts_with($return, '/') || str_starts_with($return, '//') || str_contains($return, '\\')) {
             return route('home');
         }
         if (strlen($return) > 2048) {

@@ -1,0 +1,986 @@
+/* Спільний вигляд усієї адмінки в стилі Apple */
+.fi-body {
+    --zo-page: #f5f5f7;
+    --zo-card: #ffffff;
+    --zo-text: #1d1d1f;
+    --zo-secondary: #6e6e73;
+    --zo-separator: rgba(60, 60, 67, 0.12);
+    --zo-fill: rgba(120, 120, 128, 0.12);
+    --zo-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.05);
+    /* Єдина сітка відступів: між картками, всередині картки, між полями */
+    --zo-gap: 12px;
+    --zo-pad: 16px;
+    --zo-field-gap: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background-color: var(--zo-page);
+}
+
+html.dark .fi-body {
+    --zo-page: #000000;
+    --zo-card: #1c1c1e;
+    --zo-text: #f5f5f7;
+    --zo-secondary: #98989d;
+    --zo-separator: rgba(235, 235, 245, 0.12);
+    --zo-fill: rgba(120, 120, 128, 0.24);
+    --zo-shadow: none;
+}
+
+/* Верхня панель і бокове меню */
+.fi-body .fi-topbar,
+.fi-body .fi-topbar > nav {
+    border: 0;
+    box-shadow: 0 1px 0 var(--zo-separator);
+    background: color-mix(in srgb, var(--zo-page) 78%, transparent);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+/* На телефоні й планшеті меню висувається поверх сторінки, тому тло там суцільне */
+.fi-body .fi-sidebar {
+    background: var(--zo-card);
+}
+
+@media (min-width: 1024px) {
+    .fi-body .fi-sidebar {
+        background: transparent;
+    }
+}
+
+.fi-body .fi-sidebar-item-btn {
+    border-radius: 10px;
+    font-weight: 500;
+}
+
+.fi-body .fi-sidebar-item-label {
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+}
+
+.fi-body .fi-sidebar-item.fi-active > .fi-sidebar-item-btn {
+    background: var(--zo-fill);
+}
+
+/* Кольорові значки меню, як у «Налаштуваннях» iPhone. Нові пункти отримують сірий за замовчуванням */
+.fi-body .fi-sidebar-item-btn {
+    --zo-tone: #8e8e93;
+}
+
+.fi-body .fi-sidebar-item-btn[href$="/admin"] { --zo-tone: #5856d6; }
+.fi-body .fi-sidebar-item-btn[href$="/statistics"] { --zo-tone: #34c759; }
+.fi-body .fi-sidebar-item-btn[href$="/orders"] { --zo-tone: #007aff; }
+.fi-body .fi-sidebar-item-btn[href$="/bundles"] { --zo-tone: #ff2d55; }
+.fi-body .fi-sidebar-item-btn[href$="/products"] { --zo-tone: #ff9500; }
+.fi-body .fi-sidebar-item-btn[href$="/catalog-header"] { --zo-tone: #30b0c7; }
+.fi-body .fi-sidebar-item-btn[href$="/catalog-pagination"] { --zo-tone: #64748b; }
+.fi-body .fi-sidebar-item-btn[href$="/home-product-lists"] { --zo-tone: #ff3b30; }
+.fi-body .fi-sidebar-item-btn[href$="/care-articles"] { --zo-tone: #5ac8fa; }
+.fi-body .fi-sidebar-item-btn[href$="/promotions"] { --zo-tone: #af52de; }
+.fi-body .fi-sidebar-item-btn[href$="/catalog-categories"] { --zo-tone: #f5a623; }
+.fi-body .fi-sidebar-item-btn[href$="/option-groups"] { --zo-tone: #00a896; }
+.fi-body .fi-sidebar-item-btn[href$="/option-values"] { --zo-tone: #00a896; }
+.fi-body .fi-sidebar-item-btn[href$="/footer"] { --zo-tone: #a2845e; }
+.fi-body .fi-sidebar-item-btn[href$="/home-benefits"] { --zo-tone: #ffb300; }
+.fi-body .fi-sidebar-item-btn[href$="/media-optimization"] { --zo-tone: #32ade6; }
+.fi-body .fi-sidebar-item-btn[href$="/shop-integrations"] { --zo-tone: #636366; }
+.fi-body .fi-sidebar-item-btn[href$="/users"] { --zo-tone: #0a84ff; }
+
+.fi-body .fi-sidebar-item-btn > .fi-icon,
+.fi-body .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > .fi-icon {
+    box-sizing: content-box;
+    width: 16px;
+    height: 16px;
+    padding: 5px;
+    border-radius: 7px;
+    color: #ffffff;
+    background: var(--zo-tone);
+}
+
+.fi-body .fi-sidebar-group-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--zo-secondary);
+}
+
+/* Заголовки */
+.fi-body .fi-header-heading {
+    font-weight: 700;
+    letter-spacing: -0.025em;
+}
+
+.fi-body .fi-breadcrumbs-item-label {
+    font-size: 13px;
+    color: var(--zo-secondary);
+}
+
+/* Картки */
+.fi-body .fi-section,
+.fi-body .fi-ta-ctn,
+.fi-body .fi-wi-stats-overview-stat,
+.fi-body .fi-simple-main,
+.zo-card {
+    border: 0;
+    border-radius: 20px;
+    color: var(--zo-text);
+    background: var(--zo-card);
+    box-shadow: var(--zo-shadow);
+    --tw-ring-shadow: 0 0 #0000;
+}
+
+.fi-body .fi-ta-ctn {
+    overflow: hidden;
+}
+
+/* Картка всередині картки: без другої тіні, лише тло */
+.fi-body .fi-section .fi-section,
+.fi-body .fi-section .fi-ta-ctn,
+.fi-body .fi-fo-repeater-item {
+    border: 0;
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--zo-fill) 45%, transparent);
+    box-shadow: none;
+    --tw-ring-shadow: 0 0 #0000;
+}
+
+.fi-body .fi-section-header {
+    border: 0;
+}
+
+.fi-body .fi-section-content-ctn {
+    border: 0;
+}
+
+.fi-body .fi-section-header-heading {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--zo-text);
+}
+
+.fi-body .fi-section-header-description {
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--zo-secondary);
+}
+
+/* Кнопки */
+.fi-body .fi-btn {
+    border-radius: 980px;
+    font-weight: 500;
+    box-shadow: none;
+    transition: background-color 0.2s ease, opacity 0.2s ease;
+}
+
+.fi-body .fi-btn.fi-color-primary:not(.fi-outlined) {
+    color: #ffffff;
+    background: #007aff;
+}
+
+.fi-body .fi-btn.fi-color-primary:not(.fi-outlined):hover {
+    background: #0071eb;
+}
+
+/* Видалення в шапці сторінки не повинно бути найпомітнішою дією */
+.fi-body .fi-header .fi-btn.fi-color-danger {
+    color: #ff3b30;
+    background: rgba(255, 59, 48, 0.12);
+}
+
+.fi-body .fi-btn-group .fi-btn {
+    border-radius: inherit;
+}
+
+.fi-body .fi-btn:not(.fi-color):not(.fi-outlined) {
+    background: var(--zo-fill);
+    --tw-ring-shadow: 0 0 #0000;
+}
+
+.fi-body .fi-icon-btn {
+    border-radius: 10px;
+}
+
+/* Поля */
+.fi-body .fi-input-wrp {
+    border-radius: 10px;
+}
+
+.fi-body .fi-fo-field-label-content {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.fi-body .fi-sc-text,
+.fi-body .fi-fo-field-wrp-helper-text {
+    color: var(--zo-secondary);
+}
+
+.fi-body .fi-toggle.fi-toggle-on {
+    background: #34c759;
+}
+
+/* Перемикачі в стилі iOS */
+.fi-body .fi-tabs:not(.fi-vertical) {
+    max-width: 100%;
+    width: fit-content;
+    margin-inline: 0;
+    padding: 3px;
+    gap: 2px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--zo-fill);
+    box-shadow: none;
+    scrollbar-width: none;
+}
+
+.fi-body .fi-tabs:not(.fi-vertical) .fi-tabs-item {
+    padding: 6px 12px;
+    border-radius: 9px;
+    white-space: nowrap;
+    background: transparent;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.fi-body .fi-tabs:not(.fi-vertical) .fi-tabs-item-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--zo-text);
+}
+
+.fi-body .fi-tabs:not(.fi-vertical) .fi-tabs-item:hover:not(.fi-active) {
+    background: rgba(120, 120, 128, 0.12);
+}
+
+.fi-body .fi-tabs:not(.fi-vertical) .fi-tabs-item.fi-active {
+    background: var(--zo-card);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
+}
+
+/* Вкладки у формі: перемикач окремо над картками, без спільної рамки навколо */
+.fi-body .fi-sc-tabs.fi-contained {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    --tw-ring-shadow: 0 0 #0000;
+}
+
+.fi-body .fi-sc-tabs.fi-contained > .fi-sc-tabs-tab {
+    padding: 16px 0 0;
+}
+
+html.dark .fi-body .fi-tabs:not(.fi-vertical) .fi-tabs-item.fi-active {
+    background: #636366;
+}
+
+.fi-body .fi-tabs:not(.fi-vertical) .fi-tabs-item.fi-active .fi-tabs-item-label {
+    font-weight: 600;
+}
+
+.fi-body .fi-tabs-item .fi-badge {
+    --tw-ring-shadow: 0 0 #0000;
+    min-width: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    font-size: 11px;
+    justify-content: center;
+    color: var(--zo-text);
+    background: var(--zo-fill);
+}
+
+/* Таблиці */
+.fi-body .fi-ta-header-toolbar {
+    border-bottom: 1px solid var(--zo-separator);
+}
+
+/* Filament показує лічильник фільтрів навіть за нуля, тому він не має кидатися в очі */
+.fi-body .fi-ta-header-toolbar .fi-badge {
+    --tw-ring-shadow: 0 0 #0000;
+    border-radius: 999px;
+    color: var(--zo-secondary);
+    background: var(--zo-fill);
+}
+
+/* Порожній рядок масових дій: кнопка в ньому схована, доки нічого не вибрано */
+.fi-body .fi-ta-header-toolbar > .fi-ta-actions:not(:has(> :not([style*="display: none"]))) {
+    display: none;
+}
+
+/* Пошук ліворуч, фільтри й колонки праворуч */
+.fi-body .fi-ta-header-toolbar > :last-child {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.fi-body .fi-ta-header-toolbar > :last-child > .fi-ta-search-field {
+    flex: 0 1 340px;
+    min-width: 0;
+    margin-inline-end: auto;
+}
+
+.fi-body .fi-ta-header-cell {
+    background: transparent;
+}
+
+.fi-body .fi-ta-header-cell-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--zo-secondary);
+}
+
+.fi-body .fi-ta-table tbody,
+.fi-body .fi-ta-table tbody tr,
+.fi-body .fi-ta-row {
+    border-color: var(--zo-separator);
+}
+
+.fi-body .fi-ta-row:hover {
+    background: rgba(120, 120, 128, 0.06);
+}
+
+.fi-body .fi-ta-text,
+.fi-body .fi-ta-text-item-label {
+    font-variant-numeric: tabular-nums;
+}
+
+.fi-body .fi-ta-cell .fi-badge {
+    --tw-ring-shadow: 0 0 #0000;
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-weight: 600;
+}
+
+.fi-body .fi-pagination {
+    border-top: 1px solid var(--zo-separator);
+}
+
+/* Спливаючі вікна і меню */
+.fi-body .fi-modal-window {
+    border-radius: 20px;
+}
+
+.fi-body .fi-dropdown-panel {
+    border: 0;
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--zo-card) 86%, transparent);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.18);
+}
+
+.fi-body .fi-no-notification {
+    border-radius: 16px;
+}
+
+/* Панель збереження, що прилипає знизу */
+.fi-body .fi-sticky .fi-ac {
+    width: 100%;
+    margin-inline: 0;
+    padding-inline: var(--zo-pad);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--zo-card) 78%, transparent);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+/* Головна сторінка адмінки */
+.zo-home__title {
+    margin: 0;
+    font-size: clamp(24px, 3vw, 30px);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--zo-text);
+}
+
+.zo-home__lead {
+    margin: 4px 0 16px;
+    font-size: 15px;
+    color: var(--zo-secondary);
+}
+
+.zo-home__links {
+    display: grid;
+    gap: var(--zo-gap);
+    /* Шість переходів: рівно по три в ряд, без «хвоста» */
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.zo-home__link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    padding: 14px 16px;
+    transition: transform 0.2s ease;
+}
+
+.zo-home__link:hover {
+    transform: translateY(-1px);
+}
+
+.zo-home__link:focus-visible {
+    outline: 2px solid #007aff;
+    outline-offset: 2px;
+}
+
+.zo-home__link strong {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.zo-home__link small {
+    display: block;
+    font-size: 12px;
+    line-height: 1.3;
+    color: var(--zo-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fi-body .fi-btn,
+    .fi-body .fi-tabs-item,
+    .zo-home__link {
+        transition: none;
+    }
+
+    .zo-home__link:hover {
+        transform: none;
+    }
+}
+
+/* Телефон: великі зони дотику і зрозумілі картки */
+@media (max-width: 640px) {
+    .fi-body .fi-tabs:not(.fi-vertical) {
+        width: 100%;
+        scroll-snap-type: x proximity;
+    }
+
+    .fi-body .fi-tabs:not(.fi-vertical) .fi-tabs-item {
+        min-height: 36px;
+        scroll-snap-align: start;
+    }
+
+    /* iOS збільшує сторінку, коли шрифт поля менший за 16px */
+    .fi-body input:not([type="checkbox"]):not([type="radio"]),
+    .fi-body textarea,
+    .fi-body select {
+        font-size: 16px;
+    }
+
+    .fi-body .fi-btn {
+        min-height: 44px;
+        padding-inline: 18px;
+    }
+
+    .fi-body .fi-icon-btn {
+        min-width: 40px;
+        min-height: 40px;
+    }
+
+    .fi-body .fi-sidebar-item-btn {
+        min-height: 44px;
+    }
+
+    .fi-body .fi-header {
+        gap: 12px;
+    }
+
+    .fi-body .fi-header-heading {
+        font-size: 28px;
+    }
+
+    .fi-body .fi-header .fi-ac {
+        width: 100%;
+    }
+
+    .fi-body .fi-header .fi-ac .fi-btn {
+        flex: 1 1 auto;
+    }
+
+    /* Панелі інструментів редактора гортаються вбік, а не ламають сторінку */
+    .fi-body .fi-fo-rich-editor-toolbar,
+    .fi-body .fi-fo-markdown-editor .EasyMDEContainer .editor-toolbar {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+
+    .fi-body .fi-modal-window {
+        border-radius: 20px 20px 0 0;
+    }
+
+    /* На телефоні панель на всю ширину екрана, а кнопки на лінії з картками */
+    .fi-body .fi-sticky .fi-ac {
+        width: calc(100% + 32px);
+        margin-inline: -16px;
+        padding-inline: 16px;
+        padding-bottom: max(12px, env(safe-area-inset-bottom));
+        border-radius: 0;
+    }
+
+    /* Три кнопки займали два ряди; «Створити та створити наступне» лишається на комп'ютері */
+    .fi-body .fi-sticky .fi-ac > .fi-btn:nth-child(2):nth-last-child(2) {
+        display: none;
+    }
+
+    /* Таблиці-картки: кожен рядок як у «Налаштуваннях» iPhone, підпис ліворуч, значення праворуч */
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-row {
+        position: relative;
+        padding-block: 8px;
+    }
+
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell:has(> .fi-ta-cell-label) {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 30px;
+        padding: 3px 16px;
+    }
+
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell-label {
+        flex: 0 0 auto;
+        max-width: 45%;
+        font-size: 13px;
+        font-weight: 400;
+        color: var(--zo-secondary);
+    }
+
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell-content {
+        display: flex;
+        flex: 0 1 auto;
+        justify-content: flex-end;
+        min-width: 0;
+        text-align: right;
+    }
+
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell-content .fi-ta-text,
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell-content .fi-ta-col {
+        padding: 0;
+    }
+
+    /* Галочка вибору не наїжджає на значення першого рядка */
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-selection-cell + .fi-ta-cell {
+        padding-right: 48px;
+    }
+
+    .fi-body .fi-pagination {
+        padding-inline: 12px;
+    }
+}
+
+/* Єдина сітка відступів усієї адмінки */
+.fi-body .fi-main {
+    padding-block: var(--zo-pad);
+}
+
+.fi-body .fi-page-main {
+    gap: var(--zo-pad);
+}
+
+.fi-body .fi-page-header-main-ctn {
+    padding-block: 0;
+    row-gap: var(--zo-pad);
+}
+
+.fi-body .fi-page-content,
+.fi-body .fi-sc-has-gap,
+.fi-body .fi-sc-form {
+    gap: var(--zo-gap);
+}
+
+.fi-body .fi-header {
+    gap: var(--zo-gap);
+}
+
+.fi-body .fi-breadcrumbs {
+    margin-bottom: 2px;
+}
+
+/* Картки: заголовок і вміст починаються з однієї лінії */
+.fi-body .fi-section-header {
+    padding: 14px var(--zo-pad) 0;
+}
+
+.fi-body .fi-section-content {
+    padding: 12px var(--zo-pad) var(--zo-pad);
+}
+
+.fi-body .fi-section:not(.fi-section-has-header) > .fi-section-content-ctn > .fi-section-content {
+    padding-top: var(--zo-pad);
+}
+
+.fi-body .fi-section.fi-collapsed .fi-section-header {
+    padding-bottom: 14px;
+}
+
+.fi-body .fi-section .fi-section .fi-section-header {
+    padding: 12px 14px 0;
+}
+
+.fi-body .fi-section .fi-section .fi-section-content {
+    padding: 10px 14px 14px;
+}
+
+.fi-body .fi-section .fi-section.fi-collapsed .fi-section-header {
+    padding-bottom: 12px;
+}
+
+/* Картки в одному ряду однакової висоти */
+.fi-body .fi-grid-col > .fi-sc-component:only-child,
+.fi-body .fi-grid-col > .fi-sc-component:only-child > .fi-sc-section,
+.fi-body .fi-grid-col > .fi-sc-component:only-child > .fi-sc-section > .fi-section {
+    height: 100%;
+}
+
+.fi-body .fi-grid-col > .fi-sc-component:only-child > .fi-sc-section > .fi-section {
+    width: 100%;
+}
+
+/* Те саме для віджетів: графіки й блоки статистики в ряду */
+.fi-body .fi-wi-widget > .fi-section,
+.fi-body .fi-wi-widget > div > .fi-section,
+.fi-body .fi-wi-chart > .fi-section {
+    height: 100%;
+}
+
+/* Поля форм */
+.fi-body .fi-section-content .fi-sc-has-gap,
+.fi-body .fi-fo-repeater-item-content .fi-sc-has-gap {
+    gap: var(--zo-field-gap);
+}
+
+.fi-body .fi-fo-field {
+    row-gap: 6px;
+}
+
+.fi-body .fi-fo-field-wrp-helper-text,
+.fi-body .fi-fo-field .fi-sc-text {
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+/* Повторювані блоки */
+.fi-body .fi-fo-repeater-items {
+    gap: 8px;
+}
+
+.fi-body .fi-fo-repeater-item-header {
+    padding: 8px 12px;
+}
+
+.fi-body .fi-fo-repeater-item-content {
+    padding: 12px;
+}
+
+/* Таблиці */
+.fi-body .fi-ta-header-toolbar {
+    padding: 10px var(--zo-pad);
+}
+
+.fi-body .fi-ta-header-cell {
+    padding-block: 10px;
+}
+
+.fi-body .fi-ta-text,
+.fi-body .fi-ta-cell > .fi-ta-col > .fi-ta-text {
+    padding-block: 10px;
+}
+
+/* Перша колонка на одній лінії з пошуком і заголовком таблиці */
+@media (min-width: 641px) {
+    .fi-body .fi-ta-table .fi-ta-cell:first-child {
+        padding-inline-start: 0;
+    }
+
+    .fi-body .fi-ta-table .fi-ta-cell:first-child .fi-ta-text,
+    .fi-body .fi-ta-header-cell:first-child {
+        padding-inline-start: var(--zo-pad);
+    }
+
+    .fi-body .fi-ta-table .fi-ta-selection-cell:first-child,
+    .fi-body .fi-ta-table .fi-ta-selection-header-cell:first-child {
+        padding-inline-start: var(--zo-pad);
+    }
+}
+
+.fi-body .fi-pagination {
+    padding-block: 10px;
+}
+
+/* Форма: дії і вкладки на тій самій сітці */
+.fi-body .fi-form-actions {
+    margin-top: 0;
+}
+
+.fi-body .fi-sc-tabs.fi-contained > .fi-sc-tabs-tab {
+    padding: var(--zo-gap) 0 0;
+}
+
+/* Бокове меню щільніше */
+.fi-body .fi-sidebar-nav-groups {
+    row-gap: var(--zo-pad);
+}
+
+.fi-body .fi-sidebar-group-items {
+    row-gap: 2px;
+}
+
+.fi-body .fi-sidebar-item-btn {
+    padding: 6px 8px;
+}
+
+.fi-body .fi-sidebar-group-btn {
+    padding-block: 4px;
+}
+
+@media (max-width: 640px) {
+    .fi-body {
+        --zo-gap: 12px;
+        --zo-pad: 16px;
+    }
+
+    .zo-home__links {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .zo-home__link {
+        padding: 12px;
+        gap: 10px;
+    }
+
+    .fi-body .fi-main {
+        padding-inline: max(16px, env(safe-area-inset-left)) max(16px, env(safe-area-inset-right));
+        padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    }
+
+    .fi-body .fi-sidebar-item-btn {
+        padding: 10px 8px;
+    }
+}
+
+/*
+ * Телефон за правилами Apple Human Interface Guidelines:
+ * зона дотику від 44 pt, поля сторінки 16 pt, основний текст 15-17 pt, підписи від 13 pt.
+ */
+.fi-body {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+}
+
+@media (max-width: 640px), (pointer: coarse) {
+    /* Поля і списки вибору */
+    .fi-body .fi-input-wrp {
+        min-height: 44px;
+    }
+
+    .fi-body .fi-input-wrp input.fi-input,
+    .fi-body .fi-select-input-btn {
+        min-height: 44px;
+    }
+
+    .fi-body .fi-select-input-option,
+    .fi-body .fi-dropdown-list-item {
+        min-height: 44px;
+    }
+
+    /* Маленькі елементи лишаються на вигляд такими ж, але торкатися можна більшої області */
+    .fi-body .fi-toggle {
+        position: relative;
+    }
+
+    .fi-body .fi-select-input-value-remove-btn::after,
+    .fi-body .fi-toggle::after,
+    .fi-body .fi-checkbox-input::after {
+        content: "";
+        position: absolute;
+        inset: -12px;
+    }
+
+    .fi-body .fi-checkbox-input {
+        position: relative;
+    }
+
+    .fi-body select.fi-select-input {
+        min-height: 44px;
+    }
+
+    .fi-body .fi-checkbox-input {
+        width: 22px;
+        height: 22px;
+        border-radius: 7px;
+    }
+
+    /* Перемикач розміру iOS, 51 x 31 */
+    .fi-body .fi-toggle {
+        transform: scale(1.2);
+        transform-origin: left center;
+        margin-inline-end: 9px;
+    }
+
+    /* Кнопки */
+    .fi-body .fi-btn {
+        min-height: 44px;
+    }
+
+    .fi-body .fi-icon-btn,
+    .fi-body .fi-user-menu-trigger,
+    .fi-body .fi-topbar-open-sidebar-btn {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    .fi-body .fi-link.fi-ac-link-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 44px;
+        line-height: 1;
+    }
+
+    .fi-body .fi-link.fi-ac-link-action > * {
+        align-self: center;
+        margin-block: 0;
+    }
+
+    .fi-body .fi-fo-rich-editor-tool {
+        min-width: 40px;
+        min-height: 40px;
+    }
+
+    .fi-body .fi-tabs:not(.fi-vertical) .fi-tabs-item {
+        min-height: 40px;
+    }
+
+    .fi-body .fi-sidebar-item-btn {
+        min-height: 44px;
+    }
+
+    .fi-body .fi-sidebar-nav {
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Відгук на дотик замість наведення */
+    .fi-body .fi-btn:active,
+    .fi-body .fi-icon-btn:active,
+    .zo-card.zo-tile--link:active,
+    .zo-card.zo-home__link:active {
+        opacity: 0.6;
+    }
+
+    .fi-body .fi-ta-row:active {
+        background: var(--zo-fill);
+    }
+}
+
+@media (hover: none) {
+    .zo-tile--link:hover,
+    .zo-home__link:hover {
+        transform: none;
+    }
+
+    .fi-body .fi-ta-row:hover {
+        background: transparent;
+    }
+}
+
+@media (max-width: 640px) {
+    /* Верхня панель не заходить під виріз екрана */
+    .fi-body .fi-topbar > nav {
+        padding-top: env(safe-area-inset-top);
+    }
+
+    /* Типографіка iOS */
+    .fi-body .fi-header-heading {
+        font-size: 30px;
+        line-height: 1.15;
+    }
+
+    .fi-body .fi-section-header-heading {
+        font-size: 20px;
+    }
+
+    .fi-body .fi-section-header-description,
+    .fi-body .fi-fo-field-wrp-helper-text,
+    .fi-body .fi-fo-field .fi-sc-text,
+    .fi-body .fi-sidebar-group-label,
+    .fi-body .fi-ta-header-cell-label {
+        font-size: 13px;
+    }
+
+    .fi-body .fi-fo-field-label-content {
+        font-size: 15px;
+    }
+
+    .fi-body .fi-ta-text-item-label,
+    .fi-body .fi-sidebar-item-label {
+        font-size: 15px;
+    }
+
+    .fi-body .fi-sidebar-item-label {
+        font-size: 17px;
+    }
+
+    .fi-body .fi-fo-field {
+        row-gap: 6px;
+    }
+
+    .fi-body .fi-section-content .fi-sc-has-gap,
+    .fi-body .fi-fo-repeater-item-content .fi-sc-has-gap {
+        gap: 16px;
+    }
+
+    /* Головна дія на всю доступну ширину, під великим пальцем */
+    .fi-body .fi-sticky .fi-ac {
+        gap: 8px;
+        flex-wrap: nowrap;
+    }
+
+    .fi-body .fi-sticky .fi-ac > .fi-btn:first-child {
+        flex: 1 1 auto;
+    }
+
+    /* Вікна як нижній аркуш iOS */
+    .fi-body .fi-modal-window-ctn {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        padding: 0;
+    }
+
+    .fi-body .fi-modal-window {
+        width: 100%;
+        max-width: 100%;
+        max-height: 92dvh;
+        margin: 0;
+        padding-bottom: env(safe-area-inset-bottom);
+        border-radius: 20px 20px 0 0;
+    }
+
+    .fi-body .fi-modal-footer-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .fi-body .fi-modal-footer-actions .fi-btn {
+        width: 100%;
+    }
+
+    /* Показники головної й замовлень */
+    .zo-tile__hint,
+    .zo-home__link small,
+    .zo-summary__facts dt,
+    .zo-summary__date {
+        font-size: 13px;
+    }
+
+    .zo-summary__facts dd,
+    .zo-tile__label {
+        font-size: 15px;
+    }
+
+    .zo-home__link strong {
+        font-size: 15px;
+    }
+}

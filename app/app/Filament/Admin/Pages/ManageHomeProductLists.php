@@ -2,12 +2,16 @@
 
 namespace App\Filament\Admin\Pages;
 
-use App\Models\Product;
+use App\Filament\Support\ProductAdminSelectSearch;
 use App\Models\ShopHomeListItem;
+use App\Models\ShopHomeProductSection;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Pages\Concerns\CanUseDatabaseTransactions;
 use Filament\Pages\Page;
@@ -20,6 +24,7 @@ use Filament\Schemas\Schema;
 use Filament\Support\Facades\FilamentView;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Support\Facades\Schema as DbSchema;
 use Throwable;
 use UnitEnum;
 
@@ -38,7 +43,7 @@ class ManageHomeProductLists extends Page
 
     protected static string|UnitEnum|null $navigationGroup = 'Каталог';
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedHome;
 
     protected static ?int $navigationSort = 15;
 
@@ -50,13 +55,6 @@ class ManageHomeProductLists extends Page
     public function mount(): void
     {
         $this->form->fill($this->loadFormData());
-    }
-
-    private static function productSelectLabel(Product $product): string
-    {
-        $title = trim((string) $product->title);
-
-        return $title !== '' ? $title : '#'.$product->id;
     }
 
     /**
@@ -75,9 +73,25 @@ class ManageHomeProductLists extends Page
                 ->all();
         };
 
+        $copy = ShopHomeProductSection::formDefaults();
+        if (DbSchema::hasTable('shop_home_product_sections')) {
+            $row = ShopHomeProductSection::query()->orderBy('id')->first();
+            if ($row !== null) {
+                $copy = [
+                    'hits_enabled' => (bool) $row->hits_enabled,
+                    'hits_title' => (string) ($row->hits_title ?? ''),
+                    'hits_lead' => (string) ($row->hits_lead ?? ''),
+                    'recommended_enabled' => (bool) $row->recommended_enabled,
+                    'recommended_title' => (string) ($row->recommended_title ?? ''),
+                    'recommended_lead' => (string) ($row->recommended_lead ?? ''),
+                ];
+            }
+        }
+
         return [
             'bestsellers' => $mapRows(ShopHomeListItem::LIST_BESTSELLERS),
             'recommended' => $mapRows(ShopHomeListItem::LIST_RECOMMENDED),
+            ...$copy,
         ];
     }
 
@@ -91,6 +105,7 @@ class ManageHomeProductLists extends Page
 
             $this->persistList(ShopHomeListItem::LIST_BESTSELLERS, $data['bestsellers'] ?? []);
             $this->persistList(ShopHomeListItem::LIST_RECOMMENDED, $data['recommended'] ?? []);
+            $this->persistCopy($data);
 
             $this->callHook('afterSave');
         } catch (Throwable $exception) {
@@ -103,7 +118,7 @@ class ManageHomeProductLists extends Page
         Notification::make()
             ->success()
             ->title('Збережено')
-            ->body('Списки товарів на головній оновлено.')
+            ->body('Блоки «Хіти продажів» і «Рекомендовані товари» оновлено.')
             ->send();
 
         $this->form->fill($this->loadFormData());
@@ -143,6 +158,27 @@ class ManageHomeProductLists extends Page
         return null;
     }
 
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function persistCopy(array $data): void
+    {
+        if (! DbSchema::hasTable('shop_home_product_sections')) {
+            return;
+        }
+
+        $row = ShopHomeProductSection::query()->orderBy('id')->first() ?? new ShopHomeProductSection;
+        $row->fill([
+            'hits_enabled' => (bool) ($data['hits_enabled'] ?? true),
+            'hits_title' => mb_substr(trim((string) ($data['hits_title'] ?? '')), 0, 255),
+            'hits_lead' => mb_substr(trim((string) ($data['hits_lead'] ?? '')), 0, 1000),
+            'recommended_enabled' => (bool) ($data['recommended_enabled'] ?? true),
+            'recommended_title' => mb_substr(trim((string) ($data['recommended_title'] ?? '')), 0, 255),
+            'recommended_lead' => mb_substr(trim((string) ($data['recommended_lead'] ?? '')), 0, 1000),
+        ]);
+        $row->save();
+    }
+
     public function defaultForm(Schema $schema): Schema
     {
         return $schema
@@ -158,31 +194,27 @@ class ManageHomeProductLists extends Page
                 ->label('Товар')
                 ->searchable()
                 ->helperText('Пошук лише за назвою: введіть частину назви або оберіть зі списку (до 2000 товарів за алфавітом).')
-                ->options(function (): array {
-                    return Product::query()
-                        ->orderBy('title')
-                        ->limit(2000)
-                        ->get()
-                        ->mapWithKeys(fn (Product $p): array => [(string) $p->id => self::productSelectLabel($p)])
-                        ->all();
-                })
-                ->getOptionLabelUsing(function ($value): ?string {
-                    if ($value === null || $value === '') {
-                        return null;
-                    }
-
-                    $product = Product::query()->find($value);
-
-                    return $product ? self::productSelectLabel($product) : null;
-                })
+                ->options(fn (): array => ProductAdminSelectSearch::titleChoices())
+                ->getOptionLabelUsing(fn ($value): ?string => ProductAdminSelectSearch::titleForId((int) $value))
                 ->native(false);
         };
 
         return $schema
             ->components([
                 Section::make('Хіти продажів')
-                    ->description('Порядок у списку = порядок карток на сайті. Перетягуйте рядки.')
+                    ->description('Заголовок і короткий опис на головній, а нижче — товари. Порядок у списку = порядок карток. Блок можна сховати.')
                     ->schema([
+                        Toggle::make('hits_enabled')
+                            ->label('Показувати блок на головній')
+                            ->default(true),
+                        TextInput::make('hits_title')
+                            ->label('Заголовок')
+                            ->maxLength(255)
+                            ->placeholder('Хіти продажів'),
+                        Textarea::make('hits_lead')
+                            ->label('Короткий опис')
+                            ->rows(2)
+                            ->maxLength(1000),
                         Repeater::make('bestsellers')
                             ->hiddenLabel()
                             ->reorderable()
@@ -196,15 +228,24 @@ class ManageHomeProductLists extends Page
                                     return 'Новий рядок';
                                 }
 
-                                $p = Product::query()->find($state['product_id']);
-
-                                return $p ? self::productSelectLabel($p) : 'Товар';
+                                return ProductAdminSelectSearch::titleForId((int) $state['product_id']) ?? 'Товар';
                             }),
                     ])
                     ->columnSpanFull(),
                 Section::make('Рекомендовані товари')
-                    ->description('Порядок у списку = порядок карток на сайті.')
+                    ->description('Заголовок і короткий опис на головній, а нижче — товари. Порядок у списку = порядок карток. Блок можна сховати.')
                     ->schema([
+                        Toggle::make('recommended_enabled')
+                            ->label('Показувати блок на головній')
+                            ->default(true),
+                        TextInput::make('recommended_title')
+                            ->label('Заголовок')
+                            ->maxLength(255)
+                            ->placeholder('Рекомендовані товари'),
+                        Textarea::make('recommended_lead')
+                            ->label('Короткий опис')
+                            ->rows(2)
+                            ->maxLength(1000),
                         Repeater::make('recommended')
                             ->hiddenLabel()
                             ->reorderable()
@@ -218,9 +259,7 @@ class ManageHomeProductLists extends Page
                                     return 'Новий рядок';
                                 }
 
-                                $p = Product::query()->find($state['product_id']);
-
-                                return $p ? self::productSelectLabel($p) : 'Товар';
+                                return ProductAdminSelectSearch::titleForId((int) $state['product_id']) ?? 'Товар';
                             }),
                     ])
                     ->columnSpanFull(),

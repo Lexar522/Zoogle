@@ -343,4 +343,101 @@
         transform: none !important;
         cursor: pointer;
     }
+
+    /*
+        Банер шапки: квадратне прев’ю 1:1 зліва, зона дропа справа.
+    */
+    .fi-listing-photos-layout.fi-header-banner-upload.fi-fo-file-upload {
+        --hb-block-size: var(--lp-drop);
+        --hb-block-w: var(--hb-block-size);
+        --hb-block-h: var(--hb-block-size);
+        --lp-thumb: var(--hb-block-size);
+        --lp-row: var(--hb-block-size);
+    }
+
+    .fi-fo-repeater .fi-listing-photos-layout.fi-header-banner-upload.fi-fo-file-upload {
+        --lp-drop: 4.75rem;
+    }
+
+    .fi-listing-photos-layout.fi-header-banner-upload.fi-fo-file-upload .filepond--root:has(.filepond--item) {
+        flex-direction: row !important;
+        align-items: stretch !important;
+        gap: 0.75rem !important;
+        min-height: calc((0.875rem * 2) + var(--hb-block-size)) !important;
+    }
+
+    .fi-listing-photos-layout.fi-header-banner-upload.fi-fo-file-upload .filepond--list-scroller {
+        width: var(--hb-block-size) !important;
+        min-width: var(--hb-block-size) !important;
+        max-width: var(--hb-block-size) !important;
+        min-height: var(--hb-block-size) !important;
+        max-height: var(--hb-block-size) !important;
+        height: var(--hb-block-size) !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+    }
+
+    .fi-listing-photos-layout.fi-header-banner-upload.fi-fo-file-upload .filepond--root:has(.filepond--item) .filepond--list-scroller {
+        order: 1;
+        flex: 0 0 var(--hb-block-size) !important;
+        align-self: stretch !important;
+        border-radius: 0.5rem;
+    }
+
+    .fi-listing-photos-layout.fi-header-banner-upload.fi-fo-file-upload .filepond--root:has(.filepond--item) .filepond--drop-label {
+        order: 2;
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        height: auto !important;
+        align-self: stretch !important;
+    }
+
+    .fi-listing-photos-layout.fi-header-banner-upload.fi-fo-file-upload .filepond--root:has(.filepond--item) .filepond--drop-label label {
+        min-height: 100% !important;
+        height: 100% !important;
+        padding: 0.5rem 0.75rem !important;
+    }
+
+    .fi-listing-photos-layout.fi-header-banner-upload.fi-fo-file-upload .filepond--list {
+        width: var(--hb-block-size) !important;
+        min-width: var(--hb-block-size) !important;
+        height: var(--hb-block-size) !important;
+        align-items: stretch;
+    }
+
+    .fi-listing-photos-layout.fi-header-banner-upload.fi-fo-file-upload .filepond--root:has(.filepond--item) .filepond--list {
+        min-height: var(--hb-block-size);
+        height: var(--hb-block-size) !important;
+    }
+
+    .fi-listing-photos-layout.fi-header-banner-upload.fi-fo-file-upload .filepond--item {
+        width: var(--hb-block-size) !important;
+        max-width: var(--hb-block-size) !important;
+        flex: 0 0 var(--hb-block-size) !important;
+        height: var(--hb-block-size) !important;
+        min-height: var(--hb-block-size) !important;
+        max-height: var(--hb-block-size) !important;
+        aspect-ratio: 1 / 1;
+        margin: 0 !important;
+        align-self: stretch;
+    }
+
+    .fi-listing-photos-layout.fi-header-banner-upload.fi-fo-file-upload .filepond--image-preview-wrapper,
+    .fi-listing-photos-layout.fi-header-banner-upload.fi-fo-file-upload .filepond--image-preview,
+    .fi-listing-photos-layout.fi-header-banner-upload.fi-fo-file-upload .filepond--file-wrapper,
+    .fi-listing-photos-layout.fi-header-banner-upload.fi-fo-file-upload .filepond--file {
+        width: 100% !important;
+        height: 100% !important;
+    }
+
+    .fi-listing-photos-layout.fi-header-banner-upload.fi-fo-file-upload .filepond--image-preview-overlay {
+        width: 100% !important;
+        height: 100% !important;
+    }
+
+    .fi-listing-photos-layout.fi-header-banner-upload.fi-fo-file-upload .filepond--file-info,
+    .fi-listing-photos-layout.fi-header-banner-upload.fi-fo-file-upload .filepond--file-status {
+        display: none !important;
+    }
 </style>

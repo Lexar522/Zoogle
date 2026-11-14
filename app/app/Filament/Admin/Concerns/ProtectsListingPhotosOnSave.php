@@ -181,6 +181,7 @@ trait ProtectsListingPhotosOnSave
         return array_values(array_filter(
             $paths,
             fn (string $path): bool => ! str_starts_with($path, 'livewire-tmp/')
+                && ! \App\Support\ListingPhotoDerivative::isDerivativePath($path)
                 && $disk->exists($path)
         ));
     }

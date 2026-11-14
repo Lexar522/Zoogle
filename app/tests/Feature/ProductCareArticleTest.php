@@ -27,7 +27,7 @@ class ProductCareArticleTest extends TestCase
 
         $this->get(route('catalog.show', $product->slug))
             ->assertOk()
-            ->assertSee('Поради по догляду')
+            ->assertSee(__('shop.pdp_care_section_title'))
             ->assertSee(route('catalog.care.index', $product->slug), false);
     }
 
@@ -60,11 +60,22 @@ class ProductCareArticleTest extends TestCase
             'is_active' => true,
         ]);
 
+        $animals = OptionValue::query()->firstOrCreate([
+            'option_group_id' => $categoryGroup->id,
+            'slug' => 'tvaryny-care-pdp',
+        ], [
+            'name' => 'Тварини',
+            'parent_id' => null,
+            'sort_order' => 1,
+            'is_active' => true,
+        ]);
+
         $root = OptionValue::query()->firstOrCreate([
             'option_group_id' => $categoryGroup->id,
             'slug' => 'dogs',
         ], [
             'name' => 'Собаки',
+            'parent_id' => $animals->id,
             'sort_order' => 1,
             'is_active' => true,
         ]);
@@ -73,10 +84,72 @@ class ProductCareArticleTest extends TestCase
             'title' => 'Товар для собак',
             'slug' => 'dog-product',
             'product_type' => OptionGroup::CATALOG_PRODUCT_TYPE,
-            'category_parent_value_id' => $root->id,
+            'category_parent_value_id' => $animals->id,
+            'category_value_id' => $root->id,
             'price' => 100,
             'is_available' => true,
             'published_at' => now(),
         ]);
+    }
+
+    public function test_non_animal_product_hides_care_block(): void
+    {
+        $categoryGroup = OptionGroup::query()->firstOrCreate([
+            'slug' => 'category',
+            'product_type' => OptionGroup::CATALOG_PRODUCT_TYPE,
+        ], [
+            'name' => 'Категорія',
+            'selection_mode' => 'single',
+            'value_type' => 'text',
+            'is_active' => true,
+        ]);
+
+        OptionValue::query()->firstOrCreate([
+            'option_group_id' => $categoryGroup->id,
+            'slug' => 'tvaryny-care-pdp',
+        ], [
+            'name' => 'Тварини',
+            'parent_id' => null,
+            'sort_order' => 1,
+            'is_active' => true,
+        ]);
+
+        $feed = OptionValue::query()->firstOrCreate([
+            'option_group_id' => $categoryGroup->id,
+            'slug' => 'kormy-care-pdp',
+        ], [
+            'name' => 'Корми',
+            'parent_id' => null,
+            'sort_order' => 2,
+            'is_active' => true,
+        ]);
+
+        $product = Product::query()->create([
+            'title' => 'Сухий корм',
+            'slug' => 'dry-feed',
+            'product_type' => OptionGroup::CATALOG_PRODUCT_TYPE,
+            'category_parent_value_id' => $feed->id,
+            'price' => 80,
+            'is_available' => true,
+            'published_at' => now(),
+        ]);
+
+        ProductCareArticle::query()->create([
+            'product_id' => $product->id,
+            'title' => 'Порада для корму',
+            'slug' => 'feed-care',
+            'excerpt' => 'Не має бути на картці',
+            'body' => '<p>Корм</p>',
+            'is_published' => true,
+        ]);
+
+        $this->get(route('catalog.show', $product->slug))
+            ->assertOk()
+            ->assertDontSee(__('shop.pdp_care_section_title'))
+            ->assertDontSee('Порада для корму')
+            ->assertDontSee(route('catalog.care.index', $product->slug), false);
+
+        $this->get(route('catalog.care.index', $product->slug))->assertNotFound();
+        $this->get(route('catalog.care.show', [$product->slug, 'feed-care']))->assertNotFound();
     }
 }

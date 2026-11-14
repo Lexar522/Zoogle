@@ -5,7 +5,9 @@ namespace App\Services;
 use App\Models\OptionGroup;
 use App\Models\OptionValue;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Support\CatalogCategoryTree;
+use App\Support\SchemaCache;
 use App\Support\ShopCart;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -171,7 +173,7 @@ class CategoryCheckoutRulesService
                 if (is_array($bundleItems)) {
                     foreach ($bundleItems as $bi) {
                         $pid = (int) ($bi['product_id'] ?? 0);
-                        if ($pid > 0 && $this->deferOnlinePaymentForProductId($pid)) {
+                        if ($pid > 0 && $this->productIdDefersOnlinePayment($pid)) {
                             $defers = true;
                             break;
                         }
@@ -195,7 +197,7 @@ class CategoryCheckoutRulesService
                 continue;
             }
 
-            if ($this->deferOnlinePaymentForProductId($pid)) {
+            if ($this->lineDefersOnlinePayment($line)) {
                 $deferred += $lineTotal;
             } else {
                 $immediate += $lineTotal;
@@ -217,6 +219,47 @@ class CategoryCheckoutRulesService
             'defers_any' => $defersAny,
             'is_mixed' => $isMixed,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $line
+     */
+    public function lineDefersOnlinePayment(array $line): bool
+    {
+        $product = $line['product'] ?? null;
+        if ($product instanceof Product && $product->defersOnlinePayment()) {
+            return true;
+        }
+
+        $variant = $line['variant'] ?? null;
+        if ($variant instanceof ProductVariant && (bool) ($variant->allows_preorder ?? false)) {
+            return true;
+        }
+
+        if ($product instanceof Product) {
+            return $this->productIdDefersOnlinePayment((int) $product->id);
+        }
+
+        return false;
+    }
+
+    public function productIdDefersOnlinePayment(int $productId): bool
+    {
+        if ($productId <= 0) {
+            return false;
+        }
+
+        if (SchemaCache::hasColumn((new Product)->getTable(), 'stock_status')) {
+            $product = Product::query()
+                ->whereKey($productId)
+                ->first(['id', 'stock_status']);
+
+            if ($product instanceof Product && $product->defersOnlinePayment()) {
+                return true;
+            }
+        }
+
+        return $this->deferOnlinePaymentForProductId($productId);
     }
 
     /**

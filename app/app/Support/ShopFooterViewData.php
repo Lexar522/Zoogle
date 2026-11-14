@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\ShopFooterBrand;
 use App\Models\ShopFooterColumn;
+use App\Models\ShopFooterFaqItem;
 use App\Models\ShopInfoPage;
 use App\Models\ShopIntegrationSetting;
 
@@ -19,13 +20,20 @@ final class ShopFooterViewData
      *   brand: array{body: ?string, phone: ?string, site_title: ?string, logo_url: string},
      *   columns: list<array{title: string, links: list<array{label: string, href: string, open_new_tab: bool}>}>,
      *   info_pages: list<array{slug: string, title: string}>,
+     *   faq: array{title: string, items: list<array{question: string, answer: string}>},
+     *   has_faq: bool,
      *   pickup_map: array{address: ?string, embed_url: ?string, maps_url: ?string, has_embed: bool, embed_provider: ?string}
      * }
      */
     public static function forRequest(): array
     {
+        return StorefrontViewCache::remember('footer', fn (): array => self::build());
+    }
+
+    private static function build(): array
+    {
         $brandRow = ShopFooterBrand::query()->first();
-        $settings = ShopIntegrationSetting::record();
+        $settings = ShopIntegrationSetting::storefront();
 
         $columns = ShopFooterColumn::query()
             ->with('links')
@@ -48,7 +56,9 @@ final class ShopFooterViewData
                     'open_new_tab' => (bool) $link->open_new_tab,
                 ];
             }
-            if ($title !== '' || $links !== []) {
+            // Колонки лише із заголовком (без посилань) на вітрині не показуємо —
+            // інакше з’являються порожні картки («Каталог…», «Тік-ток» тощо).
+            if ($links !== []) {
                 $mappedColumns[] = [
                     'title' => $title,
                     'links' => $links,
@@ -59,6 +69,7 @@ final class ShopFooterViewData
         $useDynamic = $mappedColumns !== [];
 
         $infoPages = ShopInfoPage::query()
+            ->roots()
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get()
@@ -73,11 +84,43 @@ final class ShopFooterViewData
             ->values()
             ->all();
 
+        $faqItems = [];
+        if (SchemaCache::hasTable('shop_footer_faq_items')) {
+            $faqItems = ShopFooterFaqItem::query()
+                ->ordered()
+                ->get()
+                ->map(static function (ShopFooterFaqItem $item): ?array {
+                    $question = $item->questionForLocale();
+                    if ($question === '') {
+                        return null;
+                    }
+
+                    return [
+                        'question' => $question,
+                        'answer' => $item->answerForLocale(),
+                    ];
+                })
+                ->filter()
+                ->values()
+                ->all();
+        }
+
+        $faqTitle = self::localized(
+            $brandRow?->faq_title_uk,
+            $brandRow?->faq_title_en,
+            $brandRow?->faq_title_ru
+        );
+        if ($faqTitle === '') {
+            $faqTitle = (string) __('shop.footer_faq_block_title');
+        }
+
         $logoUrl = asset(self::STOREFRONT_LOGO_PATH);
 
-        $pickupAddress = self::nullableTrim($settings?->pickup_address);
-        $lat = $settings?->pickup_lat;
-        $lng = $settings?->pickup_lng;
+        $pickupAddress = $settings?->isPickupEnabled()
+            ? self::nullableTrim($settings?->pickup_address)
+            : null;
+        $lat = $settings?->isPickupEnabled() ? $settings?->pickup_lat : null;
+        $lng = $settings?->isPickupEnabled() ? $settings?->pickup_lng : null;
         $hasCoords = $lat !== null && $lng !== null
             && is_numeric($lat) && is_numeric($lng);
         $embedUrl = null;
@@ -135,6 +178,11 @@ final class ShopFooterViewData
             ],
             'columns' => $mappedColumns,
             'info_pages' => $infoPages,
+            'faq' => [
+                'title' => $faqTitle,
+                'items' => $faqItems,
+            ],
+            'has_faq' => $faqItems !== [],
             'pickup_map' => [
                 'address' => $pickupAddress,
                 'embed_url' => $embedUrl,

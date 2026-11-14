@@ -15,7 +15,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'first_name', 'last_name', 'phone', 'email', 'password', 'google_id', 'avatar'])]
+#[Fillable(['name', 'first_name', 'last_name', 'phone', 'email', 'password', 'google_id', 'avatar', 'saved_cart'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser
 {
@@ -32,6 +32,7 @@ class User extends Authenticatable implements FilamentUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'saved_cart' => 'array',
         ];
     }
 

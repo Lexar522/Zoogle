@@ -6,24 +6,25 @@ use App\Models\User;
 
 class UserPolicy
 {
+    // Список покупців містить персональні дані — лише адмін.
     public function viewAny(User $auth): bool
     {
-        return $auth->hasAnyRole(['admin', 'manager']);
+        return $auth->hasRole('admin');
     }
 
     public function view(User $auth, User $target): bool
     {
-        return $auth->hasAnyRole(['admin', 'manager']);
+        return $auth->hasRole('admin');
     }
 
     public function create(User $auth): bool
     {
-        return $auth->hasAnyRole(['admin', 'manager']);
+        return $auth->hasRole('admin');
     }
 
     public function update(User $auth, User $target): bool
     {
-        return $auth->hasAnyRole(['admin', 'manager']);
+        return $auth->hasRole('admin');
     }
 
     public function delete(User $auth, User $target): bool
@@ -32,6 +33,6 @@ class UserPolicy
             return false;
         }
 
-        return $auth->hasAnyRole(['admin', 'manager']);
+        return $auth->hasRole('admin');
     }
 }

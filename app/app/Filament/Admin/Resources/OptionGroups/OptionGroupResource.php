@@ -19,7 +19,7 @@ class OptionGroupResource extends Resource
 {
     protected static ?string $model = OptionGroup::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedTag;
 
     protected static ?string $navigationLabel = 'Групи опцій';
 

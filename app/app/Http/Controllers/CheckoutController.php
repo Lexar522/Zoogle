@@ -8,18 +8,24 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\ShopIntegrationSetting;
 use App\Services\CartDrawerService;
+use App\Services\ShopAnalytics;
 use App\Services\CategoryCheckoutRulesService;
+use App\Services\CartPersistence;
+use App\Services\InventoryService;
 use App\Services\NovaPoshta\NovaPoshtaClient;
 use App\Services\Payments\ApplyApprovedOrderPayment;
+use App\Services\Payments\ApplyUnsuccessfulOrderPayment;
 use App\Services\Payments\LiqPayClient;
 use App\Services\Payments\WayForPayClient;
 use App\Support\GoogleMapsApiKey;
+use App\Support\GuestOrderAccess;
 use App\Support\OnlinePaymentSettings;
 use App\Support\ShopCart;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -28,9 +34,13 @@ use Illuminate\View\View;
 
 class CheckoutController extends Controller
 {
+    private const SUBMIT_TTL_SECONDS = 600;
+
     public function __construct(
         private readonly CartDrawerService $cartDrawer,
         private readonly CategoryCheckoutRulesService $categoryCheckoutRules,
+        private readonly InventoryService $inventory,
+        private readonly CartPersistence $cartPersistence,
     ) {}
 
     public function create(Request $request): View|RedirectResponse
@@ -40,17 +50,39 @@ class CheckoutController extends Controller
             return redirect()->route('catalog.index')->with('error', 'Кошик порожній.');
         }
 
-        $items = $this->resolveCartItems($cart, forCheckout: true);
+        $drawer = $this->cartDrawer->fromCart($cart, forCheckout: true);
+        $items = $drawer['items'];
 
         if ($items->isEmpty()) {
             return redirect()->route('catalog.index')->with('error', 'У кошику немає доступних позицій.');
         }
 
+        if (($drawer['summary']['can_checkout'] ?? true) !== true) {
+            return redirect()->route('cart.index')->with(
+                'error',
+                (string) ($drawer['summary']['blocked_reason'] ?: __('shop.cart_checkout_blocked'))
+            );
+        }
+
+        if ($this->hasZeroPriceLine($items)) {
+            return redirect()->route('cart.index')->with('error', __('shop.checkout_zero_price'));
+        }
+
         $user = Auth::user();
 
         $shop = ShopIntegrationSetting::record();
+        $pickupEnabled = $shop->isPickupEnabled();
         $categoryRules = $this->categoryCheckoutRules->aggregateForRequest($request);
         $paymentSplit = $this->categoryCheckoutRules->paymentSplitForResolvedCartLines($items);
+
+        if ($categoryRules['requires_pickup_only'] && ! $pickupEnabled) {
+            return redirect()->route('catalog.index')->with(
+                'error',
+                __('shop.checkout_pickup_disabled_for_category'),
+            );
+        }
+
+        ShopAnalytics::recordCheckout($request);
 
         return view('checkout.index', [
             'items' => $items,
@@ -59,7 +91,8 @@ class CheckoutController extends Controller
             'liqPayConfigured' => app(OnlinePaymentSettings::class)->isConfigured(),
             'checkoutGoogleMapsKey' => app(GoogleMapsApiKey::class)->current(),
             'categoryRequiresPickupOnly' => $categoryRules['requires_pickup_only'],
-            'categoryDefersOnlinePayment' => $categoryRules['defers_online_payment'],
+            'categoryDefersOnlinePayment' => (bool) ($paymentSplit['defers_any'] ?? false),
+            'pickupEnabled' => $pickupEnabled,
             'paymentSplit' => $paymentSplit,
             'pickupDisplay' => [
                 'address' => $shop->pickup_address,
@@ -76,19 +109,35 @@ class CheckoutController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $submitKey = $this->submitCacheKey($request);
+        if ($submitKey !== null && Cache::has($submitKey)) {
+            return $this->responseForDuplicateSubmit($submitKey);
+        }
+
         $cart = $this->getCart($request);
         if ($cart === []) {
             return redirect()->route('catalog.index')->with('error', 'Кошик порожній.');
         }
 
         $categoryRules = $this->categoryCheckoutRules->aggregateForCart($cart);
+        $pickupEnabled = ShopIntegrationSetting::record()->isPickupEnabled();
         $npConfigured = app(NovaPoshtaClient::class)->isConfigured();
         $liqPayConfigured = app(OnlinePaymentSettings::class)->isConfigured();
         $deliveryType = $request->string('delivery_type')->toString();
 
-        $items = $this->resolveCartItems($cart, forCheckout: true);
+        $drawer = $this->cartDrawer->fromCart($cart, forCheckout: true);
+        $items = $drawer['items'];
         if ($items->isEmpty()) {
             return redirect()->route('catalog.index')->with('error', 'У кошику немає позицій для оформлення.');
+        }
+        if (($drawer['summary']['can_checkout'] ?? true) !== true) {
+            return redirect()->route('cart.index')->with(
+                'error',
+                (string) ($drawer['summary']['blocked_reason'] ?: __('shop.cart_checkout_blocked'))
+            );
+        }
+        if ($this->hasZeroPriceLine($items)) {
+            return redirect()->route('cart.index')->with('error', __('shop.checkout_zero_price'));
         }
 
         $paymentSplit = $this->categoryCheckoutRules->paymentSplitForResolvedCartLines($items);
@@ -102,17 +151,21 @@ class CheckoutController extends Controller
         } else {
             $allowedPaymentMethods = ['cod', 'online'];
         }
-        $allowedDeliveryTypes = $categoryRules['requires_pickup_only']
-            ? [Order::DELIVERY_PICKUP]
-            : [
-                Order::DELIVERY_PICKUP,
-                Order::DELIVERY_NOVA_POSHTA_WAREHOUSE,
-                Order::DELIVERY_NOVA_POSHTA_COURIER,
-            ];
+        $allowedDeliveryTypes = $this->allowedDeliveryTypesForCheckout(
+            $categoryRules['requires_pickup_only'],
+            $pickupEnabled,
+        );
+
+        if ($allowedDeliveryTypes === []) {
+            return redirect()->route('catalog.index')->with(
+                'error',
+                __('shop.checkout_pickup_disabled_for_category'),
+            );
+        }
 
         $rules = [
             'customer_name' => ['required', 'string', 'max:120'],
-            'customer_phone' => ['required', 'string', 'max:50'],
+            'customer_phone' => ['required', 'string', 'max:50', 'regex:/^(?=(?:\D*\d){9,15}\D*$)\+?[\d\s()\-]+$/'],
             'customer_email' => ['nullable', 'email', 'max:120'],
             'payment_method' => [
                 'required',
@@ -154,14 +207,114 @@ class CheckoutController extends Controller
                 : ['nullable', 'string', 'max:36'];
         }
 
-        $validated = $request->validate($rules);
+        $validated = $request->validate($rules, [
+            'customer_phone.regex' => __('shop.checkout_phone_invalid'),
+        ]);
         $paymentMethod = (string) ($validated['payment_method'] ?? 'cod');
         unset($validated['payment_method']);
         $validated = $this->normalizeDeliveryPayload($validated);
 
         $total = $items->sum('line_total');
 
-        $order = DB::transaction(function () use ($items, $total, $validated, $request, $paymentSplit, $paymentMethod, $defersAny): Order {
+        if ($submitKey !== null && ! Cache::add($submitKey, 'pending', self::SUBMIT_TTL_SECONDS)) {
+            return $this->responseForDuplicateSubmit($submitKey);
+        }
+
+        try {
+            $order = $this->placeOrder($items, $total, $validated, $request, $paymentSplit, $paymentMethod, $defersAny);
+        } catch (\Throwable $e) {
+            if ($submitKey !== null) {
+                Cache::forget($submitKey);
+            }
+
+            throw $e;
+        }
+
+        $this->cartPersistence->clear($request, $request->user());
+
+        if ($paymentMethod === 'online' && app(OnlinePaymentSettings::class)->isConfigured()) {
+            $pay = app(OnlinePaymentSettings::class);
+            $order->forceFill([
+                'payment_provider' => $pay->provider() === OnlinePaymentSettings::PROVIDER_WAYFORPAY ? 'wayforpay' : 'liqpay',
+            ])->save();
+        }
+
+        if ($submitKey !== null) {
+            Cache::put($submitKey, $order->id, self::SUBMIT_TTL_SECONDS);
+        }
+
+        return $this->redirectAfterPlacement($order);
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $items
+     */
+    private function hasZeroPriceLine(Collection $items): bool
+    {
+        return $items->contains(fn (array $item): bool => (float) ($item['line_total'] ?? 0) <= 0);
+    }
+
+    /** Ключ одноразового токена форми: повторна відправка не створює другого замовлення. */
+    private function submitCacheKey(Request $request): ?string
+    {
+        $token = (string) $request->input('checkout_token', '');
+        if ($token === '' || strlen($token) > 64) {
+            return null;
+        }
+
+        return 'checkout-submit:'.hash('sha256', $token);
+    }
+
+    private function responseForDuplicateSubmit(string $submitKey): RedirectResponse
+    {
+        // Перший запит ще може створювати замовлення: чекаємо до 5 секунд.
+        for ($attempt = 0; $attempt < 10; $attempt++) {
+            $orderId = Cache::get($submitKey);
+            if (is_numeric($orderId)) {
+                $order = Order::query()->find((int) $orderId);
+                if ($order !== null) {
+                    return $this->redirectAfterPlacement($order);
+                }
+            }
+            if ($orderId === null) {
+                break;
+            }
+            usleep(500_000);
+        }
+
+        return redirect()->route('cart.index')->with('error', __('shop.checkout_already_processing'));
+    }
+
+    private function redirectAfterPlacement(Order $order): RedirectResponse
+    {
+        if ($order->checkout_payment_method === 'online' && app(OnlinePaymentSettings::class)->isConfigured()) {
+            if ($order->mixed_payment_plan) {
+                return redirect()->route('checkout.payment', [
+                    'order' => $order->id,
+                    'token' => $order->success_token,
+                    'leg' => 'immediate',
+                ]);
+            }
+
+            if (! $order->deferred_online_payment) {
+                return redirect()->route('checkout.payment', [
+                    'order' => $order->id,
+                    'token' => $order->success_token,
+                ]);
+            }
+        }
+
+        return redirect()->route('checkout.success', ['order' => $order->id, 'token' => $order->success_token]);
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $items
+     * @param  array<string, mixed>  $validated
+     * @param  array<string, mixed>  $paymentSplit
+     */
+    private function placeOrder(Collection $items, float|int $total, array $validated, Request $request, array $paymentSplit, string $paymentMethod, bool $defersAny): Order
+    {
+        return DB::transaction(function () use ($items, $total, $validated, $request, $paymentSplit, $paymentMethod, $defersAny): Order {
             $orderPayload = [
                 ...$validated,
                 'total' => $total,
@@ -178,6 +331,8 @@ class CheckoutController extends Controller
             }
 
             $order = Order::query()->create($orderPayload);
+
+            $this->inventory->commitForOrder($order, $items);
 
             foreach ($items as $item) {
                 $qty = (int) $item['qty'];
@@ -196,7 +351,7 @@ class CheckoutController extends Controller
                         'product_id' => null,
                         'bundle_id' => $bundle?->id,
                         'title_snapshot' => (string) ($item['title'] ?? ($bundle?->title ?? 'Комплект')),
-                        'option_value_ids' => null,
+                        'option_value_ids' => is_array($item['option_value_ids'] ?? null) ? $item['option_value_ids'] : null,
                         'bundle_snapshot' => $bundleSnapshot,
                         'price' => $item['unit_price'],
                         'qty' => $qty,
@@ -217,6 +372,9 @@ class CheckoutController extends Controller
 
                 $order->items()->create([
                     'product_id' => $product->id,
+                    'variant_id' => $item['variant'] instanceof \App\Models\ProductVariant
+                        ? (int) $item['variant']->id
+                        : null,
                     'title_snapshot' => $titleSnapshot,
                     'option_value_ids' => $item['option_value_ids'] ?? [],
                     'price' => $item['unit_price'],
@@ -228,45 +386,29 @@ class CheckoutController extends Controller
 
             DB::afterCommit(function () use ($order): void {
                 $email = trim((string) $order->customer_email);
-                if ($email !== '') {
+                if ($email === '') {
+                    return;
+                }
+
+                // Замовлення вже збережене: збій пошти не має показувати покупцю помилку і провокувати дубль.
+                try {
                     Mail::to($email)->send(new OrderPlaced($order->fresh(['items'])));
+                } catch (\Throwable $e) {
+                    Log::warning('order_placed_email_failed', [
+                        'order_id' => $order->id,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
             });
 
             return $order;
         });
-
-        $request->session()->forget('cart');
-
-        if ($paymentMethod === 'online' && app(OnlinePaymentSettings::class)->isConfigured()) {
-            $pay = app(OnlinePaymentSettings::class);
-            $order->forceFill([
-                'payment_provider' => $pay->provider() === OnlinePaymentSettings::PROVIDER_WAYFORPAY ? 'wayforpay' : 'liqpay',
-            ])->save();
-
-            if ($isMixed) {
-                return redirect()->route('checkout.payment', [
-                    'order' => $order->id,
-                    'token' => $order->success_token,
-                    'leg' => 'immediate',
-                ]);
-            }
-
-            if (! $defersAny) {
-                return redirect()->route('checkout.payment', [
-                    'order' => $order->id,
-                    'token' => $order->success_token,
-                ]);
-            }
-        }
-
-        return redirect()->route('checkout.success', ['order' => $order->id, 'token' => $order->success_token]);
     }
 
     public function payment(Request $request, Order $order, ?string $token = null): View|RedirectResponse
     {
         $token = $token !== null && $token !== '' ? $token : (string) $request->query('token', '');
-        if ($token === '' || ! hash_equals((string) $order->success_token, $token)) {
+        if (! $order->successTokenMatches($token)) {
             abort(404);
         }
 
@@ -277,6 +419,12 @@ class CheckoutController extends Controller
 
         if ($order->payment_status === 'paid') {
             return redirect()->route('checkout.success', ['order' => $order->id, 'token' => $token]);
+        }
+
+        if ($order->status === Order::STATUS_CANCELLED) {
+            return redirect()
+                ->route('checkout.success', ['order' => $order->id, 'token' => $token])
+                ->with('error', __('shop.checkout_order_cancelled_no_payment'));
         }
 
         $leg = $this->resolveCheckoutPaymentLeg($order, $request);
@@ -305,6 +453,12 @@ class CheckoutController extends Controller
                     ->route('checkout.success', ['order' => $order->id, 'token' => $token])
                     ->with('error', 'Онлайн-оплата для цього замовлення ще не дозволена. Очікуйте повідомлення від магазину.');
             }
+        }
+
+        if (! $order->prepareForPaymentRetry()) {
+            return redirect()
+                ->route('checkout.success', ['order' => $order->id, 'token' => $token])
+                ->with('error', __('shop.checkout_retry_out_of_stock'));
         }
 
         if ($paySettings->provider() === OnlinePaymentSettings::PROVIDER_WAYFORPAY) {
@@ -342,9 +496,11 @@ class CheckoutController extends Controller
     public function success(Request $request, Order $order, ?string $token = null): View|RedirectResponse
     {
         $token = $token !== null && $token !== '' ? $token : (string) $request->query('token', '');
-        if ($token === '' || ! hash_equals((string) $order->success_token, $token)) {
+        if (! $order->successTokenMatches($token)) {
             abort(404);
         }
+
+        app(GuestOrderAccess::class)->claim($order);
 
         $this->applyWayForPayReturnIfApproved($request, $order);
         $order->refresh();
@@ -371,7 +527,7 @@ class CheckoutController extends Controller
         if ($kind === 'bundle') {
             foreach ($item['bundle_items'] ?? [] as $bi) {
                 $pid = (int) ($bi['product_id'] ?? 0);
-                if ($pid > 0 && $this->categoryCheckoutRules->deferOnlinePaymentForProductId($pid)) {
+                if ($pid > 0 && $this->categoryCheckoutRules->productIdDefersOnlinePayment($pid)) {
                     return true;
                 }
             }
@@ -381,7 +537,7 @@ class CheckoutController extends Controller
 
         $product = $item['product'] ?? null;
         if ($product instanceof Product) {
-            return $this->categoryCheckoutRules->deferOnlinePaymentForProductId((int) $product->id);
+            return $this->categoryCheckoutRules->lineDefersOnlinePayment($item);
         }
 
         return false;
@@ -448,18 +604,14 @@ class CheckoutController extends Controller
 
         $txStatus = trim((string) ($data['transactionStatus'] ?? ''));
         if (strcasecmp($txStatus, 'Approved') !== 0) {
-            $order->payment_last_callback_at = now();
-            if (in_array(strtolower($txStatus), ['declined', 'expired', 'refunded', 'voided'], true)) {
-                $order->payment_status = 'failed';
-            }
-            $order->save();
+            app(ApplyUnsuccessfulOrderPayment::class)->apply($order, $txStatus);
 
             return;
         }
 
         $amount = isset($data['amount']) ? (float) str_replace(',', '.', (string) $data['amount']) : null;
 
-        app(ApplyApprovedOrderPayment::class)->apply($order, $parsed['leg'], $amount);
+        app(ApplyApprovedOrderPayment::class)->apply($order, $parsed['leg'], $amount, (string) ($data['currency'] ?? ''));
     }
 
     private function rememberWayForPayReferenceFromReturnUrl(Request $request, Order $order): void
@@ -539,16 +691,12 @@ class CheckoutController extends Controller
         $amount = isset($data['amount']) ? (float) str_replace(',', '.', (string) $data['amount']) : null;
 
         if (strcasecmp($txStatus, 'Approved') === 0) {
-            app(ApplyApprovedOrderPayment::class)->apply($order, $parsed['leg'], $amount);
+            app(ApplyApprovedOrderPayment::class)->apply($order, $parsed['leg'], $amount, (string) ($data['currency'] ?? ''));
 
             return;
         }
 
-        $order->payment_last_callback_at = now();
-        if (in_array(strtolower($txStatus), ['declined', 'expired', 'refunded', 'voided'], true)) {
-            $order->payment_status = 'failed';
-        }
-        $order->save();
+        app(ApplyUnsuccessfulOrderPayment::class)->apply($order, $txStatus);
     }
 
     private function normalizeDeliveryPayload(array $validated): array
@@ -595,6 +743,27 @@ class CheckoutController extends Controller
         }
 
         return $validated;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function allowedDeliveryTypesForCheckout(bool $requiresPickupOnly, bool $pickupEnabled): array
+    {
+        if ($requiresPickupOnly) {
+            return $pickupEnabled ? [Order::DELIVERY_PICKUP] : [];
+        }
+
+        $types = [
+            Order::DELIVERY_NOVA_POSHTA_WAREHOUSE,
+            Order::DELIVERY_NOVA_POSHTA_COURIER,
+        ];
+
+        if ($pickupEnabled) {
+            array_unshift($types, Order::DELIVERY_PICKUP);
+        }
+
+        return $types;
     }
 
     /**

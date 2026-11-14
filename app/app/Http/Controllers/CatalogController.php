@@ -8,9 +8,19 @@ use App\Models\OptionGroup;
 use App\Models\OptionValue;
 use App\Models\Product;
 use App\Models\ProductCareArticle;
+use App\Models\ShopCatalogPaginationSetting;
+use App\Models\ShopHeaderBanner;
 use App\Services\BundlePricingService;
+use App\Services\ShopAnalytics;
+use App\Services\CareArticleCatalog;
 use App\Services\ProductShowPageService;
 use App\Services\VariantPricingService;
+use App\Support\CatalogCategoryTree;
+use App\Support\SchemaCache;
+use App\Support\ShopSeo;
+use App\Support\CatalogTitleMatch;
+use App\Support\ShopHeaderViewData;
+use App\Support\StorefrontCategoryTreeCache;
 use App\Support\CatalogProductsTable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -20,12 +30,11 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema as DbSchema;
 
 class CatalogController extends Controller
 {
     /** @var list<string> */
-    private const CATALOG_SORTS = ['newest', 'title_asc', 'title_desc', 'price_asc', 'price_desc', 'popular'];
+    private const CATALOG_SORTS = ['random', 'newest', 'title_asc', 'title_desc', 'price_asc', 'price_desc', 'popular'];
 
     /** @var list<int> */
     private const CATALOG_PER_PAGES = [12, 16, 24, 48];
@@ -34,6 +43,7 @@ class CatalogController extends Controller
         private readonly ProductShowPageService $productShowPage,
         private readonly VariantPricingService $variantPricing,
         private readonly BundlePricingService $bundlePricing,
+        private readonly CareArticleCatalog $careArticleCatalog,
     ) {}
 
     public function index(Request $request): View|Response
@@ -74,6 +84,7 @@ class CatalogController extends Controller
      *     hasListingSubcategory: bool,
      *     categoryValues: Collection,
      *     categoryTree: array,
+     *     categoryNavigationTree: array,
      *     filters: array{q: string, category: int, on_sale: bool, sort: string, per_page: int}
      * }
      */
@@ -81,21 +92,26 @@ class CatalogController extends Controller
     {
         $search = trim((string) $request->string('q'));
 
-        $sort = (string) $request->string('sort', 'newest');
+        $sort = (string) $request->string('sort', 'random');
         if (! in_array($sort, self::CATALOG_SORTS, true)) {
-            $sort = 'newest';
+            $sort = 'random';
         }
 
-        $perPage = (int) $request->integer('per_page', 24);
+        $defaultPerPage = ShopCatalogPaginationSetting::perPage();
+        $perPage = (int) $request->integer('per_page', $defaultPerPage);
         if (! in_array($perPage, self::CATALOG_PER_PAGES, true)) {
-            $perPage = 24;
+            $perPage = $defaultPerPage;
         }
         $categoryGroupId = OptionGroup::systemCategoryGroupIdForCatalog();
-        $hasParentColumn = DbSchema::hasColumn('option_values', 'parent_id');
-        $hasListingCategoryParent = DbSchema::hasColumn(CatalogProductsTable::name(), 'category_parent_value_id');
-        $hasListingSubcategory = DbSchema::hasColumn(CatalogProductsTable::name(), 'category_value_id');
+        $hasParentColumn = SchemaCache::hasColumn('option_values', 'parent_id');
+        $hasListingCategoryParent = SchemaCache::hasColumn(CatalogProductsTable::name(), 'category_parent_value_id');
+        $hasListingSubcategory = SchemaCache::hasColumn(CatalogProductsTable::name(), 'category_value_id');
 
         $onSaleOnly = $request->boolean('on_sale');
+        $bundlesOnly = $request->boolean('bundles');
+        if ($bundlesOnly) {
+            $onSaleOnly = false;
+        }
 
         $categoryValueId = (int) $request->integer('category');
         $rootCategoryIdForFilter = 0;
@@ -160,51 +176,57 @@ class CatalogController extends Controller
         }
         $rootCategoryIdForFilter = $selectedRootCategoryId > 0 ? $selectedRootCategoryId : $categoryValueId;
 
-        $categoryValues = $categoryGroupId > 0
-            ? OptionValue::query()
-                ->where('option_group_id', $categoryGroupId)
-                ->where('is_active', true)
-                ->orderBy('sort_order')
-                ->orderBy('name')
-                ->get($hasParentColumn ? ['id', 'name', 'parent_id'] : ['id', 'name'])
-            : collect();
+        $cachedTree = StorefrontCategoryTreeCache::forGroup($categoryGroupId, $hasParentColumn);
+        $categoryValues = $cachedTree['categoryValues'];
+        $categoryTree = $cachedTree['categoryTree'];
+        $categoryNavigationTree = $cachedTree['categoryNavigationTree'];
 
-        $categoryTree = $hasParentColumn
-            ? (function () use ($categoryValues): array {
-                $byParent = $categoryValues->groupBy(fn (OptionValue $value): int => (int) ($value->parent_id ?? 0));
+        $featuredSlots = ShopHeaderViewData::featuredCategorySlots();
+        $headerHub = CatalogCategoryTree::partitionForHeaderHub(
+            $categoryNavigationTree,
+            $featuredSlots['left'],
+            $featuredSlots['right'],
+        );
 
-                $buildNode = function (OptionValue $node) use (&$buildNode, $byParent): array {
-                    $children = $byParent
-                        ->get((int) $node->id, collect())
-                        ->map(fn (OptionValue $child): array => $buildNode($child))
-                        ->values()
-                        ->all();
+        /** @var list<int> $subcategoryFilterIds */
+        $subcategoryFilterIds = collect($request->input('subcategories', []))
+            ->map(fn ($id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values()
+            ->filter(fn (int $id): bool => $categoryValueId <= 0
+                || CatalogCategoryTree::isDescendantOfCategory($categoryTree, $categoryValueId, $id))
+            ->values()
+            ->all();
 
-                    return [
-                        'id' => (int) $node->id,
-                        'name' => (string) $node->name,
-                        'children' => $children,
-                    ];
-                };
+        $categorySubcategoryFilterGroups = $categoryValueId > 0
+            ? CatalogCategoryTree::resolveSubcategoryFilterGroups(
+                $categoryTree,
+                $categoryValueId,
+                $subcategoryFilterIds,
+            )
+            : [];
 
-                return $byParent
-                    ->get(0, collect())
-                    ->map(fn (OptionValue $root): array => $buildNode($root))
-                    ->values()
-                    ->all();
-            })()
-            : $categoryValues
-                ->map(fn (OptionValue $parent): array => [
-                    'id' => (int) $parent->id,
-                    'name' => (string) $parent->name,
-                    'children' => [],
-                ])
-                ->values()
-                ->all();
+        $categorySubcategoryFilterGroups = CatalogCategoryTree::pruneSubcategoryFilterGroups(
+            $categorySubcategoryFilterGroups,
+            $categoryFilterValueIds,
+        );
+
+        if ($subcategoryFilterIds !== []) {
+            $categoryFilterValueIds = CatalogCategoryTree::expandCategoryFilterIdsWithDescendants(
+                $categoryTree,
+                $subcategoryFilterIds,
+            );
+            $selectedIsParentCategory = false;
+        }
+
+        $headerBannerSlots = ShopHeaderViewData::activeBannersBySlot();
+        $headerLayoutHeights = ShopHeaderViewData::layoutHeights();
 
         return [
             'search' => $search,
             'onSaleOnly' => $onSaleOnly,
+            'bundlesOnly' => $bundlesOnly,
             'categoryValueId' => $categoryValueId,
             'categoryFilterValueIds' => $categoryFilterValueIds,
             'selectedIsParentCategory' => $selectedIsParentCategory,
@@ -216,10 +238,23 @@ class CatalogController extends Controller
             'hasListingSubcategory' => $hasListingSubcategory,
             'categoryValues' => $categoryValues,
             'categoryTree' => $categoryTree,
+            'categoryNavigationTree' => $categoryNavigationTree,
+            'categorySubcategoryFilterGroups' => $categorySubcategoryFilterGroups,
+            'headerFeaturedLeft' => $headerHub['headerFeaturedLeft'],
+            'headerFeaturedRight' => $headerHub['headerFeaturedRight'],
+            'headerRestCategories' => $headerHub['headerRestCategories'],
+            'headerBannerSlotTop' => $headerBannerSlots[ShopHeaderBanner::SLOT_TOP],
+            'headerBannerSlotBottom' => $headerBannerSlots[ShopHeaderBanner::SLOT_BOTTOM],
+            'headerFeaturedLeftPanelMaxHeightPx' => $headerLayoutHeights['featured_left_panel_max_height_px'],
+            'headerFeaturedRightPanelMaxHeightPx' => $headerLayoutHeights['featured_right_panel_max_height_px'],
+            'headerBannerHeightPx' => $headerLayoutHeights['banner_height_px'],
+            'headerChipStylesCss' => ShopHeaderViewData::chipStylesInlineCss(),
             'filters' => [
                 'q' => $search,
                 'category' => $categoryValueId,
+                'subcategories' => $subcategoryFilterIds,
                 'on_sale' => $onSaleOnly,
+                'bundles' => $bundlesOnly,
                 'sort' => $sort,
                 'per_page' => $perPage,
             ],
@@ -255,6 +290,7 @@ class CatalogController extends Controller
                 $selectedIsParentCategory,
                 $rootId,
                 $categoryGroupId,
+                $query,
             ): void {
                 $outer->where(function (Builder $byColumns) use (
                     $categoryValueId,
@@ -278,12 +314,39 @@ class CatalogController extends Controller
                 $outer->orWhere(function (Builder $json) use ($categoryFilterValueIds, $categoryGroupId): void {
                     $this->applyCatalogVariantOptionsJsonCategoryFilter($json, $categoryFilterValueIds, $categoryGroupId);
                 });
+
+                if ($query->getModel() instanceof Product && SchemaCache::hasTable('product_categories')) {
+                    $outer->orWhereHas('categories', function (Builder $cats) use ($categoryFilterValueIds): void {
+                        $cats->whereIn('option_values.id', $categoryFilterValueIds);
+                    });
+                }
+            });
+
+            return;
+        }
+
+        if ($query->getModel() instanceof Product && SchemaCache::hasTable('product_categories')) {
+            $query->where(function (Builder $outer) use ($categoryFilterValueIds, $categoryGroupId): void {
+                $outer->where(function (Builder $json) use ($categoryFilterValueIds, $categoryGroupId): void {
+                    $this->applyCatalogVariantOptionsJsonCategoryFilter($json, $categoryFilterValueIds, $categoryGroupId);
+                });
+                $outer->orWhereHas('categories', function (Builder $cats) use ($categoryFilterValueIds): void {
+                    $cats->whereIn('option_values.id', $categoryFilterValueIds);
+                });
             });
 
             return;
         }
 
         $this->applyCatalogVariantOptionsJsonCategoryFilter($query, $categoryFilterValueIds, $categoryGroupId);
+    }
+
+    /** Версія сервера не змінюється в межах процесу, а фільтр категорії питав її двічі на запит. */
+    private function databaseServerVersion(): string
+    {
+        static $version = null;
+
+        return $version ??= trim((string) DB::scalar('SELECT VERSION()'));
     }
 
     /**
@@ -298,7 +361,7 @@ class CatalogController extends Controller
         }
 
         try {
-            $raw = trim((string) DB::scalar('SELECT VERSION()'));
+            $raw = $this->databaseServerVersion();
             if ($raw === '' || stripos($raw, 'mariadb') !== false) {
                 return false;
             }
@@ -361,7 +424,7 @@ class CatalogController extends Controller
         $mariadbStyleJsonContain = ($driver === 'mariadb');
         if ($driver === 'mysql') {
             try {
-                $mariadbStyleJsonContain = stripos((string) DB::scalar('SELECT VERSION()'), 'mariadb') !== false;
+                $mariadbStyleJsonContain = stripos($this->databaseServerVersion(), 'mariadb') !== false;
             } catch (\Throwable) {
                 $mariadbStyleJsonContain = false;
             }
@@ -519,63 +582,52 @@ class CatalogController extends Controller
         }
 
         $driver = DB::connection()->getDriverName();
-        $hasSku = DbSchema::hasColumn($table, 'sku');
-        $hasSearchTags = DbSchema::hasColumn($table, 'search_tags');
+        $hasSku = SchemaCache::hasColumn($table, 'sku');
+        $fuzzyIds = CatalogTitleMatch::matchingIds($table, $search);
 
-        if ($driver === 'pgsql') {
-            $pattern = '%'.$this->escapeSqlLikePattern($search).'%';
-            $q->where(function (Builder $w) use ($pattern, $hasSku, $hasSearchTags): void {
-                $w->where('title', 'ilike', $pattern)
-                    ->orWhere('short_description', 'ilike', $pattern)
-                    ->orWhere('description', 'ilike', $pattern);
-                if ($hasSku) {
-                    $w->orWhere('sku', 'ilike', $pattern);
-                }
-                if ($hasSearchTags) {
-                    $w->orWhereRaw('CAST(search_tags AS TEXT) ILIKE ?', [$pattern]);
-                }
-            });
-
-            return;
-        }
-
-        if ($driver === 'mysql' || $driver === 'mariadb') {
-            $pattern = '%'.$this->escapeSqlLikePattern(mb_strtolower($search, 'UTF-8')).'%';
-            $q->where(function (Builder $w) use ($pattern, $hasSku, $hasSearchTags): void {
-                $w->whereRaw('LOWER(`title`) LIKE ?', [$pattern])
-                    ->orWhereRaw('LOWER(COALESCE(`short_description`, \'\')) LIKE ?', [$pattern])
-                    ->orWhereRaw('LOWER(COALESCE(`description`, \'\')) LIKE ?', [$pattern]);
-                if ($hasSku) {
-                    $w->orWhereRaw('LOWER(COALESCE(`sku`, \'\')) LIKE ?', [$pattern]);
-                }
-                if ($hasSearchTags) {
-                    $w->orWhereRaw('LOWER(CAST(`search_tags` AS CHAR(2048))) LIKE ?', [$pattern]);
-                }
-            });
-
-            return;
-        }
-
-        $terms = $this->catalogSearchCaseFoldLikeTerms($search);
-        if ($terms === []) {
-            return;
-        }
-
-        $q->where(function (Builder $outer) use ($terms, $hasSku, $hasSearchTags): void {
-            foreach ($terms as $i => $term) {
-                $pattern = '%'.$this->escapeSqlLikePattern($term).'%';
-                $method = $i === 0 ? 'where' : 'orWhere';
-                $outer->{$method}(function (Builder $inner) use ($pattern, $hasSku, $hasSearchTags): void {
-                    $inner->where('title', 'like', $pattern)
-                        ->orWhere('short_description', 'like', $pattern)
-                        ->orWhere('description', 'like', $pattern);
+        $q->where(function (Builder $outer) use ($driver, $hasSku, $search, $fuzzyIds): void {
+            $outer->where(function (Builder $like) use ($driver, $hasSku, $search): void {
+                if ($driver === 'pgsql') {
+                    $pattern = '%'.$this->escapeSqlLikePattern($search).'%';
+                    $like->where('title', 'ilike', $pattern);
                     if ($hasSku) {
-                        $inner->orWhere('sku', 'like', $pattern);
+                        $like->orWhere('sku', 'ilike', $pattern);
                     }
-                    if ($hasSearchTags) {
-                        $inner->orWhere('search_tags', 'like', $pattern);
+
+                    return;
+                }
+
+                if ($driver === 'mysql' || $driver === 'mariadb') {
+                    $pattern = '%'.$this->escapeSqlLikePattern(mb_strtolower($search, 'UTF-8')).'%';
+                    $like->whereRaw('LOWER(`title`) LIKE ?', [$pattern]);
+                    if ($hasSku) {
+                        $like->orWhereRaw('LOWER(COALESCE(`sku`, \'\')) LIKE ?', [$pattern]);
                     }
-                });
+
+                    return;
+                }
+
+                $terms = $this->catalogSearchCaseFoldLikeTerms($search);
+                if ($terms === []) {
+                    $like->whereRaw('0 = 1');
+
+                    return;
+                }
+
+                foreach ($terms as $i => $term) {
+                    $pattern = '%'.$this->escapeSqlLikePattern($term).'%';
+                    $method = $i === 0 ? 'where' : 'orWhere';
+                    $like->{$method}(function (Builder $inner) use ($pattern, $hasSku): void {
+                        $inner->where('title', 'like', $pattern);
+                        if ($hasSku) {
+                            $inner->orWhere('sku', 'like', $pattern);
+                        }
+                    });
+                }
+            });
+
+            if ($fuzzyIds !== []) {
+                $outer->orWhereIn('id', $fuzzyIds);
             }
         });
     }
@@ -709,6 +761,46 @@ class CatalogController extends Controller
     }
 
     /**
+     * Однакове зерно дає той самий порядок, тож сторінка 2 не повторює сторінку 1.
+     * Повне завантаження сторінки бере нове зерно — оновлення перемішує список.
+     *
+     * @param  Collection<int, array{type: string, id: int}>  $rows
+     */
+    private function shuffleCatalogRows(Collection $rows, int $seed): Collection
+    {
+        $items = $rows->values()->all();
+        $count = count($items);
+        if ($count < 2) {
+            return collect($items);
+        }
+
+        $state = $seed & 0x7FFFFFFF;
+        if ($state === 0) {
+            $state = 1;
+        }
+
+        for ($i = $count - 1; $i > 0; $i--) {
+            $state = (1103515245 * $state + 12345) & 0x7FFFFFFF;
+            $j = $state % ($i + 1);
+            [$items[$i], $items[$j]] = [$items[$j], $items[$i]];
+        }
+
+        return collect($items);
+    }
+
+    private function catalogShuffleSeed(Request $request): int
+    {
+        if ($request->header('X-Catalog-Fragment') === '1') {
+            $given = (int) $request->query('mix', 0);
+            if ($given > 0 && $given <= 2_000_000_000) {
+                return $given;
+            }
+        }
+
+        return random_int(1, 2_000_000_000);
+    }
+
+    /**
      * Наближена сума комплекту: SUM(qty * product.price) по bundle_items.
      */
     private function bundleSortPriceSelectExpression(): string
@@ -743,10 +835,37 @@ class CatalogController extends Controller
     private function paginateCatalogRows(Collection $rows, Request $request, int $perPage = 24): LengthAwarePaginator
     {
         $page = max(1, (int) $request->integer('page', 1));
+        $through = max(0, (int) $request->integer('through', 0));
         $total = $rows->count();
-        $items = $rows
-            ->slice(($page - 1) * $perPage, $perPage)
-            ->values();
+        $showingAll = $request->boolean('all') && ShopCatalogPaginationSetting::showAllEnabled();
+        if ($showingAll) {
+            $limit = max(1, ShopCatalogPaginationSetting::showAllLimit());
+            $perPage = min(max($total, 1), $limit);
+            if ($total > $limit) {
+                $page = min($page, (int) ceil($total / $perPage));
+                $items = $rows
+                    ->slice(($page - 1) * $perPage, $perPage)
+                    ->values();
+            } else {
+                $page = 1;
+                $items = $rows->take($perPage)->values();
+            }
+        } elseif ($through > 1) {
+            $page = $through;
+            $items = $rows
+                ->slice(0, $through * $perPage)
+                ->values();
+        } else {
+            $items = $rows
+                ->slice(($page - 1) * $perPage, $perPage)
+                ->values();
+        }
+
+        $query = $request->query();
+        unset($query['through']);
+        if (! $showingAll) {
+            unset($query['all']);
+        }
 
         return new LengthAwarePaginator(
             $items,
@@ -755,7 +874,7 @@ class CatalogController extends Controller
             $page,
             [
                 'path' => $request->url(),
-                'query' => $request->query(),
+                'query' => $query,
                 'pageName' => 'page',
             ],
         );
@@ -766,9 +885,15 @@ class CatalogController extends Controller
         $nav = $this->catalogNavigationFilters($request);
         extract($nav);
 
-        $shouldShowCatalogGrid = $categoryValueId > 0 || $search !== '' || $onSaleOnly;
+        $rawCategoryName = '';
+        if ($categoryValueId > 0 && $categoryValues instanceof Collection) {
+            $rawCategoryName = (string) ($categoryValues->firstWhere('id', $categoryValueId)?->name ?? '');
+        }
+        $catalogSeo = ShopSeo::catalog($request, $rawCategoryName !== '' ? mt($rawCategoryName) : '');
 
-        $sort = $filters['sort'] ?? 'newest';
+        $shouldShowCatalogGrid = $categoryValueId > 0 || $search !== '' || $onSaleOnly || $bundlesOnly;
+
+        $sort = $filters['sort'] ?? 'random';
         $perPage = (int) ($filters['per_page'] ?? 24);
 
         if (! $shouldShowCatalogGrid) {
@@ -785,16 +910,14 @@ class CatalogController extends Controller
                 ],
             );
 
-            return [
+            return array_merge($nav, [
                 'listings' => $emptyListings,
                 'listingQuotes' => [],
                 'bundleQuotes' => [],
-                'categoryValues' => $categoryValues,
-                'categoryTree' => $categoryTree,
-                'filters' => $filters,
                 'favoriteProductIds' => $this->favoriteProductIdsForUser(),
                 'showCatalogGrid' => false,
-            ];
+                'catalogSeo' => $catalogSeo,
+            ]);
         }
 
         $productQuery = $this->makeProductCatalogQuery(
@@ -823,7 +946,9 @@ class CatalogController extends Controller
         $bundleTable = (new Bundle)->getTable();
 
         // select() після withCount() затирає підзапит лічильника — популярність була завжди 0.
-        $productRows = (clone $productQuery)
+        $productRows = $bundlesOnly
+            ? collect()
+            : (clone $productQuery)
             ->select(['id', 'title', 'price', 'published_at', 'created_at'])
             ->withCount('favoritedByUsers')
             ->get()
@@ -857,10 +982,16 @@ class CatalogController extends Controller
                 'popularity' => (int) ($bundle->catalog_popularity ?? 0),
             ]);
 
-        $catalogRows = $this->sortCatalogRows(
-            $productRows->concat($bundleRows),
-            is_string($sort) ? $sort : 'newest'
-        );
+        $combinedRows = $productRows->concat($bundleRows);
+        $sort = is_string($sort) ? $sort : 'random';
+        if ($sort === 'random') {
+            $mix = $this->catalogShuffleSeed($request);
+            $request->query->set('mix', $mix);
+            $catalogRows = $this->shuffleCatalogRows($combinedRows, $mix);
+        } else {
+            $request->query->remove('mix');
+            $catalogRows = $this->sortCatalogRows($combinedRows, $sort);
+        }
 
         $listings = $this->paginateCatalogRows($catalogRows, $request, $perPage);
         $pageRows = collect($listings->items());
@@ -878,8 +1009,10 @@ class CatalogController extends Controller
             ->values()
             ->all();
 
+        // Картка перевіряє наявність і опції за варіантами: без with() це окремий запит на кожну.
         $products = Product::query()
             ->whereIn('id', $productIds)
+            ->with('variants')
             ->withCount('favoritedByUsers')
             ->get()
             ->keyBy(fn (Product $product): int => (int) $product->id);
@@ -908,21 +1041,23 @@ class CatalogController extends Controller
             ->values();
 
         $listingQuotes = $this->variantPricing->quoteManyProducts($currentProducts);
-        $bundleQuotes = [];
-        foreach ($currentBundles as $bundle) {
-            $bundleQuotes[(int) $bundle->id] = $this->bundlePricing->quote($bundle);
+        $bundleQuotes = $this->bundlePricing->quoteMany($currentBundles);
+
+        if ($search !== '' && (int) $request->integer('page', 1) <= 1) {
+            ShopAnalytics::recordSearch($request, $search, (int) $listings->total());
         }
 
-        return [
-            'listings' => $listings,
-            'listingQuotes' => $listingQuotes,
-            'bundleQuotes' => $bundleQuotes,
-            'categoryValues' => $categoryValues,
-            'categoryTree' => $categoryTree,
-            'filters' => $filters,
-            'favoriteProductIds' => $this->favoriteProductIdsForUser(),
-            'showCatalogGrid' => true,
-        ];
+        return array_merge(
+            $nav,
+            [
+                'listings' => $listings,
+                'listingQuotes' => $listingQuotes,
+                'bundleQuotes' => $bundleQuotes,
+                'favoriteProductIds' => $this->favoriteProductIdsForUser(),
+                'showCatalogGrid' => true,
+                'catalogSeo' => $catalogSeo,
+            ],
+        );
     }
 
     /**
@@ -950,6 +1085,7 @@ class CatalogController extends Controller
 
         $listing = $this->storefrontProductBySlug($slug);
         $listing->loadCount('favoritedByUsers');
+        ShopAnalytics::recordProductView($request, (int) $listing->id, (string) $listing->title);
 
         return view('catalog.show', array_merge(
             $this->productShowPage->buildViewData($request, $listing, $nav),
@@ -961,7 +1097,7 @@ class CatalogController extends Controller
     {
         $nav = $this->catalogNavigationFilters($request);
         $listing = $this->storefrontProductBySlug($slug);
-        $careArticles = $listing->publishedCareArticles()->get();
+        $careArticles = $this->careArticleCatalog->publishedForProduct($listing);
 
         abort_if($careArticles->isEmpty(), 404);
 
@@ -975,7 +1111,7 @@ class CatalogController extends Controller
     {
         $nav = $this->catalogNavigationFilters($request);
         $listing = $this->storefrontProductBySlug($slug);
-        $careArticles = $listing->publishedCareArticles()->get();
+        $careArticles = $this->careArticleCatalog->publishedForProduct($listing);
         $article = $careArticles
             ->first(fn (ProductCareArticle $row): bool => (string) $row->slug === $articleSlug);
 
@@ -994,6 +1130,7 @@ class CatalogController extends Controller
             ->where('slug', $slug)
             ->whereIn('product_type', OptionGroup::catalogListingProductTypes())
             ->where('is_available', true)
+            ->with('variants')
             ->firstOrFail();
     }
 }

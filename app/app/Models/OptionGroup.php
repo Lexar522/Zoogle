@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\CatalogCategoryTree;
+use App\Support\StorefrontMemo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -26,6 +27,22 @@ class OptionGroup extends Model
     }
 
     /**
+     * Група опцій з пам’яті поточного запиту. У формі товару підпис кожного рядка
+     * інакше робить окремий запит до бази.
+     */
+    public static function cached(int $id): ?self
+    {
+        if ($id <= 0) {
+            return null;
+        }
+
+        /** @var \Illuminate\Support\Collection<int, self> $map */
+        $map = once(fn () => self::query()->get()->keyBy(fn (self $group): int => (int) $group->id));
+
+        return $map->get($id);
+    }
+
+    /**
      * @return list<string>
      */
     public static function catalogListingProductTypes(): array
@@ -35,6 +52,15 @@ class OptionGroup extends Model
 
     protected static function booted(): void
     {
+        static::saved(fn () => StorefrontMemo::flush());
+        static::deleted(fn () => StorefrontMemo::flush());
+
+        static::saving(function (OptionGroup $group): void {
+            if (($group->value_type ?? 'text') === 'color') {
+                $group->selection_mode = 'single';
+            }
+        });
+
         static::deleting(function (OptionGroup $group): void {
             if ($group->slug !== 'category') {
                 return;
@@ -167,11 +193,12 @@ class OptionGroup extends Model
 
     public static function systemCategoryGroupId(?string $productType = null): int
     {
-        return (int) (self::query()
+        // Кожна картка і фільтр питають це окремо: десятки однакових запитів на сторінку каталогу.
+        return StorefrontMemo::remember('option-group.system-category.'.($productType ?? ''), fn (): int => (int) (self::query()
             ->where('slug', 'category')
             ->when($productType !== null && $productType !== '', fn ($q) => $q->where('product_type', $productType))
             ->where('is_active', true)
-            ->value('id') ?? 0);
+            ->value('id') ?? 0));
     }
 
     /**

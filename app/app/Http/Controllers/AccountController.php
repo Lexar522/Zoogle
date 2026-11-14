@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\User;
 use App\Services\Payments\LiqPayClient;
 use App\Services\Payments\WayForPayClient;
+use App\Support\GuestOrderAccess;
 use App\Support\OnlinePaymentSettings;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -64,15 +65,12 @@ class AccountController extends Controller
 
     public function orders(Request $request): View
     {
-        /** @var User $user */
-        $user = $request->user();
-
         $filter = (string) $request->query('payment', 'all');
         if (! in_array($filter, ['all', 'deferred_pending', 'deferred_ready'], true)) {
             $filter = 'all';
         }
 
-        $query = Order::query()->forAccountUser($user);
+        $query = $this->ordersVisibleTo($request);
 
         if ($filter === 'deferred_pending') {
             $query->where('deferred_online_payment', true)
@@ -99,11 +97,12 @@ class AccountController extends Controller
 
     public function orderShow(Request $request, Order $order): View
     {
-        $this->authorize('viewAccount', $order);
+        $this->ensureCanViewOrder($request, $order);
 
         $order->load([
             'items.product.variants',
             'items.bundle.items.product.variants',
+            'updates',
         ]);
 
         return view('account.order-show', [
@@ -112,15 +111,28 @@ class AccountController extends Controller
         ]);
     }
 
+    public function leaveGuestOrders(Request $request): RedirectResponse
+    {
+        app(GuestOrderAccess::class)->forget();
+
+        return redirect()->route('home');
+    }
+
     public function orderPayment(Request $request, Order $order): View|RedirectResponse
     {
-        $this->authorize('viewAccount', $order);
+        $this->ensureCanViewOrder($request, $order);
 
         $pay = app(OnlinePaymentSettings::class);
         if (! $order->canPayDeferredLiqPay() || ! $pay->isConfigured()) {
             return redirect()
                 ->route('account.orders.show', $order)
                 ->with('error', 'Онлайн-оплата зараз недоступна. Якщо чекаєте після підтвердження менеджера — оновіть сторінку пізніше.');
+        }
+
+        if (! $order->prepareForPaymentRetry()) {
+            return redirect()
+                ->route('account.orders.show', $order)
+                ->with('error', __('shop.checkout_retry_out_of_stock'));
         }
 
         if ($pay->provider() === OnlinePaymentSettings::PROVIDER_WAYFORPAY) {
@@ -160,5 +172,38 @@ class AccountController extends Controller
         return view('account.favorites', [
             'products' => $products,
         ]);
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Builder<Order>
+     */
+    private function ordersVisibleTo(Request $request)
+    {
+        $user = $request->user();
+        if ($user instanceof User) {
+            return Order::query()->forAccountUser($user);
+        }
+
+        $orderIds = app(GuestOrderAccess::class)->orderIds();
+        if ($orderIds === []) {
+            abort(403);
+        }
+
+        return Order::query()->whereKey($orderIds);
+    }
+
+    private function ensureCanViewOrder(Request $request, Order $order): void
+    {
+        $guest = app(GuestOrderAccess::class);
+        if ($guest->claimFromValidToken($request, $order) || $guest->canView($order)) {
+            return;
+        }
+
+        $user = $request->user();
+        if ($user instanceof User && $user->can('viewAccount', $order)) {
+            return;
+        }
+
+        abort($user instanceof User ? 403 : 404);
     }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\User;
+use App\Services\ShopAnalytics;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -34,6 +35,7 @@ class ProductFavoriteController extends Controller
         }
 
         $user->favoriteProducts()->attach($productId);
+        ShopAnalytics::recordFavorite($request, $productId, (string) $product->title);
 
         return response()->json([
             'favorited' => true,

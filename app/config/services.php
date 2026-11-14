@@ -68,7 +68,7 @@ return [
     'liqpay' => [
         'public_key' => env('LIQPAY_PUBLIC_KEY'),
         'private_key' => env('LIQPAY_PRIVATE_KEY'),
-        'sandbox' => filter_var(env('LIQPAY_SANDBOX', true), FILTER_VALIDATE_BOOLEAN),
+        'sandbox' => filter_var(env('LIQPAY_SANDBOX', false), FILTER_VALIDATE_BOOLEAN),
     ],
 
     'google' => [

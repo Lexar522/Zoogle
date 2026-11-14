@@ -4,6 +4,8 @@ namespace App\Filament\Admin\Resources\Bundles\Schemas;
 
 use App\Filament\Admin\Resources\Products\Schemas\ProductForm;
 use App\Filament\Admin\Schemas\CatalogCategoryCascadeFields;
+use App\Filament\Admin\Support\BundleItemOptionFields;
+use App\Filament\Support\ProductAdminSelectSearch;
 use App\Models\Bundle;
 use App\Models\OptionGroup;
 use App\Models\OptionValue;
@@ -78,19 +80,21 @@ class BundleForm
                             ->minItems(1)
                             ->defaultItems(1)
                             ->addActionLabel('Додати товар')
-                            ->itemLabel(fn (array $state): ?string => Product::query()->whereKey((int) ($state['product_id'] ?? 0))->value('title'))
+                            ->itemLabel(fn (array $state): ?string => ProductAdminSelectSearch::labelForId((int) ($state['product_id'] ?? 0)))
                             ->schema([
                                 Select::make('product_id')
                                     ->label('Товар')
                                     ->required()
                                     ->searchable()
-                                    ->getSearchResultsUsing(fn (string $search): array => Product::query()
-                                        ->where('title', 'like', '%'.$search.'%')
-                                        ->orderBy('title')
-                                        ->limit(50)
-                                        ->pluck('title', 'id')
-                                        ->all())
-                                    ->getOptionLabelUsing(fn ($value): ?string => Product::query()->whereKey($value)->value('title')),
+                                    ->searchPrompt('Назва або артикул')
+                                    ->getSearchResultsUsing(fn (string $search): array => ProductAdminSelectSearch::search($search))
+                                    ->getOptionLabelUsing(fn ($value): ?string => ProductAdminSelectSearch::labelForId((int) $value))
+                                    ->live()
+                                    ->afterStateUpdated(function (Set $set): void {
+                                        $set('option_value_ids', []);
+                                        $set('selected_variant_id', null);
+                                        $set('manual_option_value_ids', []);
+                                    }),
                                 TextInput::make('qty')
                                     ->label('Кількість')
                                     ->required()
@@ -101,6 +105,7 @@ class BundleForm
                                     ->label('Порядок')
                                     ->numeric()
                                     ->default(0),
+                                ...BundleItemOptionFields::formComponents(),
                             ])
                             ->columns(3),
                     ]),
@@ -120,6 +125,10 @@ class BundleForm
                                     ->helperText('Формати: JPEG (.jpg, .jpeg), PNG, WebP, GIF. Дочекайтесь мініатюр перед збереженням. Порядок мініатюр = порядок у галереї на сайті.')
                             )
                         ),
+                        Toggle::make('show_item_photos_in_gallery')
+                            ->label('Показувати фото товарів комплекту в галереї')
+                            ->helperText('Діє, коли власних фото комплекту немає. Вимкнено: у галереї лише одне фото першого товару, склад не видно. Увімкнено: мініатюри всіх товарів зі складу.')
+                            ->default(false),
                     ]),
                 Section::make('Опції комплекту')
                     ->description('Як у товарі: групи з довідника, значення, доплати та фото для кольорів.')
@@ -137,7 +146,7 @@ class BundleForm
                                     return 'Нова опція';
                                 }
 
-                                $group = OptionGroup::query()->find($groupId);
+                                $group = OptionGroup::cached((int) $groupId);
                                 if (! $group) {
                                     return 'Опція';
                                 }
@@ -166,7 +175,7 @@ class BundleForm
                                             return;
                                         }
 
-                                        $valueType = OptionGroup::query()->whereKey($groupId)->value('value_type');
+                                        $valueType = OptionGroup::cached($groupId)?->value_type;
 
                                         if (filled($valueType)) {
                                             $set('option_value_type', $valueType);
@@ -226,7 +235,7 @@ class BundleForm
 
                                         $currentGroupId = (int) ($get('option_group_id') ?? 0);
                                         if ($currentGroupId > 0 && ! array_key_exists($currentGroupId, $result)) {
-                                            $currentGroup = OptionGroup::query()->find($currentGroupId, ['id', 'name', 'value_type', 'is_active']);
+                                            $currentGroup = OptionGroup::cached($currentGroupId);
                                             if ($currentGroup) {
                                                 $typeLabel = ($currentGroup->value_type ?? 'text') === 'color' ? 'Колір' : 'Текст';
                                                 $suffix = $currentGroup->is_active ? '' : ' (неактивна)';
@@ -248,7 +257,7 @@ class BundleForm
                                         $set('new_values', []);
                                         $gid = (int) $state;
                                         if ($gid > 0) {
-                                            $valueType = OptionGroup::query()->whereKey($gid)->value('value_type');
+                                            $valueType = OptionGroup::cached($gid)?->value_type;
                                             if (filled($valueType) && in_array($valueType, ['text', 'color'], true)) {
                                                 $set('option_value_type', $valueType);
                                             }
@@ -265,7 +274,7 @@ class BundleForm
                                             return null;
                                         }
 
-                                        $group = OptionGroup::query()->find($groupId);
+                                        $group = OptionGroup::cached((int) $groupId);
 
                                         if (! $group) {
                                             return null;

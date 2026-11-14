@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Bundle;
 use App\Models\Product;
 use Filament\Forms\Components\FileUpload;
+use Filament\Schemas\Components\Utilities\Get;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Filesystem\FilesystemAdapter;
 use League\Flysystem\UnableToCheckFileExistence;
@@ -21,6 +22,17 @@ final class ListingPhotoUpload
      */
     public static function extensions(): array
     {
+        return array_values(array_unique(array_merge(
+            self::imageExtensions(),
+            self::videoExtensions(),
+        )));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function imageExtensions(): array
+    {
         return [
             'jpeg',
             'jpg',
@@ -35,7 +47,26 @@ final class ListingPhotoUpload
     /**
      * @return list<string>
      */
+    public static function videoExtensions(): array
+    {
+        return ListingMedia::videoExtensions();
+    }
+
+    /**
+     * @return list<string>
+     */
     public static function mimeTypes(): array
+    {
+        return array_values(array_unique(array_merge(
+            self::imageMimeTypes(),
+            self::videoMimeTypes(),
+        )));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function imageMimeTypes(): array
     {
         return [
             'image/jpeg',
@@ -45,6 +76,18 @@ final class ListingPhotoUpload
             'image/webp',
             'image/heic',
             'image/heif',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function videoMimeTypes(): array
+    {
+        return [
+            'video/mp4',
+            'video/webm',
+            'video/quicktime',
         ];
     }
 
@@ -86,10 +129,38 @@ final class ListingPhotoUpload
             return [
                 'name' => ($component->isMultiple() ? ($storedFileNames[$file] ?? null) : $storedFileNames) ?? basename($file),
                 'size' => $shouldFetchFileInformation ? $storage->size($file) : 0,
-                'type' => $shouldFetchFileInformation ? $storage->mimeType($file) : null,
+                'type' => $shouldFetchFileInformation ? self::mimeTypeForPreview($storage, $file) : null,
                 'url' => $url,
             ];
         });
+    }
+
+    /**
+     * FilePond у Filament не показує прев’ю, якщо fileinfo на хостингу віддає application/octet-stream для JPEG.
+     */
+    private static function mimeTypeForPreview(FilesystemAdapter $storage, string $path): ?string
+    {
+        $detected = $storage->mimeType($path);
+        if (
+            is_string($detected)
+            && $detected !== ''
+            && ! in_array($detected, ['application/octet-stream', 'binary/octet-stream'], true)
+        ) {
+            return $detected;
+        }
+
+        return match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            'heic' => 'image/heic',
+            'heif' => 'image/heif',
+            'mp4' => 'video/mp4',
+            'webm' => 'video/webm',
+            'mov' => 'video/quicktime',
+            default => is_string($detected) && $detected !== '' ? $detected : null,
+        };
     }
 
     /**
@@ -158,5 +229,58 @@ final class ListingPhotoUpload
             ->imageEditor()
             ->imageEditorViewportWidth(480)
             ->imageEditorViewportHeight(480);
+    }
+
+    public static function applyBannerImageEditorIfAvailable(FileUpload $upload): FileUpload
+    {
+        if (! extension_loaded('gd')) {
+            return $upload;
+        }
+
+        return $upload
+            ->imageEditor()
+            ->imageEditorViewportWidth(960)
+            ->imageEditorViewportHeight(320);
+    }
+
+    public static function applyBannerPhotosLayout(FileUpload $upload): FileUpload
+    {
+        return self::applyPublicPreviewUrl(
+            self::applyAcceptedImageTypes($upload)
+        )
+            ->itemPanelAspectRatio('1:1')
+            ->imagePreviewHeight('76')
+            ->fetchFileInformation(false)
+            ->maxParallelUploads(1)
+            ->placeholder(
+                'Перетягніть зображення банера<br><span class="filepond--label-action">Обрати файл</span>'
+            )
+            ->extraAttributes(['class' => 'fi-listing-photos-layout fi-header-banner-upload'], merge: true);
+    }
+
+    public static function headerBannerDraftDirectory(): string
+    {
+        return 'header-banners/draft';
+    }
+
+    public static function headerBannerDirectory(int $bannerId): string
+    {
+        return 'header-banners/'.$bannerId;
+    }
+
+    public static function headerBannerRowDirectory(Get $get): string
+    {
+        $bannerId = max(0, (int) ($get('id') ?? 0));
+        if ($bannerId > 0) {
+            return self::headerBannerDirectory($bannerId);
+        }
+
+        $uploadKey = trim((string) ($get('upload_key') ?? ''));
+        $safe = preg_replace('/[^a-zA-Z0-9_-]/', '', $uploadKey) ?? '';
+        if ($safe === '') {
+            $safe = 'new';
+        }
+
+        return self::headerBannerDraftDirectory().'/'.$safe;
     }
 }

@@ -4,17 +4,23 @@ namespace App\Filament\Admin\Resources\Products\Pages;
 
 use App\Filament\Admin\Concerns\HandlesListingVariantOptions;
 use App\Filament\Admin\Concerns\ProtectsListingPhotosOnSave;
+use App\Filament\Admin\Concerns\SyncsProductCatalogCategories;
+use App\Filament\Admin\Concerns\SyncsProductRecommendations;
 use App\Filament\Admin\Resources\Products\ProductResource;
 use App\Models\OptionGroup;
+use App\Models\Product;
 use App\Support\CatalogCategoryTree;
 use App\Support\CatalogProductsTable;
 use Filament\Resources\Pages\CreateRecord;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Schema;
 
 class CreateProduct extends CreateRecord
 {
     use HandlesListingVariantOptions;
     use ProtectsListingPhotosOnSave;
+    use SyncsProductCatalogCategories;
+    use SyncsProductRecommendations;
 
     protected static string $resource = ProductResource::class;
 
@@ -22,6 +28,8 @@ class CreateProduct extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        $data = $this->extractRecommendedItemsFromFormData($data);
+        $data = $this->extractAdditionalCategoriesFromFormData($data);
         $data = $this->normalizeProductRichTextFields($data);
 
         $categoryGroupId = OptionGroup::systemCategoryGroupIdForCatalog();
@@ -50,5 +58,17 @@ class CreateProduct extends CreateRecord
         }
 
         return $data;
+    }
+
+    protected function handleRecordCreation(array $data): Model
+    {
+        $record = parent::handleRecordCreation($data);
+
+        if ($record instanceof Product) {
+            $this->syncPendingRecommendedItems($record);
+            $this->syncPendingAdditionalCategories($record);
+        }
+
+        return $record;
     }
 }

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\OptionGroup;
 use App\Models\OptionValue;
 use App\Models\Product;
+use App\Services\ProductRecommendationsService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -12,272 +13,151 @@ class PdpRelatedProductsTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_pdp_prioritizes_more_identical_tags_over_fewer(): void
+    public function test_pdp_shows_manually_selected_recommended_products_in_order(): void
     {
         $root = $this->catalogRoot();
-
-        $variantOptions = [
-            [
-                'option_group_id' => $root->option_group_id,
-                'option_value_ids' => [$root->id],
-            ],
-        ];
+        $variantOptions = $this->variantOptions($root);
 
         $primary = Product::query()->create([
-            'title' => 'Primary multi-tag',
-            'slug' => 'pdp-multi-primary',
+            'title' => 'Primary product',
+            'slug' => 'pdp-manual-primary',
             'product_type' => OptionGroup::CATALOG_PRODUCT_TYPE,
             'category_parent_value_id' => $root->id,
             'category_value_id' => null,
             'price' => 100,
             'is_available' => true,
-            'search_tags' => ['alfa', 'beta', 'gamma'],
             'short_description' => 'P',
             'variant_options' => $variantOptions,
         ]);
 
-        $threeShared = Product::query()->create([
-            'title' => 'Match three tags',
-            'slug' => 'pdp-multi-three',
+        $first = Product::query()->create([
+            'title' => 'Recommended first',
+            'slug' => 'pdp-manual-first',
+            'sku' => 'SKU-FIRST',
             'product_type' => OptionGroup::CATALOG_PRODUCT_TYPE,
             'category_parent_value_id' => $root->id,
             'category_value_id' => null,
             'price' => 200,
             'is_available' => true,
-            'search_tags' => ['alfa', 'beta', 'gamma'],
-            'short_description' => '3',
-            'variant_options' => $variantOptions,
-        ]);
-
-        $oneShared = Product::query()->create([
-            'title' => 'Match one tag',
-            'slug' => 'pdp-multi-one',
-            'product_type' => OptionGroup::CATALOG_PRODUCT_TYPE,
-            'category_parent_value_id' => $root->id,
-            'category_value_id' => null,
-            'price' => 300,
-            'is_available' => true,
-            'search_tags' => ['alfa'],
             'short_description' => '1',
             'variant_options' => $variantOptions,
         ]);
 
-        $response = $this->get(route('catalog.show', $primary->slug));
-
-        $response->assertOk();
-        $html = (string) $response->getContent();
-        $posThree = strpos($html, route('catalog.show', $threeShared->slug));
-        $posOne = strpos($html, route('catalog.show', $oneShared->slug));
-        $this->assertNotFalse($posThree);
-        $this->assertNotFalse($posOne);
-        $this->assertLessThan($posOne, $posThree);
-    }
-
-    public function test_pdp_shows_related_products_by_shared_tags_in_category(): void
-    {
-        $root = $this->catalogRoot();
-
-        $variantOptions = [
-            [
-                'option_group_id' => $root->option_group_id,
-                'option_value_ids' => [$root->id],
-            ],
-        ];
-
-        $primary = Product::query()->create([
-            'title' => 'PDP Primary',
-            'slug' => 'pdp-primary',
-            'product_type' => OptionGroup::CATALOG_PRODUCT_TYPE,
-            'category_parent_value_id' => $root->id,
-            'category_value_id' => null,
-            'price' => 100,
-            'is_available' => true,
-            'search_tags' => ['корм', 'premium'],
-            'short_description' => 'Primary',
-            'variant_options' => $variantOptions,
-        ]);
-
-        $strongMatch = Product::query()->create([
-            'title' => 'PDP Strong Match',
-            'slug' => 'pdp-strong-match',
-            'product_type' => OptionGroup::CATALOG_PRODUCT_TYPE,
-            'category_parent_value_id' => $root->id,
-            'category_value_id' => null,
-            'price' => 200,
-            'is_available' => true,
-            'search_tags' => ['корм', 'premium', 'дріб'],
-            'short_description' => 'Strong',
-            'variant_options' => $variantOptions,
-        ]);
-
-        $weakMatch = Product::query()->create([
-            'title' => 'PDP Weak Match',
-            'slug' => 'pdp-weak-match',
+        $second = Product::query()->create([
+            'title' => 'Recommended second',
+            'slug' => 'pdp-manual-second',
+            'sku' => 'SKU-SECOND',
             'product_type' => OptionGroup::CATALOG_PRODUCT_TYPE,
             'category_parent_value_id' => $root->id,
             'category_value_id' => null,
             'price' => 300,
             'is_available' => true,
-            'search_tags' => ['корм'],
-            'short_description' => 'Weak',
+            'short_description' => '2',
             'variant_options' => $variantOptions,
         ]);
 
-        $response = $this->get(route('catalog.show', $primary->slug));
+        ProductRecommendationsService::syncForProduct($primary, [
+            ['product_id' => $first->id],
+            ['product_id' => $second->id],
+        ]);
 
+        $response = $this->get(route('catalog.show', $primary->slug));
         $response->assertOk();
-        $response->assertSee('Схожі товари', false);
-        $response->assertSee(route('catalog.show', $strongMatch->slug), false);
-        $response->assertSee(route('catalog.show', $weakMatch->slug), false);
 
         $html = (string) $response->getContent();
-        $posStrong = strpos($html, route('catalog.show', $strongMatch->slug));
-        $posWeak = strpos($html, route('catalog.show', $weakMatch->slug));
-        $this->assertNotFalse($posStrong);
-        $this->assertNotFalse($posWeak);
-        $this->assertLessThan($posWeak, $posStrong);
+        $posFirst = strpos($html, route('catalog.show', $first->slug));
+        $posSecond = strpos($html, route('catalog.show', $second->slug));
+
+        $this->assertNotFalse($posFirst);
+        $this->assertNotFalse($posSecond);
+        $this->assertLessThan($posSecond, $posFirst);
     }
 
-    public function test_pdp_related_includes_products_with_shared_title_words(): void
+    public function test_pdp_hides_unavailable_manual_recommendations(): void
     {
         $root = $this->catalogRoot();
-
-        $variantOptions = [
-            [
-                'option_group_id' => $root->option_group_id,
-                'option_value_ids' => [$root->id],
-            ],
-        ];
+        $variantOptions = $this->variantOptions($root);
 
         $primary = Product::query()->create([
-            'title' => 'Блок Zoogle хомяк тест',
-            'slug' => 'pdp-title-primary',
+            'title' => 'Primary availability',
+            'slug' => 'pdp-avail-primary',
             'product_type' => OptionGroup::CATALOG_PRODUCT_TYPE,
             'category_parent_value_id' => $root->id,
             'category_value_id' => null,
             'price' => 100,
             'is_available' => true,
-            'search_tags' => [],
             'short_description' => 'P',
             'variant_options' => $variantOptions,
         ]);
 
-        $byTitle = Product::query()->create([
-            'title' => 'Інший товар Zoogle хомяк',
-            'slug' => 'pdp-title-match',
+        $visible = Product::query()->create([
+            'title' => 'Visible recommended',
+            'slug' => 'pdp-avail-visible',
             'product_type' => OptionGroup::CATALOG_PRODUCT_TYPE,
             'category_parent_value_id' => $root->id,
             'category_value_id' => null,
             'price' => 200,
             'is_available' => true,
-            'search_tags' => [],
-            'short_description' => 'T',
+            'short_description' => 'V',
             'variant_options' => $variantOptions,
         ]);
 
-        Product::query()->create([
-            'title' => 'Поводок шкіряний простий',
-            'slug' => 'pdp-title-unrelated',
+        $hidden = Product::query()->create([
+            'title' => 'Hidden recommended',
+            'slug' => 'pdp-avail-hidden',
             'product_type' => OptionGroup::CATALOG_PRODUCT_TYPE,
             'category_parent_value_id' => $root->id,
             'category_value_id' => null,
             'price' => 300,
-            'is_available' => true,
-            'search_tags' => [],
-            'short_description' => 'U',
+            'is_available' => false,
+            'short_description' => 'H',
             'variant_options' => $variantOptions,
         ]);
 
-        $response = $this->get(route('catalog.show', $primary->slug));
+        ProductRecommendationsService::syncForProduct($primary, [
+            ['product_id' => $hidden->id],
+            ['product_id' => $visible->id],
+        ]);
 
+        $response = $this->get(route('catalog.show', $primary->slug));
         $response->assertOk();
-        $response->assertSee(route('catalog.show', $byTitle->slug), false);
+        $response->assertSee(route('catalog.show', $visible->slug), false);
+        $response->assertDontSee(route('catalog.show', $hidden->slug), false);
     }
 
-    public function test_pdp_tag_on_one_product_matches_substring_in_other_title(): void
+    public function test_pdp_without_manual_recommendations_hides_related_block(): void
     {
         $root = $this->catalogRoot();
-
-        $variantOptions = [
-            [
-                'option_group_id' => $root->option_group_id,
-                'option_value_ids' => [$root->id],
-            ],
-        ];
+        $variantOptions = $this->variantOptions($root);
 
         $primary = Product::query()->create([
-            'title' => 'Товар А',
-            'slug' => 'pdp-tag-in-title-a',
+            'title' => 'Primary empty related',
+            'slug' => 'pdp-empty-related',
             'product_type' => OptionGroup::CATALOG_PRODUCT_TYPE,
             'category_parent_value_id' => $root->id,
             'category_value_id' => null,
             'price' => 100,
             'is_available' => true,
-            'search_tags' => ['hills'],
-            'short_description' => 'A',
-            'variant_options' => $variantOptions,
-        ]);
-
-        $titleMatch = Product::query()->create([
-            'title' => 'Сухий корм Hills Science Plan',
-            'slug' => 'pdp-tag-in-title-b',
-            'product_type' => OptionGroup::CATALOG_PRODUCT_TYPE,
-            'category_parent_value_id' => $root->id,
-            'category_value_id' => null,
-            'price' => 200,
-            'is_available' => true,
-            'search_tags' => [],
-            'short_description' => 'B',
-            'variant_options' => $variantOptions,
-        ]);
-
-        $response = $this->get(route('catalog.show', $primary->slug));
-
-        $response->assertOk();
-        $response->assertSee(route('catalog.show', $titleMatch->slug), false);
-    }
-
-    public function test_pdp_related_tags_ignore_case_in_overlap(): void
-    {
-        $root = $this->catalogRoot();
-
-        $variantOptions = [
-            [
-                'option_group_id' => $root->option_group_id,
-                'option_value_ids' => [$root->id],
-            ],
-        ];
-
-        $primary = Product::query()->create([
-            'title' => 'Case PDP',
-            'slug' => 'pdp-case-primary',
-            'product_type' => OptionGroup::CATALOG_PRODUCT_TYPE,
-            'category_parent_value_id' => $root->id,
-            'category_value_id' => null,
-            'price' => 100,
-            'is_available' => true,
-            'search_tags' => ['Premium', 'КОРМ'],
             'short_description' => 'P',
             'variant_options' => $variantOptions,
         ]);
 
-        $caseMatch = Product::query()->create([
-            'title' => 'Case Match',
-            'slug' => 'pdp-case-match',
-            'product_type' => OptionGroup::CATALOG_PRODUCT_TYPE,
-            'category_parent_value_id' => $root->id,
-            'category_value_id' => null,
-            'price' => 200,
-            'is_available' => true,
-            'search_tags' => ['premium', 'корм'],
-            'short_description' => 'M',
-            'variant_options' => $variantOptions,
-        ]);
-
         $response = $this->get(route('catalog.show', $primary->slug));
-
         $response->assertOk();
-        $response->assertSee(route('catalog.show', $caseMatch->slug), false);
+        $response->assertDontSee('id="pdp-recommended"', false);
+    }
+
+    /**
+     * @return list<array{option_group_id: int, option_value_ids: list<int>}>
+     */
+    private function variantOptions(OptionValue $root): array
+    {
+        return [
+            [
+                'option_group_id' => $root->option_group_id,
+                'option_value_ids' => [$root->id],
+            ],
+        ];
     }
 
     private function catalogRoot(): OptionValue

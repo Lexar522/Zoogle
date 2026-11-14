@@ -60,14 +60,14 @@ class BundlePageTest extends TestCase
             ->assertOk()
             ->assertSee('Стартовий набір')
             ->assertSee('Сухий корм')
-            ->assertSee(route('catalog.show', $product->slug))
             ->assertSee('1 500,00')
             ->assertSee('3 000,00');
     }
 
     public function test_adding_bundle_to_cart_creates_single_bundle_line(): void
     {
-        [$product] = $this->makeProductWithOptions();
+        [$product, $variant] = $this->makeProductWithOptions();
+        $sizeId = (int) ($variant->options[0]['option_value_id'] ?? 0);
 
         $bundle = Bundle::query()->create([
             'title' => 'Набір без опцій',
@@ -81,6 +81,7 @@ class BundlePageTest extends TestCase
             'product_id' => $product->id,
             'qty' => 1,
             'sort_order' => 1,
+            'option_value_ids' => [$sizeId],
         ]);
 
         $response = $this->post(route('bundles.add-to-cart', $bundle));
@@ -108,9 +109,61 @@ class BundlePageTest extends TestCase
         $this->assertSame($product->id, $line['bundle_items'][0]['product_id']);
     }
 
+    public function test_cart_update_changes_bundle_quantity_within_component_stock(): void
+    {
+        [$product, $variant] = $this->makeProductWithOptions();
+        $sizeId = (int) ($variant->options[0]['option_value_id'] ?? 0);
+        $variant->forceFill(['quantity' => 4])->save();
+
+        $bundle = Bundle::query()->create([
+            'title' => 'Набір зі зміною кількості',
+            'slug' => 'bundle-qty-update',
+            'is_visible' => true,
+            'is_active' => true,
+        ]);
+
+        BundleItem::query()->create([
+            'bundle_id' => $bundle->id,
+            'product_id' => $product->id,
+            'qty' => 1,
+            'sort_order' => 1,
+            'option_value_ids' => [$sizeId],
+        ]);
+
+        $this->post(route('bundles.add-to-cart', $bundle));
+        $key = 'bundle:'.$bundle->id;
+
+        $this->patch(route('cart.update', $key), ['qty' => 3])
+            ->assertRedirect(route('cart.index'))
+            ->assertSessionHas('success');
+        $this->assertSame(3, session('cart')[$key]['qty']);
+
+        $this->patch(route('cart.update', $key), ['qty' => 5])
+            ->assertSessionHas('error');
+        $this->assertSame(3, session('cart')[$key]['qty']);
+    }
+
+    public function test_cart_update_rejects_bundle_that_was_hidden(): void
+    {
+        $bundle = Bundle::query()->create([
+            'title' => 'Прихований набір',
+            'slug' => 'bundle-hidden-after-add',
+            'is_visible' => false,
+            'is_active' => true,
+        ]);
+        $key = 'bundle:'.$bundle->id;
+
+        $this->withSession(['cart' => [$key => ['line_kind' => 'bundle', 'bundle_id' => $bundle->id, 'qty' => 1]]])
+            ->patch(route('cart.update', $key), ['qty' => 2])
+            ->assertSessionHas('error');
+        $this->assertSame(1, session('cart')[$key]['qty']);
+    }
+
     public function test_checkout_stores_bundle_as_single_order_item_with_snapshot(): void
     {
-        [$product] = $this->makeProductWithOptions();
+        [$product, $variant] = $this->makeProductWithOptions();
+        $sizeId = (int) ($variant->options[0]['option_value_id'] ?? 0);
+        $variant->forceFill(['quantity' => 4])->save();
 
         $bundle = Bundle::query()->create([
             'title' => 'Bundle order snapshot',
@@ -124,6 +177,7 @@ class BundlePageTest extends TestCase
             'product_id' => $product->id,
             'qty' => 2,
             'sort_order' => 1,
+            'option_value_ids' => [$sizeId],
         ]);
 
         $response = $this

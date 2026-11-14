@@ -16,7 +16,7 @@ class OrderPlaced extends Mailable
     public function __construct(
         public Order $order,
     ) {
-        $this->order->loadMissing('items');
+        $this->order->loadMissing(['items.product.variants', 'items.bundle', 'items.variant']);
     }
 
     public function envelope(): Envelope
@@ -29,7 +29,8 @@ class OrderPlaced extends Mailable
     public function content(): Content
     {
         return new Content(
-            markdown: 'emails.orders.placed',
+            html: 'emails.orders.placed',
+            text: 'emails.orders.placed-text',
         );
     }
 }

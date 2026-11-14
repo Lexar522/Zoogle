@@ -52,7 +52,7 @@ class CatalogBundlesTest extends TestCase
             'sort_order' => 1,
         ]);
 
-        $response = $this->get(route('catalog.index'));
+        $response = $this->get(route('catalog.index', ['bundles' => 1]));
 
         $response
             ->assertOk()

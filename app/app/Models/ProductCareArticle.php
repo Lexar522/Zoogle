@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\CatalogCategoryTree;
 use App\Support\RichTextSanitizer;
 use Filament\Forms\Components\RichEditor\RichContentRenderer;
 use Illuminate\Database\Eloquent\Builder;
@@ -17,6 +18,7 @@ class ProductCareArticle extends Model
 
     protected $fillable = [
         'product_id',
+        'category_value_id',
         'title',
         'slug',
         'excerpt',
@@ -28,6 +30,7 @@ class ProductCareArticle extends Model
 
     protected $casts = [
         'product_id' => 'integer',
+        'category_value_id' => 'integer',
         'sort_order' => 'integer',
         'is_published' => 'boolean',
         'published_at' => 'datetime',
@@ -43,6 +46,27 @@ class ProductCareArticle extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(OptionValue::class, 'category_value_id');
+    }
+
+    public function storefrontUrl(): string
+    {
+        return route('care.show', $this->slug);
+    }
+
+    public function categoryPathLabel(): string
+    {
+        $categoryId = (int) ($this->category_value_id ?? 0);
+        $groupId = OptionGroup::systemCategoryGroupIdForCatalog();
+        if ($categoryId <= 0 || $groupId <= 0) {
+            return '';
+        }
+
+        return CatalogCategoryTree::pathLabelForValueId($categoryId, $groupId);
     }
 
     public function scopePublished(Builder $query): Builder
@@ -101,7 +125,6 @@ class ProductCareArticle extends Model
 
         while (
             static::query()
-                ->where('product_id', $article->product_id)
                 ->where('slug', $slug)
                 ->when($article->exists, fn (Builder $query): Builder => $query->whereKeyNot($article->getKey()))
                 ->exists()

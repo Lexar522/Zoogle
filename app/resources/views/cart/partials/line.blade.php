@@ -3,10 +3,10 @@
     $title = (string) ($item['title'] ?? ($item['product']->title ?? 'Позиція'));
     $titleUrl = $item['title_url'] ?? null;
 @endphp
-<article class="cart-drawer__line @if ($isBundle) cart-drawer__line--bundle @endif @if (filled($titleUrl)) cart-drawer__line--linked @endif" data-cart-line-key="{{ $item['key'] }}">
+<article class="cart-drawer__line @if ($isBundle) cart-drawer__line--bundle @endif @if (filled($titleUrl)) cart-drawer__line--linked @endif @if (! empty($item['unavailable'])) cart-drawer__line--unavailable @endif" data-cart-line-key="{{ $item['key'] }}">
     <div class="cart-drawer__line-media">
         @if ($item['photo'])
-            <img src="{{ asset('storage/' . $item['photo']) }}" alt="{{ $title }}">
+            <img src="{{ \App\Support\ListingPhotoDerivative::cardUrlForPath($item['photo']) }}" alt="{{ $title }}" decoding="async">
         @else
             <div class="cart-drawer__line-media-empty">Немає фото</div>
         @endif
@@ -26,6 +26,10 @@
             </form>
         </div>
 
+        @if (! empty($item['unavailable_reason']))
+            <p class="cart-drawer__line-unavailable">{{ $item['unavailable_reason'] }}</p>
+        @endif
+
         @if ($isBundle)
             <div class="cart-drawer__bundle-meta">
                 <span class="cart-drawer__bundle-badge">Комплект</span>
@@ -35,7 +39,11 @@
                 <div class="cart-drawer__bundle-list">
                     @foreach ($item['bundle_items'] as $bundleItem)
                         <span class="cart-drawer__bundle-item">
-                            {{ $bundleItem['title'] ?? 'Товар' }} × {{ (int) ($bundleItem['qty'] ?? 1) }}
+                            {{ $bundleItem['title'] ?? 'Товар' }}
+                            @if (! empty($bundleItem['option_labels'] ?? []))
+                                ({{ implode(', ', $bundleItem['option_labels']) }})
+                            @endif
+                            × {{ (int) ($bundleItem['qty'] ?? 1) }}
                         </span>
                     @endforeach
                 </div>

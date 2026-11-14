@@ -29,7 +29,7 @@ class OrderOnlinePaymentUnlocked extends Mailable
     public function content(): Content
     {
         return new Content(
-            markdown: 'emails.orders.online-payment-unlocked',
+            html: 'emails.orders.online-payment-unlocked',
         );
     }
 }

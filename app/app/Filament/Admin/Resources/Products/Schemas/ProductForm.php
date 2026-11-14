@@ -3,12 +3,12 @@
 namespace App\Filament\Admin\Resources\Products\Schemas;
 
 use App\Filament\Admin\Schemas\CatalogCategoryCascadeFields;
+use App\Filament\Support\ProductAdminSelectSearch;
 use App\Models\OptionGroup;
 use App\Models\OptionValue;
 use App\Models\Product;
-use App\Support\ListingPhotoUpload;
-use App\Models\ProductCareArticle;
 use App\Support\CatalogCategoryTree;
+use App\Support\ListingPhotoUpload;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\ColorPicker;
 use Filament\Forms\Components\DateTimePicker;
@@ -16,8 +16,6 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TagsInput;
-use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Grid;
@@ -25,7 +23,9 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Schema as DbSchema;
 use Illuminate\Support\Str;
+use Livewire\Component as LivewireComponent;
 
 class ProductForm
 {
@@ -82,8 +82,44 @@ class ProductForm
                             ])
                             ->columns(1),
                         Section::make('Категорії')
+                            ->description('Основна категорія визначає опції товару та правила оформлення. Додаткові — лише де товар з’являється в каталозі (наприклад іграшка для кількох тварин).')
                             ->schema([
                                 ...CatalogCategoryCascadeFields::listingCategoryLevelFields(),
+                                Select::make('additional_category_ids')
+                                    ->label('Також показувати в категоріях')
+                                    ->helperText('Оберіть інші гілки каталогу, де товар має з’являтися. Основну категорію вище сюди додавати не потрібно.')
+                                    ->multiple()
+                                    ->searchable()
+                                    ->preload()
+                                    ->native(false)
+                                    ->options(function (Get $get): array {
+                                        if (! DbSchema::hasTable('product_categories')) {
+                                            return [];
+                                        }
+
+                                        $groupId = OptionGroup::systemCategoryGroupIdForCatalog();
+                                        if ($groupId <= 0) {
+                                            return [];
+                                        }
+
+                                        $options = CatalogCategoryTree::flatPathOptionsForSelect($groupId);
+                                        $primaryId = 0;
+                                        for ($i = CatalogCategoryTree::MAX_DEPTH; $i >= 1; $i--) {
+                                            $levelId = (int) ($get('category_level_'.$i.'_id') ?? 0);
+                                            if ($levelId > 0) {
+                                                $primaryId = $levelId;
+                                                break;
+                                            }
+                                        }
+                                        if ($primaryId > 0) {
+                                            unset($options[$primaryId]);
+                                        }
+
+                                        return $options;
+                                    })
+                                    ->visible(fn (): bool => DbSchema::hasTable('product_categories')
+                                        && OptionGroup::systemCategoryGroupIdForCatalog() > 0)
+                                    ->dehydrated(true),
                             ])
                             ->columns(1),
                     ]),
@@ -112,14 +148,52 @@ class ProductForm
                             ->numeric()
                             ->minValue(0)
                             ->prefix('UAH'),
+                        Grid::make([
+                            'default' => 1,
+                            'md' => 3,
+                        ])
+                            ->schema([
+                                TextInput::make('length_cm')
+                                    ->label('Довжина')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->suffix('см')
+                                    ->dehydrateStateUsing(fn ($state): ?float => filled((string) $state) ? (float) $state : null),
+                                TextInput::make('width_cm')
+                                    ->label('Ширина')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->suffix('см')
+                                    ->dehydrateStateUsing(fn ($state): ?float => filled((string) $state) ? (float) $state : null),
+                                TextInput::make('height_cm')
+                                    ->label('Висота')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->suffix('см')
+                                    ->dehydrateStateUsing(fn ($state): ?float => filled((string) $state) ? (float) $state : null),
+                            ]),
                     ]),
                 Section::make('Публікація')
                     ->schema([
                         Toggle::make('is_available')
-                            ->label('Показувати в каталозі')
-                            ->helperText('Головний перемикач доступності картки товару.')
+                            ->label('Показувати на вітрині')
+                            ->helperText('Головний перемикач видимості товару в каталозі.')
                             ->default(true)
                             ->required(),
+                        Select::make('stock_status')
+                            ->label('Статус наявності')
+                            ->options(Product::stockStatusOptions())
+                            ->default(Product::STOCK_IN_STOCK)
+                            ->required()
+                            ->native(false)
+                            ->helperText('«Під замовлення» можна додати в кошик, але онлайн-оплата відкладається.'),
+                        TextInput::make('stock_quantity')
+                            ->label('Кількість на складі')
+                            ->numeric()
+                            ->integer()
+                            ->minValue(0)
+                            ->nullable()
+                            ->helperText('Для товару без варіантів. Порожньо — кількість не рахується. На нулі товар стає «Немає в наявності».'),
                         DateTimePicker::make('published_at')
                             ->label('Опубліковано'),
                     ]),
@@ -137,83 +211,22 @@ class ProductForm
                                     ->visibility('public')
                                     ->directory(fn (?Product $record, FileUpload $component): string => ListingPhotoUpload::productListingPhotosDirectory($record, $component))
                                     ->maxFiles(20)
-                                    ->helperText('Формати: JPEG (.jpg, .jpeg), PNG, WebP, GIF. Бажане кадрування 1:1 — через олівець (необов’язково, якщо увімкнено GD на сервері). Дочекайтесь мініатюр перед збереженням. Адмінку відкривайте через https://.')
+                                    ->maxSize(51200)
+                                    ->helperText('Формати: JPEG (.jpg, .jpeg), PNG, WebP, GIF, MP4, WebM. Бажане кадрування 1:1 — через олівець на мініатюрі (лише для фото; GIF і відео не обрізати олівцем). Перший файл — головний. Дочекайтесь мініатюр перед збереженням.')
                             )
                         ),
                     ]),
-                Section::make('Поради по догляду')
-                    ->description('Статті відкриватимуться з кнопки на сторінці товару. Для відео вставте посилання YouTube у текст статті.')
-                    ->schema([
-                        Repeater::make('careArticles')
-                            ->relationship()
-                            ->label('Статті')
-                            ->defaultItems(0)
-                            ->addActionLabel('Додати статтю')
-                            ->orderColumn('sort_order')
-                            ->reorderable()
-                            ->collapsible()
-                            ->collapsed(true)
-                            ->itemLabel(fn (array $state): ?string => filled($state['title'] ?? null) ? (string) $state['title'] : 'Нова стаття')
-                            ->schema([
-                                Grid::make([
-                                    'default' => 1,
-                                    'md' => 2,
-                                ])
-                                    ->schema([
-                                        TextInput::make('title')
-                                            ->label('Заголовок')
-                                            ->required()
-                                            ->maxLength(255)
-                                            ->live(onBlur: true)
-                                            ->afterStateUpdated(fn (?string $state, Set $set) => $set('slug', Str::slug((string) $state))),
-                                        TextInput::make('slug')
-                                            ->label('Слаг')
-                                            ->maxLength(255)
-                                            ->helperText('Використовується в URL статті. Якщо лишити порожнім, згенерується з назви.'),
-                                    ]),
-                                Textarea::make('excerpt')
-                                    ->label('Короткий вступ')
-                                    ->rows(2)
-                                    ->maxLength(500)
-                                    ->helperText('Показується у списку порад і на картці статті.'),
-                                RichEditor::make('body')
-                                    ->label('Текст статті')
-                                    ->fileAttachments(true)
-                                    ->fileAttachmentsDisk('public')
-                                    ->fileAttachmentsDirectory(fn (?Product $record): string => 'products/'.($record?->id ?? 'draft').'/care-articles')
-                                    ->dehydrateStateUsing(fn (mixed $state): ?string => ProductCareArticle::normalizeRichEditorValueForStorage($state))
-                                    ->extraAttributes(['style' => 'min-height: 18rem'])
-                                    ->helperText('Можна форматувати текст, вставляти фото та YouTube-посилання. На сайті YouTube-посилання стане відеоплеєром.'),
-                                Grid::make([
-                                    'default' => 1,
-                                    'md' => 3,
-                                ])
-                                    ->schema([
-                                        TextInput::make('sort_order')
-                                            ->label('Порядок')
-                                            ->numeric()
-                                            ->minValue(0)
-                                            ->default(0),
-                                        Toggle::make('is_published')
-                                            ->label('Опубліковано')
-                                            ->default(true),
-                                        DateTimePicker::make('published_at')
-                                            ->label('Дата публікації')
-                                            ->helperText('Порожньо — показувати одразу.'),
-                                    ]),
-                            ]),
-                    ]),
                 Section::make('Опції товару')
-                    ->description('Оберіть тип опції з довідника, відмітьте значення галочками або додайте нові.')
+                    ->description('1) Спочатку оберіть категорію товару вище. 2) «Додати групу опцій» → група з довідника «Групи опцій» (або створіть її в Довідники). 3) Відмітьте значення або додайте нові в блоці «Додати нові значення».')
                     ->schema([
                         Repeater::make('variant_options')
                             ->label('Групи опцій')
-                            ->helperText('Перетягуйте групи мишкою: цей порядок буде на сторінці товару. Якщо опції не потрібні (лише одна варіація) — нічого не додавайте.')
+                            ->helperText('Після «Додати групу опцій» розгорніть рядок: оберіть групу зі списку й відмітьте хоча б одне значення. Збережіть товар кнопкою вгорі — лише довідник «Групи опцій» не прив’язує опцію до товару.')
                             ->reorderable()
                             ->defaultItems(0)
                             ->addActionLabel('Додати групу опцій')
                             ->collapsible()
-                            ->collapsed(true)
+                            ->collapsed(false)
                             ->itemLabel(function (array $state): ?string {
                                 $groupId = $state['option_group_id'] ?? null;
 
@@ -221,7 +234,7 @@ class ProductForm
                                     return 'Нова опція';
                                 }
 
-                                $group = OptionGroup::query()->find($groupId);
+                                $group = OptionGroup::cached((int) $groupId);
                                 if (! $group) {
                                     return 'Опція';
                                 }
@@ -250,14 +263,26 @@ class ProductForm
                                             return;
                                         }
 
-                                        $valueType = OptionGroup::query()->whereKey($groupId)->value('value_type');
+                                        $valueType = OptionGroup::cached($groupId)?->value_type;
 
                                         if (filled($valueType)) {
                                             $set('option_value_type', $valueType);
                                         }
                                     })
                                     ->live()
-                                    ->afterStateUpdated(function (Set $set): void {
+                                    ->disabled(fn (Get $get): bool => (int) ($get('option_group_id') ?? 0) > 0)
+                                    ->helperText(fn (Get $get): ?string => (int) ($get('option_group_id') ?? 0) > 0
+                                        ? 'Формат зафіксовано після вибору групи. Щоб змінити тип — видаліть цей рядок і додайте новий.'
+                                        : 'Спочатку оберіть формат, потім групу нижче.')
+                                    ->afterStateUpdated(function (Set $set, Get $get, ?string $state, ?string $old): void {
+                                        if ((int) ($get('option_group_id') ?? 0) > 0) {
+                                            return;
+                                        }
+
+                                        if ($state === $old) {
+                                            return;
+                                        }
+
                                         $set('option_group_id', null);
                                         $set('option_value_ids', []);
                                         $set('value_prices', []);
@@ -265,6 +290,7 @@ class ProductForm
                                     }),
                                 Select::make('option_group_id')
                                     ->label('Група опцій')
+                                    ->required()
                                     ->placeholder('Оберіть групу з довідника (або видаліть рядок, якщо зайвий)')
                                     ->options(function (Get $get): array {
                                         $selectedType = $get('option_value_type');
@@ -310,7 +336,7 @@ class ProductForm
 
                                         $currentGroupId = (int) ($get('option_group_id') ?? 0);
                                         if ($currentGroupId > 0 && ! array_key_exists($currentGroupId, $result)) {
-                                            $currentGroup = OptionGroup::query()->find($currentGroupId, ['id', 'name', 'value_type', 'is_active']);
+                                            $currentGroup = OptionGroup::cached($currentGroupId);
                                             if ($currentGroup) {
                                                 $typeLabel = ($currentGroup->value_type ?? 'text') === 'color' ? 'Колір' : 'Текст';
                                                 $suffix = $currentGroup->is_active ? '' : ' (неактивна)';
@@ -332,7 +358,7 @@ class ProductForm
                                         $set('new_values', []);
                                         $gid = (int) $state;
                                         if ($gid > 0) {
-                                            $valueType = OptionGroup::query()->whereKey($gid)->value('value_type');
+                                            $valueType = OptionGroup::cached($gid)?->value_type;
                                             if (filled($valueType) && in_array($valueType, ['text', 'color'], true)) {
                                                 $set('option_value_type', $valueType);
                                             }
@@ -349,17 +375,17 @@ class ProductForm
                                             return null;
                                         }
 
-                                        $group = OptionGroup::query()->find($groupId);
+                                        $group = OptionGroup::cached((int) $groupId);
 
                                         if (! $group) {
-                                            return null;
+                                            return 'Обов’язково відмітьте хоча б одне значення — без цього опція не з’явиться на товарі після збереження.';
                                         }
 
                                         if (($group->selection_mode ?? 'single') === 'single') {
-                                            return 'Режим групи — один вибір для покупця на сайті; у картці можна відмітити всі доступні значення.';
+                                            return 'Обов’язково відмітьте хоча б одне значення. На сайті покупець обере один варіант; у картці можна відмітити всі доступні значення.';
                                         }
 
-                                        return 'Можна відмітити кілька значень — усі збережуться в картці товару.';
+                                        return 'Обов’язково відмітьте хоча б одне значення — усі відмічені збережуться в картці товару.';
                                     })
                                     ->options(function (Get $get): array {
                                         $groupId = $get('option_group_id');
@@ -426,6 +452,35 @@ class ProductForm
                                     ->addActionLabel('Додати доплату')
                                     ->columns(2)
                                     ->visible(fn (Get $get): bool => (int) ($get('option_group_id') ?? 0) > 0),
+                                Select::make('default_option_value_id')
+                                    ->label('Головна ціна / преселект на вітрині')
+                                    ->helperText('Яке значення підсвітити при відкритті товару й врахувати в ціні картки каталогу. Порожньо — автоматично значення без доплати або з мінімальною.')
+                                    ->placeholder('Авто: мінімальна / без доплати')
+                                    ->options(function (Get $get): array {
+                                        $groupId = (int) ($get('option_group_id') ?? 0);
+                                        $selectedIds = collect($get('option_value_ids') ?? [])
+                                            ->map(fn ($id) => (int) $id)
+                                            ->filter(fn (int $id) => $id > 0)
+                                            ->values()
+                                            ->all();
+                                        if ($groupId <= 0 || $selectedIds === []) {
+                                            return [];
+                                        }
+
+                                        return OptionValue::query()
+                                            ->where('option_group_id', $groupId)
+                                            ->whereIn('id', $selectedIds)
+                                            ->where('is_active', true)
+                                            ->orderBy('sort_order')
+                                            ->pluck('name', 'id')
+                                            ->all();
+                                    })
+                                    ->searchable()
+                                    ->nullable()
+                                    ->native(false)
+                                    ->visible(fn (Get $get): bool => (int) ($get('option_group_id') ?? 0) > 0
+                                        && collect($get('option_value_ids') ?? [])->filter()->count() >= 2)
+                                    ->columnSpanFull(),
                                 Repeater::make('value_photos')
                                     ->label('Фото для значень опції')
                                     ->helperText('Для кольору можна прив’язати кілька фото до конкретного значення. На вітрині вони перемикатимуть галерею.')
@@ -481,6 +536,11 @@ class ProductForm
                                     ->columns(1),
                                 Repeater::make('new_values')
                                     ->label('Додати нові значення (якщо треба)')
+                                    ->addActionLabel('Додати значення')
+                                    ->addable(fn (Get $get): bool => (int) ($get('option_group_id') ?? 0) > 0)
+                                    ->helperText(fn (Get $get): ?string => (int) ($get('option_group_id') ?? 0) > 0
+                                        ? null
+                                        : 'Спочатку оберіть «Група опцій» у цьому рядку — тоді зʼявиться кнопка додавання значення.')
                                     ->schema([
                                         TextInput::make('name')
                                             ->label('Назва')
@@ -544,12 +604,39 @@ class ProductForm
                             ])
                             ->columns(1),
                     ]),
-                Section::make('SEO')
-                    ->description('Фото додаються лише у вкладці «Варіанти».')
+                Section::make('Рекомендовані товари')
+                    ->description('Показуються в блоці «Схожі товари» на сторінці цього товару. Порядок у списку = порядок на сайті. Пошук за назвою або артикулом.')
                     ->schema([
-                        TagsInput::make('search_tags')
-                            ->label('Пошукові теги')
-                            ->helperText('Ключові слова для пошуку та для блоку «Схожі товари». Чим більше спільних тегів з іншим товаром — тим вище він у списку; також враховуються слова в назві та збіг тега з чужою назвою (без урахування регістру).'),
+                        Repeater::make('recommended_items')
+                            ->hiddenLabel()
+                            ->reorderable()
+                            ->collapsible()
+                            ->defaultItems(0)
+                            ->addActionLabel('Додати рекомендований товар')
+                            ->itemLabel(fn (array $state): ?string => ProductAdminSelectSearch::labelForId((int) ($state['product_id'] ?? 0)) ?? 'Новий рядок')
+                            ->schema([
+                                Select::make('product_id')
+                                    ->label('Товар')
+                                    ->required()
+                                    ->searchable()
+                                    ->searchPrompt('Назва або артикул')
+                                    ->allowHtml()
+                                    ->native(false)
+                                    ->getSearchResultsUsing(function (string $search, LivewireComponent $livewire): array {
+                                        $excludeId = null;
+                                        if (method_exists($livewire, 'getRecord')) {
+                                            $record = $livewire->getRecord();
+                                            if ($record instanceof Product) {
+                                                $excludeId = (int) $record->id;
+                                            }
+                                        }
+
+                                        return ProductAdminSelectSearch::searchWithPhoto($search, $excludeId);
+                                    })
+                                    ->getOptionLabelUsing(fn ($value): ?string => ProductAdminSelectSearch::labelHtmlForId((int) $value))
+                                    ->helperText('Почніть вводити назву або артикул.'),
+                            ])
+                            ->columnSpanFull(),
                     ]),
             ]);
     }

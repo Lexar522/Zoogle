@@ -1,0 +1,20 @@
+/* Читабельний текст у RichEditor (опис товару тощо) — як на вітрині */
+.fi-fo-rich-editor .ProseMirror,
+.fi-fo-rich-editor .tiptap,
+.fi-fo-rich-editor [contenteditable="true"] {
+    font-family: "Source Sans 3", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif !important;
+    font-weight: 400 !important;
+    line-height: 1.65 !important;
+    letter-spacing: 0.01em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.fi-fo-rich-editor .ProseMirror strong,
+.fi-fo-rich-editor .ProseMirror b,
+.fi-fo-rich-editor .tiptap strong,
+.fi-fo-rich-editor .tiptap b,
+.fi-fo-rich-editor [contenteditable="true"] strong,
+.fi-fo-rich-editor [contenteditable="true"] b {
+    font-weight: 600 !important;
+}

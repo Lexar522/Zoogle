@@ -22,6 +22,8 @@ use Filament\Support\Facades\FilamentView;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\QueryException;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
 use Throwable;
 use UnitEnum;
@@ -127,6 +129,34 @@ class ManageCatalogCategories extends Page
             $exception->shouldRollbackDatabaseTransaction() ?
                 $this->rollBackDatabaseTransaction() :
                 $this->commitDatabaseTransaction();
+
+            return;
+        } catch (ValidationException $exception) {
+            $this->rollBackDatabaseTransaction();
+
+            $message = collect($exception->errors())->flatten()->filter()->first();
+
+            Notification::make()
+                ->danger()
+                ->title('Не вдалося зберегти категорії')
+                ->body(is_string($message) && $message !== ''
+                    ? $message
+                    : 'Перевірте назви, слаги та те, що категорії з товарами не видаляються.')
+                ->persistent()
+                ->send();
+
+            return;
+        } catch (QueryException $exception) {
+            $this->rollBackDatabaseTransaction();
+
+            report($exception);
+
+            Notification::make()
+                ->danger()
+                ->title('Не вдалося зберегти категорії')
+                ->body('Помилка бази даних під час збереження. Спробуйте ще раз або зменшіть кількість змін за раз.')
+                ->persistent()
+                ->send();
 
             return;
         } catch (Throwable $exception) {

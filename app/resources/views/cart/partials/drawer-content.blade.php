@@ -35,6 +35,12 @@
             </div>
         </div>
 
-        <a href="{{ route('checkout.create') }}" class="cart-drawer__checkout-btn">Оформити замовлення</a>
+        @if (($summary['can_checkout'] ?? true) === true)
+            <a href="{{ route('checkout.create') }}" class="cart-drawer__checkout-btn">Оформити замовлення</a>
+        @else
+            <button type="button" class="cart-drawer__checkout-btn" disabled>
+                {{ $summary['blocked_reason'] ?: __('shop.cart_checkout_blocked') }}
+            </button>
+        @endif
     </div>
 @endif

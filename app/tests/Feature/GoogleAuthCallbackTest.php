@@ -40,9 +40,6 @@ class GoogleAuthCallbackTest extends TestCase
             ->once()
             ->with('google')
             ->andReturnSelf();
-        Socialite::shouldReceive('stateless')
-            ->once()
-            ->andReturnSelf();
         Socialite::shouldReceive('redirectUrl')
             ->once()
             ->andReturnSelf();

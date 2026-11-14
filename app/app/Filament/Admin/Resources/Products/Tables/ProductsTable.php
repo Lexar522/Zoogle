@@ -15,6 +15,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\ToggleColumn;
 use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -28,7 +29,7 @@ class ProductsTable
      */
     public static function firstStoredPhotoPath(?Product $record): ?string
     {
-        return $record?->firstCatalogPhotoPath();
+        return $record?->firstListedPhotoPath();
     }
 
     /**
@@ -40,6 +41,14 @@ class ProductsTable
             return [];
         }
 
+        $childrenByParent = [];
+        $rows = OptionValue::query()
+            ->where('option_group_id', $categoryGroupId)
+            ->get(['id', 'parent_id']);
+        foreach ($rows as $row) {
+            $childrenByParent[(int) ($row->parent_id ?? 0)][] = (int) $row->id;
+        }
+
         $out = [];
         $queue = [$valueId];
         while ($queue !== []) {
@@ -49,19 +58,83 @@ class ProductsTable
             }
             $out[] = $id;
 
-            $childIds = OptionValue::query()
-                ->where('option_group_id', $categoryGroupId)
-                ->where('parent_id', $id)
-                ->pluck('id')
-                ->map(fn ($id) => (int) $id)
-                ->all();
-
-            foreach ($childIds as $childId) {
+            foreach ($childrenByParent[$id] ?? [] as $childId) {
                 $queue[] = $childId;
             }
         }
 
         return $out;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function categoryNameMap(): array
+    {
+        /** @var array<int, string> $map */
+        $map = once(function (): array {
+            $groupId = OptionGroup::systemCategoryGroupIdForCatalog();
+            if ($groupId <= 0) {
+                return [];
+            }
+
+            $names = [];
+            $rows = OptionValue::query()
+                ->where('option_group_id', $groupId)
+                ->get(['id', 'name']);
+            foreach ($rows as $row) {
+                $names[(int) $row->id] = (string) $row->name;
+            }
+
+            return $names;
+        });
+
+        return $map;
+    }
+
+    private static function constrainListQuery(Builder $query): void
+    {
+        $model = $query->getModel();
+        $table = $model->getTable();
+        $wanted = [
+            $model->getKeyName() ?: 'id',
+            'title',
+            'sku',
+            'price',
+            'is_available',
+            'stock_status',
+            'photos',
+            'variant_options',
+            'category_value_id',
+            'category_parent_value_id',
+            'published_at',
+            'created_at',
+            'updated_at',
+        ];
+        $selected = [];
+        foreach ($wanted as $column) {
+            if ($column === ($model->getKeyName() ?: 'id') || Schema::hasColumn($table, $column)) {
+                $selected[] = $table.'.'.$column;
+            }
+        }
+        $query->select(array_values(array_unique($selected)));
+
+        $query->with([
+            'variants' => function ($variantQuery): void {
+                $variant = $variantQuery->getModel();
+                $fk = $variant->product()->getForeignKeyName();
+                $columns = [$variant->getKeyName() ?: 'id', $fk];
+                foreach (['price', 'is_visible', 'is_sold', 'photos'] as $column) {
+                    if (Schema::hasColumn($variant->getTable(), $column)) {
+                        $columns[] = $column;
+                    }
+                }
+                $variantQuery->select(array_values(array_unique($columns)));
+            },
+            'categories' => function ($categoryQuery): void {
+                $categoryQuery->select(['option_values.id', 'option_values.name']);
+            },
+        ]);
     }
 
     /**
@@ -135,6 +208,7 @@ class ProductsTable
                 'class' => 'fi-ta--products-list',
             ], merge: true)
             ->searchable()
+            ->searchPlaceholder('Назва або артикул')
             ->searchUsing(function (Builder $query, string $search): void {
                 $search = Str::trim((string) $search);
                 if ($search === '') {
@@ -142,7 +216,9 @@ class ProductsTable
                 }
 
                 $tableName = $query->getModel()->getTable();
-                if (! Schema::hasColumn($tableName, 'title')) {
+                $hasTitle = Schema::hasColumn($tableName, 'title');
+                $hasSku = Schema::hasColumn($tableName, 'sku');
+                if (! $hasTitle && ! $hasSku) {
                     return;
                 }
 
@@ -151,20 +227,53 @@ class ProductsTable
                     ['\\\\', '\\%', '\\_'],
                     $search,
                 );
-                $term = "{$escaped}%";
-                $patternLower = mb_strtolower($term, 'UTF-8');
+                // Назва й артикул — входження в будь-якому місці (не лише з початку).
+                $titleTerm = "%{$escaped}%";
+                $skuTerm = "%{$escaped}%";
+                $titlePatternLower = mb_strtolower($titleTerm, 'UTF-8');
+                $skuPatternLower = mb_strtolower($skuTerm, 'UTF-8');
 
                 $model = $query->getModel();
-                $qualified = $model->qualifyColumn('title');
                 $usePlainLike = in_array($query->getConnection()->getDriverName(), ['mysql', 'mariadb'], true);
 
-                if ($usePlainLike) {
-                    $query->where($qualified, 'like', $term);
-                } else {
-                    $query->whereRaw('LOWER('.$qualified.') LIKE ?', [$patternLower]);
-                }
+                $query->where(function (Builder $q) use (
+                    $model,
+                    $hasTitle,
+                    $hasSku,
+                    $usePlainLike,
+                    $titleTerm,
+                    $skuTerm,
+                    $titlePatternLower,
+                    $skuPatternLower,
+                    $search,
+                ): void {
+                    if ($hasTitle) {
+                        $titleCol = $model->qualifyColumn('title');
+                        if ($usePlainLike) {
+                            $q->where($titleCol, 'like', $titleTerm);
+                        } else {
+                            $q->whereRaw('LOWER('.$titleCol.') LIKE ?', [$titlePatternLower]);
+                        }
+                    }
+
+                    if ($hasSku) {
+                        $skuCol = $model->qualifyColumn('sku');
+                        $method = $hasTitle ? 'orWhere' : 'where';
+                        if ($usePlainLike) {
+                            $q->{$method}(function (Builder $skuQuery) use ($skuCol, $skuTerm, $search): void {
+                                $skuQuery->where($skuCol, 'like', $skuTerm)
+                                    ->orWhere($skuCol, $search);
+                            });
+                        } else {
+                            $q->{$method}(function (Builder $skuQuery) use ($skuCol, $skuPatternLower, $search): void {
+                                $skuQuery->whereRaw('LOWER('.$skuCol.') LIKE ?', [$skuPatternLower])
+                                    ->orWhere($skuCol, $search);
+                            });
+                        }
+                    }
+                });
             })
-            ->modifyQueryUsing(fn ($query) => $query->with('variants'))
+            ->modifyQueryUsing(fn ($query) => self::constrainListQuery($query))
             ->columns([
                 ImageColumn::make('photo_preview')
                     ->label('Фото')
@@ -175,46 +284,65 @@ class ProductsTable
                     ->sortable(false),
                 TextColumn::make('title')
                     ->label('Назва')
-                    ->searchable(),
+                    ->searchable(false),
                 TextColumn::make('category_name')
                     ->label('Категорія')
                     ->state(function ($record): string {
-                        static $categoryGroupId = null;
-                        static $valueNameCache = [];
-
-                        if ($categoryGroupId === null) {
-                            $categoryGroupId = OptionGroup::systemCategoryGroupIdForCatalog();
-                        }
+                        $categoryGroupId = once(fn (): int => OptionGroup::systemCategoryGroupIdForCatalog());
 
                         if (! $categoryGroupId) {
                             return '—';
                         }
 
-                        $categoryValueId = null;
+                        $categoryIds = [];
                         foreach (($record->variant_options ?? []) as $row) {
                             if ((int) ($row['option_group_id'] ?? 0) !== (int) $categoryGroupId) {
                                 continue;
                             }
 
-                            $categoryValueId = (int) collect($row['option_value_ids'] ?? [])
-                                ->map(fn ($id) => (int) $id)
-                                ->first();
-                            break;
+                            foreach ($row['option_value_ids'] ?? [] as $id) {
+                                $n = (int) $id;
+                                if ($n > 0) {
+                                    $categoryIds[$n] = true;
+                                }
+                            }
                         }
 
-                        if (! $categoryValueId) {
+                        foreach ($record->categories ?? [] as $category) {
+                            $n = (int) $category->id;
+                            if ($n > 0) {
+                                $categoryIds[$n] = true;
+                            }
+                        }
+
+                        $ids = array_keys($categoryIds);
+                        if ($ids === []) {
+                            $fallback = (int) ($record->category_value_id ?? 0);
+                            if ($fallback > 0) {
+                                $ids = [$fallback];
+                            }
+                        }
+                        if ($ids === []) {
                             return '—';
                         }
 
-                        if (array_key_exists($categoryValueId, $valueNameCache)) {
-                            return $valueNameCache[$categoryValueId];
+                        $nameMap = self::categoryNameMap();
+                        $names = [];
+                        foreach ($ids as $categoryValueId) {
+                            $name = $nameMap[(int) $categoryValueId] ?? '';
+                            if ($name !== '' && $name !== '—') {
+                                $names[] = $name;
+                            }
                         }
 
-                        $valueNameCache[$categoryValueId] = (string) (OptionValue::query()
-                            ->whereKey($categoryValueId)
-                            ->value('name') ?? '—');
+                        if ($names === []) {
+                            return '—';
+                        }
 
-                        return $valueNameCache[$categoryValueId];
+                        $first = $names[0];
+                        $extra = count($names) - 1;
+
+                        return $extra > 0 ? $first.' +'.$extra : $first;
                     })
                     ->badge(),
                 TextColumn::make('variant_price')
@@ -252,8 +380,17 @@ class ProductsTable
                         }
                     )
                     ->placeholder('—'),
+                TextColumn::make('stock_status')
+                    ->label('Наявність')
+                    ->state(fn (Product $record): string => Product::stockStatusOptions()[$record->stockStatus()] ?? 'В наявності')
+                    ->badge()
+                    ->color(fn (Product $record): string => match ($record->stockStatus()) {
+                        Product::STOCK_PREORDER => 'warning',
+                        Product::STOCK_OUT_OF_STOCK => 'danger',
+                        default => 'success',
+                    }),
                 ToggleColumn::make('is_available')
-                    ->label('В наявності'),
+                    ->label('На вітрині'),
                 TextColumn::make('published_at')
                     ->label('Опубліковано')
                     ->dateTime()
@@ -303,6 +440,32 @@ class ProductsTable
                                     ->orWhereIn('category_parent_value_id', $ids);
                             });
                         }),
+                    SelectFilter::make('stock_status')
+                        ->label('Наявність')
+                        ->options(fn (): array => Product::stockStatusOptions())
+                        ->placeholder('Усі статуси')
+                        ->native(false)
+                        ->query(function (Builder $query, array $data): void {
+                            $value = (string) ($data['value'] ?? '');
+                            if ($value === '') {
+                                return;
+                            }
+                            if ($value === Product::STOCK_IN_STOCK) {
+                                $query->where(function (Builder $q): void {
+                                    $q->where('stock_status', Product::STOCK_IN_STOCK)
+                                        ->orWhereNull('stock_status');
+                                });
+
+                                return;
+                            }
+                            $query->where('stock_status', $value);
+                        }),
+                    TernaryFilter::make('is_available')
+                        ->label('На вітрині')
+                        ->placeholder('Усі')
+                        ->trueLabel('На вітрині')
+                        ->falseLabel('Знято з вітрини')
+                        ->native(false),
                 ],
                 layout: FiltersLayout::Hidden,
             )

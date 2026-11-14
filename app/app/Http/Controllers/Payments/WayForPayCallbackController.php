@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Payments;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Services\Payments\ApplyApprovedOrderPayment;
+use App\Services\Payments\ApplyUnsuccessfulOrderPayment;
 use App\Services\Payments\WayForPayClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -62,16 +63,12 @@ class WayForPayCallbackController extends Controller
         $amount = isset($data['amount']) ? (float) $data['amount'] : null;
 
         if (strcasecmp($txStatus, 'Approved') !== 0) {
-            $order->payment_last_callback_at = now();
-            if (in_array(strtolower($txStatus), ['declined', 'expired', 'refunded', 'voided'], true)) {
-                $order->payment_status = 'failed';
-            }
-            $order->save();
+            app(ApplyUnsuccessfulOrderPayment::class)->apply($order, $txStatus);
 
             return response()->json($wfp->serviceResponseAccept($orderReference));
         }
 
-        app(ApplyApprovedOrderPayment::class)->apply($order, $paymentLeg, $amount);
+        app(ApplyApprovedOrderPayment::class)->apply($order, $paymentLeg, $amount, (string) ($data['currency'] ?? ''));
 
         return response()->json($wfp->serviceResponseAccept($orderReference));
     }

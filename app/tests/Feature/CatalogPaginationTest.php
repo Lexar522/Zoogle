@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\OptionGroup;
 use App\Models\OptionValue;
 use App\Models\Product;
+use App\Models\ShopCatalogPaginationSetting;
+use App\Support\CatalogPageWindow;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -12,9 +14,86 @@ class CatalogPaginationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_catalog_page_two_shows_different_products(): void
+    public function test_page_window_keeps_at_least_five_numbers_around_the_current_page(): void
+    {
+        $this->assertSame(['start' => 1, 'end' => 5], CatalogPageWindow::range(1, 6, 5));
+        $this->assertSame(['start' => 2, 'end' => 6], CatalogPageWindow::range(6, 6, 5));
+        $this->assertSame(['start' => 1, 'end' => 3], CatalogPageWindow::range(2, 3, 5));
+        $this->assertSame(['start' => 1, 'end' => 7], CatalogPageWindow::range(1, 10, 7));
+    }
+
+    public function test_catalog_shows_five_page_numbers_last_arrow_and_show_all(): void
     {
         $root = $this->catalogRoot();
+        $this->seedProducts($root, 72);
+
+        $response = $this->get(route('catalog.index', [
+            'category' => $root->id,
+            'per_page' => 12,
+        ]));
+
+        $response->assertOk();
+        $html = $response->getContent();
+
+        foreach ([1, 2, 3, 4, 5] as $page) {
+            if ($page === 1) {
+                $this->assertStringContainsString('aria-current="page"', $html);
+                continue;
+            }
+            $this->assertStringContainsString('data-catalog-page="'.$page.'"', $html);
+        }
+        $this->assertStringContainsString('data-catalog-page="6"', $html);
+        $this->assertStringContainsString('shop-pagination__last', $html);
+        $this->assertStringContainsString('aria-label="Остання сторінка"', $html);
+        $this->assertStringContainsString('page=6', $html);
+        $this->assertStringContainsString('Показати всі', $html);
+
+        $all = $this->get(route('catalog.index', [
+            'category' => $root->id,
+            'per_page' => 12,
+            'all' => 1,
+        ]));
+        $all->assertOk();
+        $allHtml = $all->getContent();
+        $this->assertStringContainsString('PagItem 01', $allHtml);
+        $this->assertStringContainsString('PagItem 72', $allHtml);
+        $this->assertStringContainsString('По сторінках', $allHtml);
+        $this->assertStringNotContainsString('data-catalog-page="2"', $allHtml);
+    }
+
+    public function test_admin_settings_change_page_size_and_can_hide_controls(): void
+    {
+        $root = $this->catalogRoot();
+        $this->seedProducts($root, 40);
+
+        ShopCatalogPaginationSetting::query()->create([
+            'visible_pages' => 5,
+            'show_last_arrow' => false,
+            'show_all_enabled' => false,
+            'per_page' => 16,
+            'show_all_limit' => 1000,
+        ]);
+        ShopCatalogPaginationSetting::forgetResolvedCache();
+
+        $response = $this->get(route('catalog.index', [
+            'category' => $root->id,
+        ]));
+        $response->assertOk();
+        $response->assertViewHas('listings', fn ($listings) => $listings->perPage() === 16);
+        $html = $response->getContent();
+        $this->assertStringNotContainsString('Остання сторінка', $html);
+        $this->assertStringNotContainsString('Показати всі', $html);
+
+        $ignored = $this->get(route('catalog.index', [
+            'category' => $root->id,
+            'all' => 1,
+        ]));
+        $ignored->assertOk();
+        $ignored->assertViewHas('listings', fn ($listings) => $listings->perPage() === 16 && $listings->count() === 16);
+    }
+
+    private function seedProducts(OptionValue $root, int $count): void
+    {
         $variantOptions = [
             [
                 'option_group_id' => $root->option_group_id,
@@ -22,152 +101,21 @@ class CatalogPaginationTest extends TestCase
             ],
         ];
 
-        foreach (range(1, 15) as $i) {
+        for ($i = 1; $i <= $count; $i++) {
+            $published = now()->subMinutes($count - $i);
             Product::query()->create([
-                'title' => 'PagProduct '.str_pad((string) $i, 2, '0', STR_PAD_LEFT),
-                'slug' => 'pag-product-'.$i,
+                'title' => sprintf('PagItem %02d', $i),
+                'slug' => 'pag-item-'.$i,
                 'product_type' => OptionGroup::CATALOG_PRODUCT_TYPE,
                 'category_parent_value_id' => $root->id,
                 'category_value_id' => null,
                 'price' => 100 + $i,
                 'is_available' => true,
-                'short_description' => (string) $i,
+                'short_description' => 'P',
+                'published_at' => $published,
                 'variant_options' => $variantOptions,
             ]);
         }
-
-        $page1 = $this->get(route('catalog.index', [
-            'category' => $root->id,
-            'per_page' => 12,
-        ]));
-        $page1->assertOk();
-        $page1->assertSee('PagProduct 01', false);
-        $page1->assertSee('data-catalog-load-more', false);
-
-        $page2 = $this->get(route('catalog.index', [
-            'category' => $root->id,
-            'per_page' => 12,
-            'page' => 2,
-        ]));
-        $page2->assertOk();
-        $page2->assertSee('PagProduct 13', false);
-        $page2->assertDontSee('PagProduct 01', false);
-    }
-
-    public function test_catalog_fragment_returns_partial_with_pagination_links(): void
-    {
-        $root = $this->catalogRoot();
-        $variantOptions = [
-            [
-                'option_group_id' => $root->option_group_id,
-                'option_value_ids' => [$root->id],
-            ],
-        ];
-
-        foreach (range(1, 15) as $i) {
-            Product::query()->create([
-                'title' => 'FragProduct '.$i,
-                'slug' => 'frag-product-'.$i,
-                'product_type' => OptionGroup::CATALOG_PRODUCT_TYPE,
-                'category_parent_value_id' => $root->id,
-                'category_value_id' => null,
-                'price' => 50,
-                'is_available' => true,
-                'short_description' => (string) $i,
-                'variant_options' => $variantOptions,
-            ]);
-        }
-
-        $response = $this->get(route('catalog.index', [
-            'category' => $root->id,
-            'per_page' => 12,
-        ]), [
-            'X-Catalog-Fragment' => '1',
-        ]);
-
-        $response->assertOk();
-        $html = $response->getContent();
-        $this->assertStringContainsString('data-catalog-product-grid', $html);
-        $this->assertStringContainsString('catalog-listing-footer', $html);
-        $this->assertStringContainsString('shop-pagination', $html);
-        $this->assertStringContainsString('page=2', $html);
-        $this->assertStringNotContainsString('<!DOCTYPE', $html);
-    }
-
-    public function test_single_product_still_shows_pagination_bar(): void
-    {
-        $root = $this->catalogRoot();
-        $variantOptions = [
-            [
-                'option_group_id' => $root->option_group_id,
-                'option_value_ids' => [$root->id],
-            ],
-        ];
-
-        Product::query()->create([
-            'title' => 'SoloProduct',
-            'slug' => 'solo-product',
-            'product_type' => OptionGroup::CATALOG_PRODUCT_TYPE,
-            'category_parent_value_id' => $root->id,
-            'category_value_id' => null,
-            'price' => 100,
-            'is_available' => true,
-            'short_description' => 'solo',
-            'variant_options' => $variantOptions,
-        ]);
-
-        $response = $this->get(route('catalog.index', ['category' => $root->id]));
-        $response->assertOk();
-        $html = $response->getContent();
-        $this->assertStringContainsString('catalog-listing-footer', $html);
-        $this->assertStringContainsString('shop-pagination', $html);
-        $this->assertStringContainsString('aria-current="page">1<', $html);
-        $this->assertStringNotContainsString('data-catalog-load-more', $html);
-    }
-
-    public function test_progressive_pagination_shows_only_pages_up_to_current_plus_one(): void
-    {
-        $root = $this->catalogRoot();
-        $variantOptions = [
-            [
-                'option_group_id' => $root->option_group_id,
-                'option_value_ids' => [$root->id],
-            ],
-        ];
-
-        foreach (range(1, 60) as $i) {
-            Product::query()->create([
-                'title' => 'ProgProduct '.$i,
-                'slug' => 'prog-product-'.$i,
-                'product_type' => OptionGroup::CATALOG_PRODUCT_TYPE,
-                'category_parent_value_id' => $root->id,
-                'category_value_id' => null,
-                'price' => 10,
-                'is_available' => true,
-                'short_description' => (string) $i,
-                'variant_options' => $variantOptions,
-            ]);
-        }
-
-        $page1 = $this->get(route('catalog.index', [
-            'category' => $root->id,
-            'per_page' => 12,
-        ]));
-        $page1->assertOk();
-        $html1 = $page1->getContent();
-        $this->assertMatchesRegularExpression('/shop-pagination__link[^>]+page=2/', $html1);
-        $this->assertDoesNotMatchRegularExpression('/shop-pagination__link[^>]+page=5/', $html1);
-
-        $page4 = $this->get(route('catalog.index', [
-            'category' => $root->id,
-            'per_page' => 12,
-            'page' => 4,
-        ]));
-        $page4->assertOk();
-        $html4 = $page4->getContent();
-        $this->assertMatchesRegularExpression('/shop-pagination__link[^>]+page=5/', $html4);
-        $this->assertDoesNotMatchRegularExpression('/shop-pagination__link[^>]+page=6/', $html4);
-        $this->assertStringContainsString('aria-current="page">4<', $html4);
     }
 
     private function catalogRoot(): OptionValue

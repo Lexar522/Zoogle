@@ -12,7 +12,7 @@
             <div class="site-header__zone site-header__zone--left">
                 @if (! empty($hasShopHeaderContacts))
                     <div class="site-header__contacts-google">
-                        @include('partials.shop-header-contacts')
+                        @include('partials.shop-header-contacts', ['contactIconsColored' => true])
                     </div>
                 @endif
             </div>
@@ -23,15 +23,15 @@
                         src="{{ asset('images/zoogle-logo-new.png') }}"
                         alt=""
                         class="site-logo__img"
-                        width="1277"
-                        height="320"
+                        width="1484"
+                        height="551"
                         sizes="(max-width: 640px) min(70vw, 506px), (max-width: 900px) 420px, 506px"
                         decoding="async"
                         fetchpriority="high"
                     >
                     <span class="visually-hidden">ZOOGLE</span>
                 </a>
-                <form method="GET" action="{{ route('catalog.index') }}" class="site-header__search site-header__search--center catalog-search__form">
+                <form method="GET" action="{{ route('catalog.index') }}" class="site-header__search site-header__search--center catalog-search__form" data-search-suggest="{{ route('catalog.suggest') }}" data-search-go="{{ __('shop.search_suggest_go') }}">
                     @if (request()->filled('category'))
                         <input type="hidden" name="category" value="{{ request('category') }}">
                     @endif
@@ -44,16 +44,19 @@
                     @if (request()->routeIs('catalog.index') && request()->filled('per_page'))
                         <input type="hidden" name="per_page" value="{{ request('per_page') }}">
                     @endif
+                    @if (request()->routeIs('catalog.index') && request()->boolean('all') && \App\Models\ShopCatalogPaginationSetting::showAllEnabled())
+                        <input type="hidden" name="all" value="1">
+                    @endif
                     <div class="searchbar">
                         <div class="searchbar-wrapper">
                             <div class="searchbar-left">
-                                <div class="search-icon-wrapper">
+                                <button type="submit" class="search-icon-wrapper site-header__search-icon-btn" aria-label="{{ __('shop.search_submit_aria') }}">
                                     <span class="search-icon searchbar-icon" aria-hidden="true">
                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" focusable="false">
                                             <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"></path>
                                         </svg>
                                     </span>
-                                </div>
+                                </button>
                             </div>
 
                             <div class="searchbar-center">
@@ -61,7 +64,7 @@
                                 <input
                                     type="search"
                                     class="searchbar-input"
-                                    maxlength="2048"
+                                    maxlength="80"
                                     name="q"
                                     id="q"
                                     value="{{ request('q', '') }}"
@@ -69,6 +72,11 @@
                                     autocomplete="off"
                                     placeholder="{{ __('shop.search_placeholder') }}"
                                     aria-label="{{ __('shop.search_aria') }}"
+                                    role="combobox"
+                                    aria-autocomplete="list"
+                                    aria-expanded="false"
+                                    aria-controls="site-search-suggest"
+                                    aria-haspopup="listbox"
                                 >
                             </div>
 
@@ -84,11 +92,12 @@
                             </div>
                         </div>
                     </div>
+                    <div id="site-search-suggest" class="site-search-suggest" role="listbox" aria-label="{{ __('shop.search_suggest_aria') }}" hidden></div>
                 </form>
             </div>
 
             <div class="site-header__zone site-header__zone--right site-header__top-actions">
-                @include('partials.language-switcher', ['langSwitcherSuffix' => ''])
+                <div class="site-header__top-actions-row">
                 @auth
                     @php
                         $headerUser = Auth::user();
@@ -124,10 +133,12 @@
                             <span class="site-header__user-name">{{ $headerUser->name }}</span>
                         </span>
                     </a>
+                @elseif (app(\App\Support\GuestOrderAccess::class)->hasOrders())
+                    <a href="{{ route('account.orders.index') }}" class="site-header__account" aria-label="{{ __('shop.account_nav_orders') }}">@include('partials.shop-header-account-icon')</a>
                 @elseif (Route::has('login'))
-                    <a href="{{ route('login') }}" class="site-header__account" aria-label="{{ __('shop.account_google') }}">👤</a>
+                    <a href="{{ route('login') }}" class="site-header__account" aria-label="{{ __('shop.account_google') }}">@include('partials.shop-header-account-icon')</a>
                 @else
-                    <button type="button" class="site-header__account" aria-label="{{ __('shop.account_generic') }}">👤</button>
+                    <button type="button" class="site-header__account" aria-label="{{ __('shop.account_generic') }}">@include('partials.shop-header-account-icon')</button>
                 @endif
                 <button
                     type="button"
@@ -154,6 +165,8 @@
                         <span class="cart-pill__count-num" data-cart-badge>{{ $cartItemsCount }}</span>
                     </span>
                 </button>
+                </div>
+                @include('partials.shop-header-care-btn')
             </div>
         </div>
     </div>

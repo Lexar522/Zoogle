@@ -5,7 +5,6 @@ namespace App\Filament\Admin\Concerns;
 use App\Models\OptionGroup;
 use App\Models\OptionValue;
 use App\Models\Product;
-use App\Models\ProductCareArticle;
 use App\Support\RichTextSanitizer;
 use Filament\Forms\Components\RichEditor\RichContentRenderer;
 use Illuminate\Support\Str;
@@ -41,7 +40,7 @@ trait HandlesListingVariantOptions
         return array_values(array_map(function (array $row): array {
             $gid = (int) ($row['option_group_id'] ?? 0);
             if ($gid > 0) {
-                $vt = OptionGroup::query()->whereKey($gid)->value('value_type');
+                $vt = OptionGroup::cached($gid)?->value_type;
                 $row['option_value_type'] = in_array($vt, ['text', 'color'], true) ? $vt : 'text';
             } else {
                 $row['option_value_type'] = $row['option_value_type'] ?? 'text';
@@ -74,6 +73,11 @@ trait HandlesListingVariantOptions
 
             $row['value_prices'] = $this->valuePricesMapToRepeater($row['value_prices'] ?? []);
 
+            $defaultId = (int) ($row['default_option_value_id'] ?? 0);
+            $row['default_option_value_id'] = ($defaultId > 0 && in_array($defaultId, $row['option_value_ids'], true))
+                ? $defaultId
+                : null;
+
             return $row;
         }, $rows));
     }
@@ -90,15 +94,6 @@ trait HandlesListingVariantOptions
 
         if (array_key_exists('short_description', $data)) {
             $data['short_description'] = $this->normalizeRichEditorValueForDatabase($data['short_description']);
-        }
-
-        if (array_key_exists('careArticles', $data) && is_array($data['careArticles'])) {
-            foreach ($data['careArticles'] as $key => $row) {
-                if (is_array($row) && array_key_exists('body', $row)) {
-                    $row['body'] = ProductCareArticle::normalizeRichEditorValueForStorage($row['body']);
-                    $data['careArticles'][$key] = $row;
-                }
-            }
         }
 
         return $data;
@@ -149,20 +144,6 @@ trait HandlesListingVariantOptions
             }
         }
 
-        if (array_key_exists('careArticles', $data) && is_array($data['careArticles'])) {
-            foreach ($data['careArticles'] as $key => $row) {
-                if (! is_array($row) || ! array_key_exists('body', $row) || $row['body'] === null) {
-                    continue;
-                }
-
-                $raw = $row['body'];
-                if (is_scalar($raw) || $raw instanceof \Stringable) {
-                    $row['body'] = RichTextSanitizer::coerceForFilamentRichEditor((string) $raw);
-                    $data['careArticles'][$key] = $row;
-                }
-            }
-        }
-
         return $data;
     }
 
@@ -186,6 +167,12 @@ trait HandlesListingVariantOptions
             $groupId = (int) ($row['option_group_id'] ?? 0);
 
             if ($groupId <= 0) {
+                if ($this->variantOptionsRowHasDataWithoutGroup($row)) {
+                    throw ValidationException::withMessages([
+                        'variant_options' => 'У рядку «Групи опцій» оберіть «Група опцій» зі списку (розгорніть рядок, якщо він згорнутий). Без групи відмічені значення не збережуться.',
+                    ]);
+                }
+
                 continue;
             }
 
@@ -296,7 +283,7 @@ trait HandlesListingVariantOptions
 
             if ($group->slug !== 'category' && $selectedValueIds === []) {
                 throw ValidationException::withMessages([
-                    'variant_options' => 'У кожній доданій опції товару має бути вибране хоча б одне значення.',
+                    'variant_options' => 'У кожній доданій опції товару відмітьте хоча б одне значення (галочки) або додайте нове в блоці «Додати нові значення».',
                 ]);
             }
 
@@ -311,11 +298,17 @@ trait HandlesListingVariantOptions
                 $valuePrices[$k] = $v;
             }
 
+            $defaultOptionValueId = (int) ($row['default_option_value_id'] ?? 0);
+            if ($defaultOptionValueId > 0 && ! in_array($defaultOptionValueId, $selectedValueIds, true)) {
+                $defaultOptionValueId = 0;
+            }
+
             $normalized[] = [
                 'option_group_id' => $groupId,
                 'option_value_ids' => $selectedValueIds,
                 'value_photos' => $this->normalizeValuePhotosBySelectedIds($row['value_photos'] ?? [], $selectedValueIds),
                 'value_prices' => $valuePrices === [] ? [] : $valuePrices,
+                'default_option_value_id' => $defaultOptionValueId > 0 ? $defaultOptionValueId : null,
             ];
         }
 
@@ -413,6 +406,7 @@ trait HandlesListingVariantOptions
                 'option_value_ids' => $categoryMergedIds,
                 'value_photos' => [],
                 'value_prices' => [],
+                'default_option_value_id' => null,
             ];
         }
 
@@ -430,6 +424,7 @@ trait HandlesListingVariantOptions
                 'option_value_ids' => $mergedValueIds,
                 'value_photos' => $this->mergeValuePhotoRows($rows, $gid, $mergedValueIds),
                 'value_prices' => $this->mergeValuePriceRows($rows, $gid, $mergedValueIds),
+                'default_option_value_id' => $this->mergeDefaultOptionValueId($rows, $gid, $mergedValueIds),
             ];
         }
 
@@ -506,10 +501,35 @@ trait HandlesListingVariantOptions
                 'option_value_ids' => $mergedIds,
                 'value_photos' => $this->mergeValuePhotoRows($rows, $gid, $mergedIds),
                 'value_prices' => $this->mergeValuePriceRows($rows, $gid, $mergedIds),
+                'default_option_value_id' => $this->mergeDefaultOptionValueId($rows, $gid, $mergedIds),
             ];
         }
 
         return $out;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     * @param  list<int>  $allowedIds
+     */
+    protected function mergeDefaultOptionValueId(array $rows, int $groupId, array $allowedIds): ?int
+    {
+        if ($groupId <= 0 || $allowedIds === []) {
+            return null;
+        }
+
+        $allowed = array_flip(array_map('intval', $allowedIds));
+        foreach ($rows as $row) {
+            if ((int) ($row['option_group_id'] ?? 0) !== $groupId) {
+                continue;
+            }
+            $id = (int) ($row['default_option_value_id'] ?? 0);
+            if ($id > 0 && isset($allowed[$id])) {
+                return $id;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -529,11 +549,7 @@ trait HandlesListingVariantOptions
             if ($valueId <= 0 || ! isset($allowed[$valueId])) {
                 continue;
             }
-            $photos = collect($row['photos'] ?? [])
-                ->map(fn ($path) => is_string($path) ? trim($path) : '')
-                ->filter(fn (string $path): bool => $path !== '')
-                ->values()
-                ->all();
+            $photos = \App\Support\StoragePublicPath::normalizeList($row['photos'] ?? []);
             if ($photos === []) {
                 continue;
             }
@@ -700,5 +716,50 @@ trait HandlesListingVariantOptions
         }
 
         return $out;
+    }
+
+    /**
+     * Рядок repeater з відмітками/новими значеннями, але без обраної групи — тихо губився при save.
+     *
+     * @param  array<string, mixed>  $row
+     */
+    protected function variantOptionsRowHasDataWithoutGroup(array $row): bool
+    {
+        $hasValueIds = collect($row['option_value_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->contains(fn (int $id): bool => $id > 0);
+
+        if ($hasValueIds) {
+            return true;
+        }
+
+        foreach ($row['new_values'] ?? [] as $newValue) {
+            if (! is_array($newValue)) {
+                continue;
+            }
+            if (trim((string) ($newValue['name'] ?? '')) !== '') {
+                return true;
+            }
+        }
+
+        foreach ($row['value_prices'] ?? [] as $priceRow) {
+            if (! is_array($priceRow)) {
+                continue;
+            }
+            if ((int) ($priceRow['option_value_id'] ?? 0) > 0) {
+                return true;
+            }
+        }
+
+        foreach ($row['value_photos'] ?? [] as $photoRow) {
+            if (! is_array($photoRow)) {
+                continue;
+            }
+            if ((int) ($photoRow['option_value_id'] ?? 0) > 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

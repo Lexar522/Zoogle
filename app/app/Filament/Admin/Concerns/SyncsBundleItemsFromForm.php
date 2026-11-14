@@ -28,6 +28,7 @@ trait SyncsBundleItemsFromForm
             BundleItem::query()->create([
                 'bundle_id' => $bundle->id,
                 'product_id' => $productId,
+                'option_value_ids' => is_array($row['option_value_ids'] ?? null) ? array_values($row['option_value_ids']) : [],
                 'qty' => max(1, (int) ($row['qty'] ?? 1)),
                 'sort_order' => (int) ($row['sort_order'] ?? $sort),
             ]);

@@ -5,7 +5,7 @@
             <div class="site-header__zone site-header__zone--left">
                 @if (! empty($hasShopHeaderContacts))
                     <div class="site-header__contacts-google">
-                        @include('partials.shop-header-contacts')
+                        @include('partials.shop-header-contacts', ['contactIconsColored' => true])
                     </div>
                 @endif
             </div>
@@ -16,8 +16,8 @@
                         src="{{ asset('images/zoogle-logo-new.png') }}"
                         alt=""
                         class="site-logo__img"
-                        width="1277"
-                        height="320"
+                        width="1484"
+                        height="551"
                         sizes="(max-width: 640px) min(70vw, 506px), (max-width: 900px) 420px, 506px"
                         decoding="async"
                         fetchpriority="low"
@@ -27,7 +27,8 @@
             </div>
 
             <div class="site-header__zone site-header__zone--right site-header__top-actions">
-                @include('partials.language-switcher', ['langSwitcherSuffix' => '-compact'])
+                <div class="site-header__top-actions-row">
+                @include('partials.shop-header-care-btn')
                 @auth
                     @php
                         $headerUser = Auth::user();
@@ -63,10 +64,12 @@
                             <span class="site-header__user-name">{{ $headerUser->name }}</span>
                         </span>
                     </a>
+                @elseif (app(\App\Support\GuestOrderAccess::class)->hasOrders())
+                    <a href="{{ route('account.orders.index') }}" class="site-header__account" aria-label="{{ __('shop.account_nav_orders') }}">@include('partials.shop-header-account-icon')</a>
                 @elseif (Route::has('login'))
-                    <a href="{{ route('login') }}" class="site-header__account" aria-label="{{ __('shop.account_google') }}">👤</a>
+                    <a href="{{ route('login') }}" class="site-header__account" aria-label="{{ __('shop.account_google') }}">@include('partials.shop-header-account-icon')</a>
                 @else
-                    <button type="button" class="site-header__account" aria-label="{{ __('shop.account_generic') }}">👤</button>
+                    <button type="button" class="site-header__account" aria-label="{{ __('shop.account_generic') }}">@include('partials.shop-header-account-icon')</button>
                 @endif
                 <button
                     type="button"
@@ -93,6 +96,7 @@
                         <span class="cart-pill__count-num" data-cart-badge>{{ $cartItemsCount }}</span>
                     </span>
                 </button>
+                </div>
             </div>
         </div>
     </div>

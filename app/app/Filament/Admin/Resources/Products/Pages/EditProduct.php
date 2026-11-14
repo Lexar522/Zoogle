@@ -4,6 +4,8 @@ namespace App\Filament\Admin\Resources\Products\Pages;
 
 use App\Filament\Admin\Concerns\HandlesListingVariantOptions;
 use App\Filament\Admin\Concerns\ProtectsListingPhotosOnSave;
+use App\Filament\Admin\Concerns\SyncsProductCatalogCategories;
+use App\Filament\Admin\Concerns\SyncsProductRecommendations;
 use App\Filament\Admin\Resources\Products\ProductResource;
 use App\Models\OptionGroup;
 use App\Models\OptionValue;
@@ -19,6 +21,8 @@ class EditProduct extends EditRecord
 {
     use HandlesListingVariantOptions;
     use ProtectsListingPhotosOnSave;
+    use SyncsProductCatalogCategories;
+    use SyncsProductRecommendations;
 
     protected static string $resource = ProductResource::class;
 
@@ -33,6 +37,8 @@ class EditProduct extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        $data = $this->extractRecommendedItemsFromFormData($data);
+        $data = $this->extractAdditionalCategoriesFromFormData($data);
         $data = $this->normalizeProductRichTextFields($data);
 
         $categoryGroupId = OptionGroup::systemCategoryGroupIdForCatalog();
@@ -70,6 +76,15 @@ class EditProduct extends EditRecord
     {
         $data = $this->coerceProductRichTextFieldsForFill($data);
         $data = $this->sanitizeListingPhotosForForm($data);
+        $record = $this->getRecord();
+        $data = $this->fillRecommendedItemsFormData(
+            $data,
+            $record instanceof Product ? $record : null
+        );
+        $data = $this->fillAdditionalCategoriesFormData(
+            $data,
+            $record instanceof Product ? $record : null
+        );
 
         $categoryGroupId = OptionGroup::systemCategoryGroupIdForCatalog();
 
@@ -177,6 +192,8 @@ class EditProduct extends EditRecord
 
         if ($record instanceof Product) {
             $this->repairListingPhotosInDatabaseIfNeeded($record);
+            $this->syncPendingRecommendedItems($record);
+            $this->syncPendingAdditionalCategories($record);
         }
 
         return $record;

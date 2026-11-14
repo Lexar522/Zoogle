@@ -80,17 +80,34 @@ class OptionGroupForm
                     ->label('Режим вибору')
                     ->required()
                     ->default('single')
-                    ->disabled(fn (?OptionGroup $record): bool => $record?->slug === 'category')
+                    ->disabled(fn (?OptionGroup $record, Get $get): bool => $record?->slug === 'category'
+                        || (string) ($get('value_type') ?? $record?->value_type ?? 'text') === 'color')
+                    ->dehydrated(true)
                     ->options([
                         'single' => 'Тільки один варіант',
                         'multiple' => 'Можна обрати кілька',
-                    ]),
+                    ])
+                    ->helperText(fn (Get $get): ?string => (string) ($get('value_type') ?? '') === 'color'
+                        ? 'Для кольору завжди один варіант — на вітрині можна обрати лише один колір.'
+                        : null)
+                    ->dehydrateStateUsing(function (mixed $state, Get $get): string {
+                        if ((string) ($get('value_type') ?? '') === 'color') {
+                            return 'single';
+                        }
+
+                        return in_array($state, ['single', 'multiple'], true) ? (string) $state : 'single';
+                    }),
                 Select::make('value_type')
                     ->label('Формат значення')
                     ->required()
-                    ->placeholder('Спочатку оберіть формат значення')
+                    ->default('text')
                     ->live()
                     ->disabled(fn (?OptionGroup $record): bool => $record?->slug === 'category')
+                    ->afterStateUpdated(function (?string $state, callable $set): void {
+                        if ($state === 'color') {
+                            $set('selection_mode', 'single');
+                        }
+                    })
                     ->helperText(function (?OptionGroup $record): ?string {
                         if ($record?->slug === 'category') {
                             return null;
@@ -125,8 +142,8 @@ class OptionGroupForm
                     ->addActionLabel('Додати до наповнення опції (значення)')
                     ->addable(fn (Get $get): bool => filled($get('value_type')))
                     ->helperText(fn (Get $get): ?string => blank($get('value_type'))
-                        ? 'Спочатку оберіть формат значення, після цього зʼявиться кнопка додавання.'
-                        : null)
+                        ? 'Оберіть «Формат значення» вище (текст або колір) — тоді зʼявиться кнопка «Додати до наповнення опції».'
+                        : 'Додайте значення (розміри, кольори тощо). Після збереження групи вони зʼявляться при редагуванні товарів.')
                     ->collapsible()
                     ->itemLabel(fn (array $state): ?string => $state['name'] ?? null)
                     ->schema([

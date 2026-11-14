@@ -19,7 +19,7 @@ class OptionValueResource extends Resource
 {
     protected static ?string $model = OptionValue::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedListBullet;
 
     protected static ?string $navigationLabel = 'Значення опцій';
 

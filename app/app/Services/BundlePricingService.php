@@ -6,6 +6,7 @@ use App\Models\Bundle;
 use App\Models\BundleItem;
 use App\Models\ProductVariant;
 use App\Models\PromotionTarget;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -15,12 +16,13 @@ class BundlePricingService
     public function __construct(
         private readonly VariantPricingService $variantPricing,
         private readonly ListingOptionSelectionService $listingOptionSelection,
+        private readonly BundleShowPageService $bundleShowPage,
     ) {}
 
     /**
      * @return array{subtotal: float, discount: float, total: float}
      */
-    public function quote(Bundle $bundle, ?Carbon $at = null): array
+    public function quote(Bundle $bundle, ?Carbon $at = null, array $optionValueIds = []): array
     {
         $at ??= now();
         $bundle->loadMissing(['items.product.variants']);
@@ -30,6 +32,7 @@ class BundlePricingService
             $subtotal += $this->lineSubtotal($item, $at);
         }
 
+        $subtotal += $this->bundleShowPage->priceAddonForSelection($bundle, $optionValueIds);
         $subtotal = round($subtotal, 2);
         $targets = $this->loadBundlePromotionTargets((int) $bundle->id, $at);
         $priced = $this->variantPricing->quotePromotionTargetsOnAmount($subtotal, $targets, $at);
@@ -40,6 +43,54 @@ class BundlePricingService
             'discount' => max(0, $discount),
             'total' => $priced->effectivePrice,
         ];
+    }
+
+    /**
+     * Ціни багатьох комплектів: акції товарів, варіантів і самих комплектів беруться трьома запитами
+     * замість окремого запиту на кожну позицію.
+     *
+     * @param  iterable<int, Bundle>  $bundles
+     * @return array<int, array{subtotal: float, discount: float, total: float}>  за id комплекту
+     */
+    public function quoteMany(iterable $bundles, ?Carbon $at = null): array
+    {
+        $at ??= now();
+        $bundles = EloquentCollection::make($bundles)->filter(fn ($bundle): bool => $bundle instanceof Bundle)->values();
+        if ($bundles->isEmpty()) {
+            return [];
+        }
+
+        $bundles->loadMissing(['items.product.variants']);
+
+        $productIds = [];
+        $variantIds = [];
+        foreach ($bundles as $bundle) {
+            foreach ($bundle->items as $item) {
+                $product = $item->product;
+                if (! $product || ! $product->is_available) {
+                    continue;
+                }
+
+                $optionValueIds = is_array($item->option_value_ids ?? null) ? $item->option_value_ids : [];
+                $variant = $this->listingOptionSelection->resolveVariantForLine($product, $optionValueIds);
+                if ($variant instanceof ProductVariant && $variant->isSellable()) {
+                    $variantIds[] = (int) $variant->id;
+                } else {
+                    $productIds[] = (int) $product->id;
+                }
+            }
+        }
+
+        $this->variantPricing->preloadTargets('product', $productIds, $at);
+        $this->variantPricing->preloadTargets('product_variant', $variantIds, $at);
+        $this->variantPricing->preloadTargets('bundle', $bundles->map(fn (Bundle $bundle): int => (int) $bundle->id)->all(), $at);
+
+        $out = [];
+        foreach ($bundles as $bundle) {
+            $out[(int) $bundle->id] = $this->quote($bundle, $at);
+        }
+
+        return $out;
     }
 
     /**
@@ -71,16 +122,15 @@ class BundlePricingService
         }
 
         $product->loadMissing(['variants']);
-        $variant = $this->listingOptionSelection->resolveVariantForLine($product, []);
+        $optionValueIds = is_array($item->option_value_ids ?? null) ? $item->option_value_ids : [];
+        $variant = $this->listingOptionSelection->resolveVariantForLine($product, $optionValueIds);
 
-        // Для комплектів у формі обирається лише товар, без конкретних option_value_ids.
-        // Тому використовуємо SKU лише коли він однозначно визначається порожнім вибором,
-        // інакше беремо базову ціну товару як у каталозі.
         if ($variant instanceof ProductVariant && $variant->isSellable()) {
             return $this->variantPricing->quoteProductVariant($variant, $at)->effectivePrice;
         }
 
-        return $this->variantPricing->quoteProduct($product, $at)->effectivePrice;
+        return $this->variantPricing->quoteProduct($product, $at)->effectivePrice
+            + $this->listingOptionSelection->priceAddonForSelection($product, $optionValueIds);
     }
 
     /**
@@ -88,18 +138,7 @@ class BundlePricingService
      */
     private function loadBundlePromotionTargets(int $bundleId, Carbon $at): Collection
     {
-        $moment = $at;
-
-        return PromotionTarget::query()
-            ->where('target_type', 'bundle')
-            ->where('target_id', $bundleId)
-            ->where(function ($q) use ($moment): void {
-                $q->whereNull('promotion_targets.ends_at')
-                    ->orWhere('promotion_targets.ends_at', '>=', $moment);
-            })
-            ->whereHas('promotion', fn ($q) => $q->activeAt($at))
-            ->with('promotion')
-            ->get();
+        return $this->variantPricing->targetsFor('bundle', [$bundleId], $at)->get($bundleId, collect());
     }
 
     /**

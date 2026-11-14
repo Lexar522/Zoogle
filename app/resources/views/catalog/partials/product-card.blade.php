@@ -8,14 +8,31 @@
         $photo = $listing->firstCatalogPhotoPath();
         $sellable = (bool) $listing->is_visible && (bool) $listing->is_active;
         $showUrl = route('bundles.show', $listing->slug);
+        $needsStorefrontOptions = ! app(\App\Services\BundleShowPageService::class)
+            ->selectionIsCompleteForBundle($listing, []);
     } else {
         $quote = ($listingQuotes ?? [])[$listing->id] ?? null;
-        $pay = $quote ? (float) $quote->effectivePrice : (float) ($listing->price ?? 0);
+        $optionAddon = \App\Support\ListingDefaultOptionPrice::addonTotalForProduct($listing);
+        $pay = ($quote ? (float) $quote->effectivePrice : (float) ($listing->price ?? 0)) + $optionAddon;
+        $pay = round($pay, 2);
         $onCardSale = $quote && $quote->isOnSale();
         $strike = $onCardSale && $quote->strikePrice !== null ? (float) $quote->strikePrice : null;
+        if ($strike !== null) {
+            $strike = round($strike + $optionAddon, 2);
+            if ($strike <= $pay) {
+                $strike = null;
+                $onCardSale = false;
+            }
+        }
         $photo = $listing->firstCatalogPhotoPath();
-        $sellable = (bool) $listing->is_available;
+        $sellable = (bool) $listing->is_available && $listing->isOrderable();
         $showUrl = route('catalog.show', $listing->slug);
+        $needsStorefrontOptions = app(\App\Services\ListingOptionSelectionService::class)
+            ->missingRequiredOptionGroupNames($listing, []) !== [];
+    }
+    $catalogReturnQuery = is_array($catalogReturnQuery ?? null) ? $catalogReturnQuery : [];
+    if ($catalogReturnQuery !== []) {
+        $showUrl .= (str_contains($showUrl, '?') ? '&' : '?').http_build_query($catalogReturnQuery);
     }
     $excerptPlain = '';
     if (! empty($listing->short_description)) {
@@ -31,9 +48,16 @@
     $cardMediaStart = '#99f6e4';
     $cardMediaEnd = '#14b8a6';
 
-    if (! $sellable) {
+    if (! $isBundle && $listing->allowsPreorder()) {
+        $cardState = 'preorder';
+        $cardBadge = __('shop.card_preorder');
+        $cardAccent = '#d97706';
+        $cardAccentSoft = 'rgba(217, 119, 6, 0.24)';
+        $cardMediaStart = '#fde68a';
+        $cardMediaEnd = '#f59e0b';
+    } elseif (! $sellable) {
         $cardState = 'unavailable';
-        $cardBadge = __('shop.card_none');
+        $cardBadge = __('shop.card_out_of_stock');
         $cardAccent = '#64748b';
         $cardAccentSoft = 'rgba(100, 116, 139, 0.24)';
         $cardMediaStart = '#cbd5e1';
@@ -59,6 +83,14 @@
         : (int) (isset($loop) ? $loop->index : 0);
     $homeCardBadge = filled($homeCardBadge ?? null) ? (string) $homeCardBadge : null;
     $homeCardBadgeClass = filled($homeCardBadgeClass ?? null) ? (string) $homeCardBadgeClass : 'default';
+    $galleryItem = (! $isBundle && method_exists($listing, 'firstCatalogGalleryItem'))
+        ? $listing->firstCatalogGalleryItem()
+        : null;
+    if (! $galleryItem && $photo) {
+        $galleryItem = \App\Support\ListingMedia::storefrontItemForPath($photo, []);
+    }
+    $cardMeta = \App\Support\CatalogCardMeta::forListing($listing);
+    $cardLikeCount = (int) ($listing->favorited_by_users_count ?? 0);
 @endphp
 <div class="product-card-shell">
 <article
@@ -80,31 +112,73 @@
     @elseif ($cardState !== 'default')
         <div class="product-card__badge product-card__badge--{{ $cardState }}">{{ $cardBadge }}</div>
     @endif
-    @if ($photo)
+    @if ($galleryItem)
         <div class="product-card__media">
-            <img
-                src="{{ asset('storage/' . ltrim($photo, '/')) }}"
-                alt=""
-                width="520"
-                height="460"
-                decoding="async"
-                @if ($eagerImage < 3)
-                    loading="eager" fetchpriority="{{ $eagerImage === 0 ? 'high' : 'low' }}"
-                @else
-                    loading="lazy"
-                @endif
-            >
+            @include('catalog.partials.product-gallery-media', [
+                'item' => $galleryItem,
+                'alt' => '',
+                'catalogCard' => true,
+                'deferSrc' => \App\Models\ShopMediaSetting::optimizeImagesEnabled() && $eagerImage >= 4,
+                'fetchpriority' => \App\Models\ShopMediaSetting::optimizeImagesEnabled() && $eagerImage === 0 ? 'high' : null,
+            ])
         </div>
     @else
         <div class="product-card__media product-card__media--empty" aria-hidden="true">{{ __('shop.card_no_photo') }}</div>
     @endif
+    @if (! $isBundle)
+        <div class="product-card__like-react">
+            <button
+                type="button"
+                class="product-card__favorite"
+                data-product-id="{{ $listing->id }}"
+                data-favorite-key="catalog"
+                aria-label="{{ __('shop.card_favorite_aria') }}"
+                aria-pressed="false"
+            >
+                <svg
+                    class="product-card__heart-icon"
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="22"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden="true"
+                >
+                    <path
+                        d="M19.4626 3.99415C16.7809 2.34923 14.4404 3.01211 13.0344 4.06801C12.4578 4.50096 12.1696 4.71743 12 4.71743C11.8304 4.71743 11.5422 4.50096 10.9656 4.06801C9.55962 3.01211 7.21909 2.34923 4.53744 3.99415C1.01807 6.15294 0.221721 13.2749 8.33953 19.2834C9.88572 20.4278 10.6588 21 12 21C13.3412 21 14.1143 20.4278 15.6605 19.2834C23.7783 13.2749 22.9819 6.15294 19.4626 3.99415Z"
+                        stroke="#707277"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        fill="none"
+                    />
+                </svg>
+            </button>
+            <span class="product-card__like-count" data-product-like-count @if ($cardLikeCount === 0) hidden @endif>{{ $cardLikeCount }}</span>
+        </div>
+    @endif
     <div class="product-card__body">
-        @if ($isBundle)
-            <p class="product-card__eyebrow">{{ __('shop.card_bundle_eyebrow') }}</p>
-        @endif
         <h3 class="product-card__title">
             <span class="product-card__title-text">{{ mt($listing->title) }}</span>
         </h3>
+        @if ($cardMeta !== null)
+            <div class="product-card__meta">
+                @foreach (array_slice($cardMeta['colors'], 0, 6) as $color)
+                    <button
+                        type="button"
+                        class="product-card__color-dot"
+                        style="--dot: {{ $color['hex'] }}"
+                        @if ($color['photo']) data-card-photo="{{ $color['photo'] }}" @endif
+                        title="{{ $color['name'] }}"
+                        aria-label="{{ $color['name'] }}"
+                    ></button>
+                @endforeach
+                @if ($cardMeta['colors'] !== [])
+                    <span class="product-card__colors-label">{{ trans_choice('shop.card_colors_count', count($cardMeta['colors'])) }}</span>
+                @elseif ($cardMeta['text'] !== null)
+                    <span class="product-card__meta-text">{{ $cardMeta['text'] }}</span>
+                @endif
+            </div>
+        @endif
         <div class="product-card__actions">
             @if ($excerptPlain !== '')
                 <p class="product-card__excerpt">{{ mt($excerptPlain) }}</p>
@@ -114,16 +188,32 @@
                     <div class="product-card__prices @if ($onCardSale) product-card__prices--on-sale @endif">
                         @if ($onCardSale)
                             <p class="product-card__price product-card__price--old">
-                                <span class="product-card__price-amount">{{ number_format((float) $strike, 2, ',', ' ') }}</span><span class="product-card__price-currency" aria-hidden="true">₴</span>
+                                <span class="product-card__price-amount">{{ \App\Support\ShopPrice::amount((float) $strike) }}</span><span class="product-card__price-currency" aria-hidden="true">₴</span>
                             </p>
                         @endif
                         <p class="product-card__price @if ($onCardSale) product-card__price--sale @endif">
-                            <span class="product-card__price-amount">{{ number_format((float) $pay, 2, ',', ' ') }}</span><span class="product-card__price-currency" aria-hidden="true">₴</span>
+                            <span class="product-card__price-amount">{{ \App\Support\ShopPrice::amount((float) $pay) }}</span><span class="product-card__price-currency" aria-hidden="true">₴</span>
                         </p>
                     </div>
                 </div>
                 <div class="product-card__action-buttons">
-                    @if ($isBundle)
+                    @if ($isBundle && ! empty($needsStorefrontOptions))
+                        <div class="product-card__cart-react">
+                            <a
+                                href="{{ $showUrl }}"
+                                class="product-card__cart-add"
+                                title="{{ __('shop.card_bundle_choose_options') }}"
+                                aria-label="{{ __('shop.card_bundle_choose_options') }}"
+                            >
+                                <svg class="product-card__cart-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <circle cx="9" cy="21" r="1"/>
+                                    <circle cx="20" cy="21" r="1"/>
+                                    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+                                </svg>
+                                <span class="product-card__cart-label">{{ __('shop.card_add_cart') }}</span>
+                            </a>
+                        </div>
+                    @elseif ($isBundle)
                         <div class="product-card__cart-react">
                             <form method="POST" action="{{ route('bundles.add-to-cart', $listing) }}" class="product-card__cart-form" data-cart-add-form>
                                 @csrf
@@ -139,68 +229,46 @@
                                         <circle cx="20" cy="21" r="1"/>
                                         <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
                                     </svg>
+                                    <span class="product-card__cart-label">{{ __('shop.card_add_cart') }}</span>
                                 </button>
                             </form>
                         </div>
-                        <a
-                            href="{{ $showUrl }}"
-                            class="product-card__btn product-card__btn--icon"
-                            title="{{ __('shop.card_open_bundle') }}"
-                            aria-label="{{ __('shop.card_open_bundle') }}"
-                        >
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                <path d="M5 12h14"/>
-                                <path d="m12 5 7 7-7 7"/>
-                            </svg>
-                        </a>
                     @else
                         <div class="product-card__cart-react">
-                            <form method="POST" action="{{ route('cart.store') }}" class="product-card__cart-form" data-cart-add-form>
-                                @csrf
-                                <input type="hidden" name="product_id" value="{{ $listing->id }}">
-                                <button
-                                    type="submit"
+                            @if (! empty($needsStorefrontOptions))
+                                <a
+                                    href="{{ $showUrl }}"
                                     class="product-card__cart-add"
-                                    @disabled(!$sellable)
-                                    title="{{ $sellable ? __('shop.card_add_cart') : __('shop.card_unavailable_order') }}"
-                                    aria-label="{{ $sellable ? __('shop.card_add_cart_aria') : __('shop.card_unavailable_order') }}"
+                                    title="{{ __('shop.pdp_select_options_hint') }}"
+                                    aria-label="{{ __('shop.pdp_select_options_hint') }}"
                                 >
                                     <svg class="product-card__cart-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                         <circle cx="9" cy="21" r="1"/>
                                         <circle cx="20" cy="21" r="1"/>
                                         <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
                                     </svg>
-                                </button>
-                            </form>
-                        </div>
-                        <div class="product-card__like-react">
-                            <button
-                                type="button"
-                                class="product-card__favorite"
-                                data-product-id="{{ $listing->id }}"
-                                data-favorite-key="catalog"
-                                aria-label="{{ __('shop.card_favorite_aria') }}"
-                                aria-pressed="false"
-                            >
-                                <svg
-                                    class="product-card__heart-icon"
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    width="22"
-                                    height="22"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    aria-hidden="true"
-                                >
-                                    <path
-                                        d="M19.4626 3.99415C16.7809 2.34923 14.4404 3.01211 13.0344 4.06801C12.4578 4.50096 12.1696 4.71743 12 4.71743C11.8304 4.71743 11.5422 4.50096 10.9656 4.06801C9.55962 3.01211 7.21909 2.34923 4.53744 3.99415C1.01807 6.15294 0.221721 13.2749 8.33953 19.2834C9.88572 20.4278 10.6588 21 12 21C13.3412 21 14.1143 20.4278 15.6605 19.2834C23.7783 13.2749 22.9819 6.15294 19.4626 3.99415Z"
-                                        stroke="#707277"
-                                        stroke-width="2"
-                                        stroke-linecap="round"
-                                        fill="#707277"
-                                    />
-                                </svg>
-                            </button>
-                            <span class="product-card__like-count" data-product-like-count>{{ (int) ($listing->favorited_by_users_count ?? 0) }}</span>
+                                    <span class="product-card__cart-label">{{ __('shop.card_add_cart') }}</span>
+                                </a>
+                            @else
+                                <form method="POST" action="{{ route('cart.store') }}" class="product-card__cart-form" data-cart-add-form>
+                                    @csrf
+                                    <input type="hidden" name="product_id" value="{{ $listing->id }}">
+                                    <button
+                                        type="submit"
+                                        class="product-card__cart-add"
+                                        @disabled(!$sellable)
+                                        title="{{ $sellable ? __('shop.card_add_cart') : __('shop.card_unavailable_order') }}"
+                                        aria-label="{{ $sellable ? __('shop.card_add_cart_aria') : __('shop.card_unavailable_order') }}"
+                                    >
+                                        <svg class="product-card__cart-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <circle cx="9" cy="21" r="1"/>
+                                            <circle cx="20" cy="21" r="1"/>
+                                            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+                                        </svg>
+                                        <span class="product-card__cart-label">{{ __('shop.card_add_cart') }}</span>
+                                    </button>
+                                </form>
+                            @endif
                         </div>
                     @endif
                 </div>

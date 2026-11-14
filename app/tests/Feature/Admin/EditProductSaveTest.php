@@ -50,7 +50,7 @@ class EditProductSaveTest extends TestCase
         $this->assertStringContainsString('Новий опис товару', (string) $product->description);
     }
 
-    public function test_edit_product_page_saves_care_article(): void
+    public function test_edit_product_page_has_no_care_articles_field(): void
     {
         $this->seed(RolesAndPermissionsSeeder::class);
 
@@ -60,44 +60,7 @@ class EditProductSaveTest extends TestCase
         $this->actingAs($admin);
 
         Livewire::test(EditProduct::class, ['record' => (string) $product->id])
-            ->set('data.careArticles', [
-                [
-                    'title' => 'Як доглядати',
-                    'slug' => 'yak-doglyadaty',
-                    'excerpt' => 'Коротка порада',
-                    'body' => [
-                        'type' => 'doc',
-                        'content' => [
-                            [
-                                'type' => 'paragraph',
-                                'content' => [
-                                    [
-                                        'type' => 'text',
-                                        'text' => 'Текст статті по догляду',
-                                    ],
-                                ],
-                            ],
-                        ],
-                    ],
-                    'sort_order' => 1,
-                    'is_published' => true,
-                    'published_at' => null,
-                ],
-            ])
-            ->call('save', false, false)
-            ->assertHasNoErrors();
-
-        $this->assertDatabaseHas('product_care_articles', [
-            'product_id' => $product->id,
-            'slug' => 'yak-doglyadaty',
-            'title' => 'Як доглядати',
-            'is_published' => true,
-        ]);
-
-        $this->assertStringContainsString(
-            'Текст статті по догляду',
-            (string) $product->careArticles()->first()?->body
-        );
+            ->assertFormFieldDoesNotExist('careArticles');
     }
 
     private function makeEditableProduct(): Product

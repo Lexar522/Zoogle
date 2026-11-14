@@ -276,7 +276,8 @@ return [
     'payload' => [
         // Filament-форми з repeater/редакторами можуть перевищувати 1MB на livewire/update.
         'max_size' => 10 * 1024 * 1024,
-        'max_nesting_depth' => 10,   // Maximum depth of dot-notation property paths
+        // data.categories.{root}.children×(MAX_DEPTH−1).{field} → 3 + 2×4 + 1 = 12 для 5 рівнів каталогу.
+        'max_nesting_depth' => 15,
         'max_calls' => 50,           // Maximum method calls per request
         'max_components' => 20,      // Maximum components per batch request
     ],

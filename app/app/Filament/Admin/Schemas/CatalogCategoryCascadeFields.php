@@ -35,6 +35,32 @@ final class CatalogCategoryCascadeFields
             fn (): int => $categoryGroupId,
             requireFirstLevel: true,
             appliesCategoryModeCheck: null,
+            firstLevelHelperText: 'Основна категорія (обов’язково). Визначає опції та правила замовлення. Нижчі рівні — за потреби.',
+        );
+    }
+
+    /**
+     * Каскад напрямку статті: Тварини → Гризуни → Кролик.
+     *
+     * @return list<Select>
+     */
+    public static function articleCategoryLevelFields(): array
+    {
+        if (! DbSchema::hasColumn('option_values', 'parent_id')) {
+            return [];
+        }
+
+        $categoryGroupId = OptionGroup::systemCategoryGroupIdForCatalog();
+        if ($categoryGroupId <= 0) {
+            return [];
+        }
+
+        return self::buildCascadeSelects(
+            'category_level_%d_id',
+            fn (): int => $categoryGroupId,
+            requireFirstLevel: true,
+            appliesCategoryModeCheck: null,
+            firstLevelHelperText: 'Напрямок статті в каталозі. Наприклад: Тварини → Гризуни → Кролик. Стаття з’явиться на товарах цієї категорії та вкладених.',
         );
     }
 
@@ -93,6 +119,7 @@ final class CatalogCategoryCascadeFields
         ?Closure $appliesCategoryModeCheck,
         ?Closure $visibleWhen = null,
         array $alsoClearStatePaths = [],
+        ?string $firstLevelHelperText = null,
     ): array {
         $out = [];
         for ($level = 1; $level <= CatalogCategoryTree::MAX_DEPTH; $level++) {
@@ -183,7 +210,7 @@ final class CatalogCategoryCascadeFields
                     return $requireFirstLevel;
                 })
                 ->helperText($level === 1
-                    ? 'Обов’язково. Нижчі рівні — за потреби, якщо є вкладені категорії.'
+                    ? ($firstLevelHelperText ?? 'Обов’язково. Нижчі рівні — за потреби, якщо є вкладені категорії.')
                     : 'Необов’язково, якщо достатньо батьківської категорії.');
         }
 

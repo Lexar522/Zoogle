@@ -7,7 +7,7 @@
 <article class="cart-drawer__line cart-drawer__line--checkout @if ($isBundle) cart-drawer__line--bundle @endif">
     <div class="cart-drawer__line-media">
         @if ($item['photo'])
-            <img src="{{ asset('storage/' . $item['photo']) }}" alt="{{ $title }}">
+            <img src="{{ \App\Support\ListingPhotoDerivative::cardUrlForPath($item['photo']) }}" alt="{{ $title }}" decoding="async">
         @else
             <div class="cart-drawer__line-media-empty">Немає фото</div>
         @endif
@@ -34,7 +34,11 @@
                     <div class="cart-drawer__bundle-list">
                         @foreach ($item['bundle_items'] as $bundleItem)
                             <span class="cart-drawer__bundle-item">
-                                {{ $bundleItem['title'] ?? 'Товар' }} × {{ (int) ($bundleItem['qty'] ?? 1) }}
+                                {{ $bundleItem['title'] ?? 'Товар' }}
+                                @if (! empty($bundleItem['option_labels'] ?? []))
+                                    ({{ implode(', ', $bundleItem['option_labels']) }})
+                                @endif
+                                × {{ (int) ($bundleItem['qty'] ?? 1) }}
                             </span>
                         @endforeach
                     </div>

@@ -2,11 +2,12 @@
 
 namespace App\Models;
 
-use App\Support\PublicStorageUrl;
+use App\Support\ListingPhotoDerivative;
+use App\Support\SchemaCache;
+use App\Support\StoragePublicPath;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Schema;
 
 class OrderItem extends Model
 {
@@ -15,6 +16,7 @@ class OrderItem extends Model
     protected $fillable = [
         'order_id',
         'product_id',
+        'variant_id',
         'bundle_id',
         'title_snapshot',
         'option_value_ids',
@@ -40,7 +42,7 @@ class OrderItem extends Model
 
     public function product(): BelongsTo
     {
-        $fk = Schema::hasColumn($this->getTable(), 'product_id')
+        $fk = SchemaCache::hasColumn($this->getTable(), 'product_id')
             ? 'product_id'
             : 'animal_listing_id';
 
@@ -50,6 +52,35 @@ class OrderItem extends Model
     public function bundle(): BelongsTo
     {
         return $this->belongsTo(Bundle::class, 'bundle_id');
+    }
+
+    public function variant(): BelongsTo
+    {
+        return $this->belongsTo(ProductVariant::class, 'variant_id');
+    }
+
+    /**
+     * Фото позиції для листа: знімок варіанта, інакше товар або комплект.
+     */
+    public function mailPhotoStoragePath(): ?string
+    {
+        if ((int) $this->bundle_id > 0) {
+            $bundle = $this->relationLoaded('bundle') ? $this->bundle : $this->bundle()->first();
+
+            return $bundle?->firstCatalogPhotoPath();
+        }
+
+        if ((int) $this->variant_id > 0) {
+            $variant = $this->relationLoaded('variant') ? $this->variant : $this->variant()->first();
+            $photos = StoragePublicPath::normalizeList($variant?->photos ?? null);
+            if ($photos !== []) {
+                return $photos[0];
+            }
+        }
+
+        $product = $this->relationLoaded('product') ? $this->product : $this->product()->first();
+
+        return $product?->firstCatalogPhotoPath();
     }
 
     /**
@@ -120,6 +151,18 @@ class OrderItem extends Model
             if ($title === '') {
                 continue;
             }
+
+            $optionLabels = is_array($row['option_labels'] ?? null)
+                ? array_values(array_filter(array_map(
+                    fn ($label): string => trim((string) $label),
+                    $row['option_labels']
+                )))
+                : [];
+
+            if ($optionLabels !== []) {
+                $title .= ' ('.implode(', ', $optionLabels).')';
+            }
+
             $lines[] = $title.' × '.$qty;
         }
 
@@ -154,7 +197,7 @@ class OrderItem extends Model
                 return null;
             }
 
-            return PublicStorageUrl::forPath($bundle->firstCatalogPhotoPath());
+            return ListingPhotoDerivative::cardUrlForPath($bundle->firstCatalogPhotoPath()) ?: null;
         }
 
         $product = $this->relationLoaded('product') ? $this->product : $this->product()->first();
@@ -162,6 +205,6 @@ class OrderItem extends Model
             return null;
         }
 
-        return PublicStorageUrl::forPath($product->firstCatalogPhotoPath());
+        return ListingPhotoDerivative::cardUrlForPath($product->firstCatalogPhotoPath()) ?: null;
     }
 }

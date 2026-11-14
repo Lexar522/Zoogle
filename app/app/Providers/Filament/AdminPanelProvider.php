@@ -2,19 +2,20 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Admin\Pages\Dashboard;
+use App\Filament\Admin\Resources\Orders\Widgets\OrdersSummaryWidget;
 use App\Filament\Admin\Resources\Products\Pages\ListProducts;
-use Filament\Http\Middleware\Authenticate;
+use App\Filament\Admin\Widgets\AdminHomeWidget;
+use App\Http\Middleware\AuthenticateAdminPanel;
+use App\Http\Middleware\SetNoReferrerPolicy;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
 use Filament\Tables\View\TablesRenderHook;
 use Filament\View\PanelsRenderHook;
-use Filament\Widgets\AccountWidget;
-use Filament\Widgets\FilamentInfoWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
@@ -43,6 +44,10 @@ class AdminPanelProvider extends PanelProvider
             )
             ->renderHook(
                 PanelsRenderHook::HEAD_END,
+                fn (): string => view('filament.hooks.apple-mobile-meta')->render()
+            )
+            ->renderHook(
+                PanelsRenderHook::HEAD_END,
                 fn (): string => view('filament.hooks.listing-photos-upload-layout')->render()
             )
             ->renderHook(
@@ -51,6 +56,38 @@ class AdminPanelProvider extends PanelProvider
                     $path = resource_path('css/filament/list-products-table-toolbar.css');
 
                     return is_file($path) ? '<style>'.file_get_contents($path).'</style>' : '';
+                }
+            )
+            ->renderHook(
+                PanelsRenderHook::HEAD_END,
+                function (): string {
+                    $path = resource_path('css/filament/order-items-table.css');
+
+                    return is_file($path) ? '<style>'.file_get_contents($path).'</style>' : '';
+                }
+            )
+            ->renderHook(
+                PanelsRenderHook::HEAD_END,
+                function (): string {
+                    $css = '';
+                    foreach (['apple', 'orders'] as $name) {
+                        $path = resource_path('css/filament/'.$name.'.css');
+                        $css .= is_file($path) ? (string) file_get_contents($path) : '';
+                    }
+
+                    return '<style>'.$css.'</style>';
+                }
+            )
+            ->renderHook(
+                PanelsRenderHook::HEAD_END,
+                function (): string {
+                    $path = resource_path('css/filament/rich-editor-reading.css');
+                    $css = is_file($path) ? (string) file_get_contents($path) : '';
+
+                    return '<link rel="preconnect" href="https://fonts.googleapis.com">'
+                        .'<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+                        .'<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet" media="print" onload="this.media=\'all\'">'
+                        .($css !== '' ? '<style>'.$css.'</style>' : '');
                 }
             )
             ->renderHook(
@@ -63,8 +100,10 @@ class AdminPanelProvider extends PanelProvider
                 fn (): string => view('filament.admin.resources.products.list-products-table-search-row-end')->render(),
                 scopes: ListProducts::class,
             )
+            ->spa()
+            ->navigationGroups(['Продажі', 'Каталог', 'Маркетинг', 'Довідники', 'Налаштування', 'Система'])
             ->colors([
-                'primary' => Color::Amber,
+                'primary' => Color::hex('#007aff'),
             ])
             ->discoverResources(in: app_path('Filament/Admin/Resources'), for: 'App\Filament\Admin\Resources')
             ->discoverPages(in: app_path('Filament/Admin/Pages'), for: 'App\Filament\Admin\Pages')
@@ -73,8 +112,8 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->discoverWidgets(in: app_path('Filament/Admin/Widgets'), for: 'App\Filament\Admin\Widgets')
             ->widgets([
-                AccountWidget::class,
-                FilamentInfoWidget::class,
+                AdminHomeWidget::class,
+                OrdersSummaryWidget::class,
             ])
             ->middleware([
                 EncryptCookies::class,
@@ -86,9 +125,10 @@ class AdminPanelProvider extends PanelProvider
                 SubstituteBindings::class,
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
+                SetNoReferrerPolicy::class,
             ])
             ->authMiddleware([
-                Authenticate::class,
+                AuthenticateAdminPanel::class,
             ]);
     }
 }

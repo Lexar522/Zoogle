@@ -1,0 +1,14 @@
+User-agent: *
+Disallow: /admin
+Disallow: /account
+Disallow: /checkout
+Disallow: /cart
+Disallow: /orders
+Disallow: /login
+Disallow: /auth/
+Disallow: /locale/
+Disallow: /preview/
+Allow: /catalog?category=
+Disallow: /catalog?
+
+Sitemap: https://zoogle.in.ua/sitemap.xml

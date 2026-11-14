@@ -3,19 +3,28 @@
 declare(strict_types=1);
 
 /**
- * Laravel Pail потребує розширення pcntl (CLI). Без нього `php artisan pail`
- * завершується з кодом 1 — і concurrently з --kill-others зупиняв увесь dev.
+ * Laravel Pail потребує пакет laravel/pail (require-dev) і розширення pcntl (CLI).
+ * Якщо чогось немає — читаємо storage/logs/laravel.log через tail -f, щоб
+ * concurrently не зупиняв увесь dev через помилку logs-процесу.
  */
 $root = dirname(__DIR__);
 chdir($root);
 
-if (function_exists('pcntl_fork')) {
+$log = $root.'/storage/logs/laravel.log';
+$pailInstalled = is_dir($root.'/vendor/laravel/pail');
+$pcntlAvailable = function_exists('pcntl_fork');
+
+if ($pailInstalled && $pcntlAvailable) {
     passthru('php artisan pail --timeout=0', $code);
     exit($code);
 }
 
-$log = $root.'/storage/logs/laravel.log';
-fwrite(STDERR, '[dev] Розширення php pcntl недоступне — Pail не запущено. Читаю '.$log." (tail -f).\n");
+if (! $pailInstalled) {
+    fwrite(STDERR, "[dev] laravel/pail не встановлено — запустіть composer install (dev-залежності).\n");
+    fwrite(STDERR, "[dev] Читаю {$log} (tail -f).\n");
+} else {
+    fwrite(STDERR, "[dev] Розширення php pcntl недоступне — Pail не запущено. Читаю {$log} (tail -f).\n");
+}
 
 if (! is_dir(dirname($log))) {
     mkdir(dirname($log), 0775, true);

@@ -71,6 +71,8 @@
     </div>
 </section>
 
+@include('orders.partials.updates', ['order' => $order, 'toneClass' => 'order-updates'])
+
 <section class="account-order-detail__panel" aria-labelledby="order-items-title">
     <div class="account-order-detail__items-head">
         <h2 id="order-items-title" class="account-order-detail__items-title">{{ __('shop.order_track_items_title') }}</h2>

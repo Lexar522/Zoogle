@@ -11,6 +11,9 @@ class ShopFooterBrand extends Model
         'phone',
         'site_title',
         'logo_path',
+        'faq_title_uk',
+        'faq_title_en',
+        'faq_title_ru',
     ];
 
     public static function record(): self
@@ -26,6 +29,9 @@ class ShopFooterBrand extends Model
             'phone' => null,
             'site_title' => null,
             'logo_path' => null,
+            'faq_title_uk' => null,
+            'faq_title_en' => null,
+            'faq_title_ru' => null,
         ]);
 
         return $created;

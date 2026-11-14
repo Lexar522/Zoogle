@@ -11,7 +11,7 @@ class EnsureAdminUser extends Command
 {
     protected $signature = 'shop:ensure-admin
                             {--email= : Admin email (за замовчуванням SHOP_ADMIN_EMAIL або admin@sitezoo.local)}
-                            {--password= : Пароль у відкритому вигляді; якщо не вказано — SHOP_ADMIN_PASSWORD або Admin0000}';
+                            {--password= : Пароль у відкритому вигляді; якщо не вказано — SHOP_ADMIN_PASSWORD}';
 
     protected $description = 'Create or update admin user, assign admin role, flush permission cache (recovery after DB issues)';
 
@@ -23,7 +23,19 @@ class EnsureAdminUser extends Command
         $passwordOpt = $this->option('password');
         $plain = $passwordOpt !== null && $passwordOpt !== ''
             ? (string) $passwordOpt
-            : (string) env('SHOP_ADMIN_PASSWORD', 'Admin0000');
+            : (string) env('SHOP_ADMIN_PASSWORD', '');
+
+        if ($plain === '') {
+            $this->error('Вкажіть пароль: --password=... або SHOP_ADMIN_PASSWORD у .env.');
+
+            return self::FAILURE;
+        }
+
+        if ($plain === 'Admin0000' && ! app()->isLocal()) {
+            $this->error('Стандартний пароль Admin0000 заборонений поза локальним середовищем.');
+
+            return self::FAILURE;
+        }
 
         $adminRole = Role::firstOrCreate(['name' => 'admin']);
         Role::firstOrCreate(['name' => 'manager']);

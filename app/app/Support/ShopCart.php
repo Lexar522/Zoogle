@@ -36,11 +36,22 @@ final class ShopCart
                         continue;
                     }
 
+                    $rawOptionValueIds = $val['option_value_ids'] ?? [];
+                    $optionValueIds = [];
+                    if (is_array($rawOptionValueIds)) {
+                        foreach ($rawOptionValueIds as $id) {
+                            $n = (int) $id;
+                            if ($n > 0) {
+                                $optionValueIds[$n] = true;
+                            }
+                        }
+                    }
+
                     $out[$cartKey] = [
                         'line_kind' => 'bundle',
                         'bundle_id' => $bundleId,
                         'qty' => max(1, (int) ($val['qty'] ?? 1)),
-                        'option_value_ids' => [],
+                        'option_value_ids' => array_keys($optionValueIds),
                     ];
 
                     continue;
@@ -60,11 +71,13 @@ final class ShopCart
                         }
                     }
                 }
+                $variantId = (int) ($val['variant_id'] ?? 0);
                 $out[$cartKey] = [
                     'line_kind' => 'product',
                     'product_id' => $productId,
                     'qty' => max(1, (int) ($val['qty'] ?? 1)),
                     'option_value_ids' => array_keys($optionValueIds),
+                    'variant_id' => $variantId > 0 ? $variantId : null,
                 ];
             } else {
                 if ($listingIdFromKey <= 0) {
@@ -80,5 +93,26 @@ final class ShopCart
         }
 
         return $out;
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $primary
+     * @param  array<string, array<string, mixed>>  $secondary
+     * @return array<string, array<string, mixed>>
+     */
+    public static function merge(array $primary, array $secondary): array
+    {
+        $merged = self::normalize($secondary);
+        foreach (self::normalize($primary) as $key => $row) {
+            if (! isset($merged[$key])) {
+                $merged[$key] = $row;
+
+                continue;
+            }
+
+            $merged[$key]['qty'] = max(1, (int) ($merged[$key]['qty'] ?? 1)) + max(1, (int) ($row['qty'] ?? 1));
+        }
+
+        return $merged;
     }
 }

@@ -17,6 +17,7 @@ final class RichTextSanitizer
         return self::$instance ??= new HtmlSanitizer(
             (new HtmlSanitizerConfig)
                 ->allowSafeElements()
+                ->allowAttribute('class', 'p')
                 ->withMaxInputLength(-1)
                 ->allowRelativeLinks(true)
                 ->allowRelativeMedias(true)

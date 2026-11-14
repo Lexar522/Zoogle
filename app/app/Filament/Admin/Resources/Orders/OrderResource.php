@@ -5,6 +5,7 @@ namespace App\Filament\Admin\Resources\Orders;
 use App\Filament\Admin\Resources\Orders\Pages\EditOrder;
 use App\Filament\Admin\Resources\Orders\Pages\ListOrders;
 use App\Filament\Admin\Resources\Orders\RelationManagers\OrderItemsRelationManager;
+use App\Filament\Admin\Resources\Orders\RelationManagers\OrderUpdatesRelationManager;
 use App\Filament\Admin\Resources\Orders\Schemas\OrderForm;
 use App\Filament\Admin\Resources\Orders\Tables\OrdersTable;
 use App\Models\Order;
@@ -19,7 +20,7 @@ class OrderResource extends Resource
 {
     protected static ?string $model = Order::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedShoppingBag;
 
     protected static ?string $navigationLabel = 'Замовлення';
 
@@ -43,6 +44,7 @@ class OrderResource extends Resource
     {
         return [
             OrderItemsRelationManager::class,
+            OrderUpdatesRelationManager::class,
         ];
     }
 

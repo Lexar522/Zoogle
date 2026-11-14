@@ -17,7 +17,7 @@
                         @if ($photo)
                             <img
                                 class="account-fav-card__img"
-                                src="{{ asset('storage/'.$photo) }}"
+                                src="{{ \App\Support\ListingPhotoDerivative::cardUrlForPath($photo) }}"
                                 alt=""
                                 loading="lazy"
                             >

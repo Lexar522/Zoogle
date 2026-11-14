@@ -1,0 +1,68 @@
+.fi-ta-order-items-compact {
+    --col-qty-width: 4.25rem;
+    --col-money-width: 8rem;
+    --col-actions-width: 5.75rem;
+}
+
+.fi-ta-order-items-compact .fi-ta-table {
+    width: 100%;
+    table-layout: auto;
+}
+
+.fi-ta-order-items-compact .fi-ta-cell,
+.fi-ta-order-items-compact .fi-ta-header-cell {
+    white-space: normal;
+    vertical-align: middle;
+}
+
+.fi-ta-order-items-compact .fi-ta-text,
+.fi-ta-order-items-compact .fi-ta-text-item-label {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.35;
+}
+
+.fi-ta-order-items-compact .fi-ta-col-catalog_photo,
+.fi-ta-order-items-compact .fi-ta-col-catalog_photo .fi-ta-header-cell,
+.fi-ta-order-items-compact .fi-ta-col-catalog_photo.fi-ta-cell {
+    width: 3.5rem;
+    max-width: 3.5rem;
+}
+
+.fi-ta-order-items-compact .fi-ta-col-qty,
+.fi-ta-order-items-compact .fi-ta-col-money {
+    width: 1%;
+    min-width: var(--col-qty-width);
+    white-space: nowrap;
+}
+
+.fi-ta-order-items-compact .fi-ta-col-money {
+    min-width: var(--col-money-width);
+}
+
+.fi-ta-order-items-compact .fi-ta-col-qty .fi-ta-text,
+.fi-ta-order-items-compact .fi-ta-col-qty .fi-ta-text-item-label,
+.fi-ta-order-items-compact .fi-ta-col-money .fi-ta-text,
+.fi-ta-order-items-compact .fi-ta-col-money .fi-ta-text-item-label {
+    white-space: nowrap;
+    overflow-wrap: normal;
+    word-break: normal;
+}
+
+.fi-ta-order-items-compact .fi-ta-actions-header-cell,
+.fi-ta-order-items-compact .fi-ta-actions-cell {
+    width: var(--col-actions-width);
+    min-width: var(--col-actions-width);
+    white-space: nowrap;
+}
+
+.fi-ta-order-items-compact .fi-ta-actions {
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    gap: 0.15rem;
+}
+
+.fi-ta-order-items-compact .fi-ta-actions.fi-wrapped {
+    flex-wrap: nowrap;
+}

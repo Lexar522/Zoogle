@@ -16,6 +16,7 @@ class Bundle extends Model
         'description',
         'short_description',
         'photos',
+        'show_item_photos_in_gallery',
         'variant_options',
         'category_parent_value_id',
         'category_value_id',
@@ -27,6 +28,7 @@ class Bundle extends Model
     {
         return [
             'photos' => 'array',
+            'show_item_photos_in_gallery' => 'boolean',
             'variant_options' => 'array',
             'is_visible' => 'boolean',
             'is_active' => 'boolean',
@@ -40,32 +42,42 @@ class Bundle extends Model
 
     public function firstCatalogPhotoPath(): ?string
     {
-        foreach ($this->normalizePhotoList($this->photos) as $path) {
-            return $path;
+        return $this->galleryPhotoPaths()[0] ?? null;
+    }
+
+    /**
+     * Власні фото комплекту. Якщо їх немає: з увімкненим show_item_photos_in_gallery
+     * беремо фото всіх позицій у вибраних опціях, інакше лише одне фото першої позиції,
+     * щоб галерея не була порожньою, але не розкривала весь склад.
+     *
+     * @return list<string>
+     */
+    public function galleryPhotoPaths(): array
+    {
+        $own = $this->normalizePhotoList($this->photos);
+        if ($own !== []) {
+            return $own;
         }
 
+        $itemPhotos = $this->itemPhotoPaths();
+
+        return $this->show_item_photos_in_gallery ? $itemPhotos : array_slice($itemPhotos, 0, 1);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function itemPhotoPaths(): array
+    {
         /** @var EloquentCollection<int, BundleItem> $items */
         $items = $this->relationLoaded('items') ? $this->items : $this->items()->with(['product.variants'])->get();
 
-        foreach ($items as $item) {
-            $product = $item->product;
-            if (! $product) {
-                continue;
-            }
-
-            foreach ($this->normalizePhotoList($product->photos) as $path) {
-                return $path;
-            }
-
-            $variants = $product->relationLoaded('variants') ? $product->variants : $product->variants()->get();
-            foreach ($variants as $variant) {
-                foreach ($this->normalizePhotoList($variant->photos) as $path) {
-                    return $path;
-                }
-            }
-        }
-
-        return null;
+        return $items
+            ->map(fn (BundleItem $item): ?string => $item->displayPhotoPath())
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 
     /**

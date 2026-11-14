@@ -27,7 +27,7 @@ class ShopAccountTest extends TestCase
         $this->actingAs($user)
             ->get(route('account.index'))
             ->assertOk()
-            ->assertSee($user->checkoutDisplayName(), false);
+            ->assertSee($user->checkoutDisplayName());
     }
 
     public function test_user_can_update_profile_from_account(): void
@@ -139,6 +139,51 @@ class ShopAccountTest extends TestCase
             ->assertSee($order->number, false);
     }
 
+    public function test_guest_can_open_order_from_email_token_without_google(): void
+    {
+        $order = Order::query()->create([
+            'user_id' => null,
+            'customer_name' => 'Guest',
+            'customer_phone' => '380000000001',
+            'customer_email' => 'buyer@example.test',
+            'total' => 15,
+            'status' => Order::STATUS_NEW,
+            'payment_status' => 'pending',
+            'delivery_type' => Order::DELIVERY_PICKUP,
+        ]);
+        $other = Order::query()->create([
+            'user_id' => null,
+            'customer_name' => 'Guest',
+            'customer_phone' => '380000000001',
+            'customer_email' => 'buyer@example.test',
+            'total' => 20,
+            'status' => Order::STATUS_NEW,
+            'payment_status' => 'pending',
+            'delivery_type' => Order::DELIVERY_PICKUP,
+        ]);
+
+        $this->get(route('account.orders.show', $order))
+            ->assertRedirect(route('login'));
+
+        $this->get(route('account.orders.show', ['order' => $order, 'token' => $order->success_token]))
+            ->assertOk()
+            ->assertSee($order->number, false);
+
+        $this->get(route('account.orders.index'))
+            ->assertOk()
+            ->assertSee($order->number, false)
+            ->assertDontSee($other->number, false);
+
+        $this->get(route('account.orders.show', $other))->assertNotFound();
+
+        $this->get(route('account.orders.show', ['order' => $other, 'token' => $other->success_token]))->assertOk();
+
+        $this->get(route('account.orders.index'))
+            ->assertOk()
+            ->assertSee($order->number, false)
+            ->assertSee($other->number, false);
+    }
+
     public function test_user_cannot_view_another_users_order(): void
     {
         $a = User::factory()->create();
@@ -186,8 +231,8 @@ class ShopAccountTest extends TestCase
         $this->actingAs($user)
             ->get(route('account.orders.index', ['payment' => 'deferred_pending']))
             ->assertOk()
-            ->assertSee('10.00 UAH', false)
-            ->assertDontSee('20.00 UAH', false);
+            ->assertSee('10,00 UAH', false)
+            ->assertDontSee('20,00 UAH', false);
     }
 
     public function test_guest_cannot_toggle_favorites(): void

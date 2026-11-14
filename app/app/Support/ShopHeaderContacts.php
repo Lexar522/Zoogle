@@ -2,10 +2,11 @@
 
 namespace App\Support;
 
+use App\Models\ShopContactItem;
 use App\Models\ShopIntegrationSetting;
 
 /**
- * @phpstan-type ContactItem array{key: string, href: string, label: string, kind: 'phone'|'email'|'instagram'|'viber'|'whatsapp'|'telegram', external: bool}
+ * @phpstan-type ContactItem array{key: string, href: string, label: string, kind: 'phone'|'email'|'instagram'|'tiktok'|'viber'|'whatsapp'|'telegram', external: bool}
  */
 class ShopHeaderContacts
 {
@@ -41,6 +42,62 @@ class ShopHeaderContacts
     }
 
     /**
+     * Футер: звʼязок → месенджери → соцмережі. Порядок у групі лишається як у списку (sort_order).
+     *
+     * @param  list<ContactItem>  $items
+     * @return array<string, list<ContactItem>>
+     */
+    public static function groupsForFooter(array $items): array
+    {
+        $groups = [
+            'direct' => [],
+            'online' => [],
+        ];
+        $groupOf = [
+            'phone' => 'direct',
+            'email' => 'direct',
+            'viber' => 'online',
+            'whatsapp' => 'online',
+            'telegram' => 'online',
+            'instagram' => 'online',
+            'tiktok' => 'online',
+        ];
+        $onlineRank = [
+            'viber' => 0,
+            'whatsapp' => 1,
+            'telegram' => 2,
+            'instagram' => 3,
+            'tiktok' => 4,
+        ];
+
+        foreach ($items as $item) {
+            $group = $groupOf[$item['kind'] ?? ''] ?? null;
+            if ($group === null) {
+                continue;
+            }
+            $groups[$group][] = $item;
+        }
+
+        if ($groups['online'] !== []) {
+            usort($groups['online'], static function (array $a, array $b) use ($onlineRank): int {
+                return ($onlineRank[$a['kind'] ?? ''] ?? 99) <=> ($onlineRank[$b['kind'] ?? ''] ?? 99);
+            });
+        }
+
+        return array_filter($groups, static fn (array $group): bool => $group !== []);
+    }
+
+    /**
+     * Контакти шапки вітрини з кешу (однакові для всіх відвідувачів).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function storefrontItems(): array
+    {
+        return StorefrontViewCache::remember('header-contacts', fn (): array => self::itemsFrom(ShopIntegrationSetting::storefront()));
+    }
+
+    /**
      * @return list<ContactItem>
      */
     public static function itemsFrom(?ShopIntegrationSetting $record): array
@@ -49,6 +106,57 @@ class ShopHeaderContacts
             return [];
         }
 
+        if (! $record->exists) {
+            return self::itemsFromLegacyColumns($record);
+        }
+
+        if (self::contactItemsTableExists()) {
+            $rows = ShopContactItem::query()->ordered()->get();
+            if ($rows->isNotEmpty()) {
+                return self::itemsFromContactRows($rows);
+            }
+        }
+
+        return self::itemsFromLegacyColumns($record);
+    }
+
+    private static function contactItemsTableExists(): bool
+    {
+        try {
+            return SchemaCache::hasTable('shop_contact_items');
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * @param  iterable<ShopContactItem>  $rows
+     * @return list<ContactItem>
+     */
+    private static function itemsFromContactRows(iterable $rows): array
+    {
+        $out = [];
+        $kindCounts = [];
+        foreach ($rows as $row) {
+            $kind = (string) $row->kind;
+            $kindCounts[$kind] = ($kindCounts[$kind] ?? 0);
+            $key = $kind.'-'.$kindCounts[$kind];
+            $kindCounts[$kind]++;
+
+            $item = self::itemFromKindAndValue($kind, (string) $row->value, $key);
+            if ($item !== null) {
+                $out[] = $item;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return list<ContactItem>
+     */
+    private static function itemsFromLegacyColumns(ShopIntegrationSetting $record): array
+    {
         $out = [];
         if ($item = self::phoneItem($record->contact_phone)) {
             $out[] = $item;
@@ -70,6 +178,26 @@ class ShopHeaderContacts
         }
 
         return $out;
+    }
+
+    private static function itemFromKindAndValue(string $kind, string $value, string $key): ?array
+    {
+        $item = match ($kind) {
+            'phone' => self::phoneItem($value),
+            'email' => self::emailItem($value),
+            'instagram' => self::instagramItem($value),
+            'tiktok' => self::tiktokItem($value),
+            'viber' => self::viberItem($value),
+            'whatsapp' => self::whatsappItem($value),
+            'telegram' => self::telegramItem($value),
+            default => null,
+        };
+        if ($item === null) {
+            return null;
+        }
+        $item['key'] = $key;
+
+        return $item;
     }
 
     /**
@@ -97,6 +225,16 @@ class ShopHeaderContacts
 
     private static function phoneToTelHref(string $phone): ?string
     {
+        $digits = self::normalizePhoneDigits($phone);
+        if ($digits === null) {
+            return null;
+        }
+
+        return 'tel:+'.$digits;
+    }
+
+    private static function normalizePhoneDigits(string $phone): ?string
+    {
         $digits = preg_replace('/\D+/', '', $phone) ?? '';
         if ($digits === '') {
             return null;
@@ -109,7 +247,7 @@ class ShopHeaderContacts
             return null;
         }
 
-        return 'tel:+'.$digits;
+        return $digits;
     }
 
     /**
@@ -206,21 +344,29 @@ class ShopHeaderContacts
                 'external' => true,
             ];
         }
-        if (! self::looksLikeHttpUrl($s) || ! self::isHttpUrlSafe($s)) {
-            return null;
+        if (self::looksLikeHttpUrl($s) && self::isHttpUrlSafe($s)) {
+            $host = strtolower((string) (parse_url($s, PHP_URL_HOST) ?? ''));
+            if (self::isViberWebHost($host)) {
+                return [
+                    'key' => 'viber',
+                    'href' => $s,
+                    'label' => 'Viber',
+                    'kind' => 'viber',
+                    'external' => true,
+                ];
+            }
         }
-        $host = strtolower((string) (parse_url($s, PHP_URL_HOST) ?? ''));
-        if (! self::isViberWebHost($host)) {
-            return null;
+        if ($digits = self::normalizePhoneDigits($s)) {
+            return [
+                'key' => 'viber',
+                'href' => 'viber://chat?number='.$digits,
+                'label' => $s,
+                'kind' => 'viber',
+                'external' => true,
+            ];
         }
 
-        return [
-            'key' => 'viber',
-            'href' => $s,
-            'label' => 'Viber',
-            'kind' => 'viber',
-            'external' => true,
-        ];
+        return null;
     }
 
     private static function isViberDeepLinkSafe(string $url): bool
@@ -244,28 +390,38 @@ class ShopHeaderContacts
     private static function whatsappItem(?string $raw): ?array
     {
         $s = trim((string) $raw);
-        if ($s === '' || ! self::looksLikeHttpUrl($s) || ! self::isHttpUrlSafe($s)) {
+        if ($s === '') {
             return null;
         }
-        $path = (string) (parse_url($s, PHP_URL_PATH) ?? '');
-        if ($path === '' || $path === '/') {
-            return null;
+        if (self::looksLikeHttpUrl($s) && self::isHttpUrlSafe($s)) {
+            $path = (string) (parse_url($s, PHP_URL_PATH) ?? '');
+            if ($path !== '' && $path !== '/') {
+                $host = strtolower((string) (parse_url($s, PHP_URL_HOST) ?? ''));
+                $ok = $host === 'wa.me' || str_ends_with($host, '.wa.me')
+                    || $host === 'api.whatsapp.com' || $host === 'www.whatsapp.com' || $host === 'web.whatsapp.com'
+                    || str_ends_with($host, '.whatsapp.com');
+                if ($ok) {
+                    return [
+                        'key' => 'whatsapp',
+                        'href' => $s,
+                        'label' => 'WhatsApp',
+                        'kind' => 'whatsapp',
+                        'external' => true,
+                    ];
+                }
+            }
         }
-        $host = strtolower((string) (parse_url($s, PHP_URL_HOST) ?? ''));
-        $ok = $host === 'wa.me' || str_ends_with($host, '.wa.me')
-            || $host === 'api.whatsapp.com' || $host === 'www.whatsapp.com' || $host === 'web.whatsapp.com'
-            || str_ends_with($host, '.whatsapp.com');
-        if (! $ok) {
-            return null;
+        if ($digits = self::normalizePhoneDigits($s)) {
+            return [
+                'key' => 'whatsapp',
+                'href' => 'https://wa.me/'.$digits,
+                'label' => $s,
+                'kind' => 'whatsapp',
+                'external' => true,
+            ];
         }
 
-        return [
-            'key' => 'whatsapp',
-            'href' => $s,
-            'label' => 'WhatsApp',
-            'kind' => 'whatsapp',
-            'external' => true,
-        ];
+        return null;
     }
 
     /**
@@ -312,6 +468,62 @@ class ShopHeaderContacts
     private static function isTelegramWebHost(string $host): bool
     {
         return $host === 't.me' || $host === 'telegram.me' || str_ends_with($host, '.t.me') || str_ends_with($host, '.telegram.me');
+    }
+
+    /**
+     * @return ?ContactItem
+     */
+    private static function tiktokItem(?string $raw): ?array
+    {
+        $s = trim((string) $raw);
+        if ($s === '') {
+            return null;
+        }
+        if (self::looksLikeHttpUrl($s)) {
+            if (! self::isHttpUrlSafe($s)) {
+                return null;
+            }
+            $host = strtolower((string) (parse_url($s, PHP_URL_HOST) ?? ''));
+            if (! self::isTiktokWebHost($host)) {
+                return null;
+            }
+            $path = (string) (parse_url($s, PHP_URL_PATH) ?? '');
+            $label = 'TikTok';
+            if (preg_match('#/@([A-Za-z0-9._]{1,24})#', $path, $m) === 1) {
+                $label = '@'.$m[1];
+            }
+
+            return [
+                'key' => 'tiktok',
+                'href' => $s,
+                'label' => $label,
+                'kind' => 'tiktok',
+                'external' => true,
+            ];
+        }
+        $user = ltrim($s, '@');
+        $user = (string) (preg_replace('/^(?:www\.)?tiktok\.com\/@?/i', '', $user) ?? $user);
+        $user = ltrim($user, '@');
+        if ($user === '' || ! preg_match('/^[A-Za-z0-9._]{2,24}$/u', $user)) {
+            return null;
+        }
+
+        return [
+            'key' => 'tiktok',
+            'href' => 'https://www.tiktok.com/@'.$user,
+            'label' => '@'.$user,
+            'kind' => 'tiktok',
+            'external' => true,
+        ];
+    }
+
+    private static function isTiktokWebHost(string $host): bool
+    {
+        if ($host === '') {
+            return false;
+        }
+
+        return $host === 'tiktok.com' || str_ends_with($host, '.tiktok.com');
     }
 
     private static function looksLikeHttpUrl(string $s): bool

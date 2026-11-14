@@ -9,7 +9,10 @@ class ShopInfoPageController extends Controller
 {
     public function show(string $slug): View
     {
-        $page = ShopInfoPage::query()->where('slug', $slug)->first();
+        $page = ShopInfoPage::query()
+            ->with(['children', 'parent.parent'])
+            ->where('slug', $slug)
+            ->first();
 
         abort_if($page === null, 404);
 
@@ -20,10 +23,36 @@ class ShopInfoPageController extends Controller
 
         $body = $page->bodyForLocale();
 
+        $children = $page->children
+            ->map(static function (ShopInfoPage $child): array {
+                $childTitle = $child->titleForLocale();
+
+                return [
+                    'slug' => $child->slug,
+                    'title' => $childTitle !== '' ? $childTitle : $child->slug,
+                ];
+            })
+            ->values()
+            ->all();
+
+        $breadcrumbs = $page->ancestors()
+            ->map(static function (ShopInfoPage $ancestor): array {
+                $ancestorTitle = $ancestor->titleForLocale();
+
+                return [
+                    'slug' => $ancestor->slug,
+                    'title' => $ancestorTitle !== '' ? $ancestorTitle : $ancestor->slug,
+                ];
+            })
+            ->values()
+            ->all();
+
         return view('pages.info-show', [
             'page' => $page,
             'title' => $title,
             'body' => $body,
+            'children' => $children,
+            'breadcrumbs' => $breadcrumbs,
         ]);
     }
 }

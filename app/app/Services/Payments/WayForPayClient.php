@@ -101,10 +101,9 @@ class WayForPayClient
 
     public function secretKey(): string
     {
-        $stored = ShopIntegrationSetting::query()->first()?->wayforpay_secret_key;
+        $stored = ShopIntegrationSetting::query()->first()?->readEncrypted('wayforpay_secret_key');
 
-        return trim(is_string($stored) ? $stored : '')
-            ?: trim((string) Config::get('services.wayforpay.secret_key'));
+        return $stored ?? trim((string) Config::get('services.wayforpay.secret_key'));
     }
 
     public function merchantDomainName(): string

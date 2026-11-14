@@ -8,7 +8,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class Order extends Model
 {
@@ -28,13 +30,27 @@ class Order extends Model
 
             if ($email !== '') {
                 $q->orWhere(function ($q2) use ($email): void {
-                    $q2->whereNull('user_id')
-                        ->whereNotNull('customer_email')
-                        ->where('customer_email', '!=', '')
-                        ->whereRaw('LOWER(TRIM(customer_email)) = ?', [$email]);
+                    $q2->whereNull('user_id')->forCustomerEmail($email);
                 });
             }
         });
+    }
+
+    /**
+     * @param  Builder<Order>  $query
+     */
+    public function scopeForCustomerEmail($query, string $email): void
+    {
+        $email = strtolower(trim($email));
+        if ($email === '') {
+            $query->whereRaw('0 = 1');
+
+            return;
+        }
+
+        $query->whereNotNull('customer_email')
+            ->where('customer_email', '!=', '')
+            ->whereRaw('LOWER(TRIM(customer_email)) = ?', [$email]);
     }
 
     public const DELIVERY_PICKUP = 'pickup';
@@ -62,6 +78,9 @@ class Order extends Model
     public const STATUS_COMPLETED = 'completed';
 
     public const STATUS_CANCELLED = 'cancelled';
+
+    /** Скільки днів діє секретне посилання на замовлення (відстеження, успіх, оплата, кабінет гостя). */
+    public const SUCCESS_TOKEN_TTL_DAYS = 60;
 
     /** @return list<string> */
     public static function novaPoshtaDeliveryTypes(): array
@@ -221,6 +240,9 @@ class Order extends Model
         if (! app(OnlinePaymentSettings::class)->isConfigured()) {
             return false;
         }
+        if ($this->status === self::STATUS_CANCELLED) {
+            return false;
+        }
         if ($this->payment_status === 'paid') {
             return false;
         }
@@ -257,6 +279,9 @@ class Order extends Model
         if (! app(OnlinePaymentSettings::class)->isConfigured()) {
             return false;
         }
+        if ($this->status === self::STATUS_CANCELLED) {
+            return false;
+        }
         if ($this->payment_status === 'paid') {
             return false;
         }
@@ -267,6 +292,40 @@ class Order extends Model
             return false;
         }
         if ($this->immediate_portion_paid_at !== null) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Ситуація з оплатою, яку має розв'язати людина: показується в адмінці до зняття позначки.
+     */
+    public function flagPaymentIssue(string $message): void
+    {
+        $current = trim((string) $this->payment_issue);
+        if (! str_contains($current, $message)) {
+            $this->payment_issue = trim($current."\n".$message);
+        }
+
+        Log::warning('Online payment needs attention', ['order_id' => $this->id, 'issue' => $message]);
+    }
+
+    /**
+     * Нова спроба після невдалої оплати: товар за цей час могли купити.
+     */
+    public function prepareForPaymentRetry(): bool
+    {
+        if ((string) $this->payment_status !== 'failed') {
+            return true;
+        }
+
+        try {
+            $this->payment_status = 'pending';
+            $this->save();
+        } catch (ValidationException) {
+            $this->refresh();
+
             return false;
         }
 
@@ -338,6 +397,7 @@ class Order extends Model
         'number',
         'status',
         'payment_status',
+        'inventory_committed',
         'deferred_online_payment',
         'online_payment_unlocked_at',
         'customer_name',
@@ -386,6 +446,7 @@ class Order extends Model
         'delivery_lat' => 'float',
         'delivery_lng' => 'float',
         'deferred_online_payment' => 'boolean',
+        'inventory_committed' => 'boolean',
         'mixed_payment_plan' => 'boolean',
         'immediate_subtotal' => 'decimal:2',
         'deferred_subtotal' => 'decimal:2',
@@ -410,11 +471,31 @@ class Order extends Model
         ];
     }
 
+    /**
+     * Токен з посилання збігається і ще не прострочений. Посилання з листів пересилають і
+     * зберігають в історії, тож вічний доступ до імені, телефону й адреси — зайвий ризик.
+     */
+    public function successTokenMatches(?string $token): bool
+    {
+        $token = (string) $token;
+        if ($token === '' || ! hash_equals((string) $this->success_token, $token)) {
+            return false;
+        }
+
+        $placedAt = $this->placed_at ?? $this->created_at;
+
+        return $placedAt === null || $placedAt->greaterThanOrEqualTo(now()->subDays(self::SUCCESS_TOKEN_TTL_DAYS));
+    }
+
     protected static function booted(): void
     {
         static::creating(function (Order $order): void {
             if (! $order->number) {
-                $order->number = 'ORD-'.now()->format('YmdHis').'-'.random_int(100, 999);
+                do {
+                    $number = 'ORD-'.now()->format('YmdHis').'-'.random_int(100000, 999999);
+                } while (self::query()->where('number', $number)->exists());
+
+                $order->number = $number;
             }
 
             if (! $order->placed_at) {
@@ -425,11 +506,46 @@ class Order extends Model
                 $order->success_token = Str::uuid()->toString();
             }
         });
+
+        // Замовлення повернули в роботу: без наявного товару статус не зміниться.
+        static::updating(function (Order $order): void {
+            if ($order->inventory_committed || ! $order->isDirty(['status', 'payment_status'])) {
+                return;
+            }
+
+            $inventory = app(\App\Services\InventoryService::class);
+            if ($inventory->shouldHoldInventory($order)) {
+                $inventory->takeForOrder($order);
+            }
+        });
+
+        static::updated(function (Order $order): void {
+            if (! $order->inventory_committed) {
+                return;
+            }
+
+            $statusChanged = $order->wasChanged('status') || $order->wasChanged('payment_status');
+            if (! $statusChanged) {
+                return;
+            }
+
+            if (app(\App\Services\InventoryService::class)->shouldHoldInventory($order)) {
+                return;
+            }
+
+            app(\App\Services\InventoryService::class)->restoreForOrder($order);
+        });
     }
 
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    /** @return HasMany<OrderUpdate, $this> */
+    public function updates(): HasMany
+    {
+        return $this->hasMany(OrderUpdate::class)->latest();
     }
 
     /** @return BelongsTo<User, $this> */

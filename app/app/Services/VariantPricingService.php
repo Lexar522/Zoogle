@@ -13,6 +13,13 @@ use Illuminate\Support\Collection;
 
 class VariantPricingService
 {
+    /**
+     * Акції, завантажені наперед для пакетного розрахунку (комплекти в каталозі), ключ «тип:id:момент».
+     *
+     * @var array<string, Collection<int, PromotionTarget>>
+     */
+    private array $preloadedTargets = [];
+
     public function quoteProductVariant(ProductVariant $variant, ?\DateTimeInterface $at = null): VariantPriceQuote
     {
         $at ??= now();
@@ -110,23 +117,7 @@ class VariantPricingService
      */
     private function loadTargetsForProductVariantIds(array $ids, \DateTimeInterface $at): Collection
     {
-        if ($ids === []) {
-            return collect();
-        }
-
-        $moment = Carbon::parse($at);
-
-        return PromotionTarget::query()
-            ->where('target_type', 'product_variant')
-            ->whereIn('target_id', $ids)
-            ->where(function ($q) use ($moment): void {
-                $q->whereNull('promotion_targets.ends_at')
-                    ->orWhere('promotion_targets.ends_at', '>=', $moment);
-            })
-            ->whereHas('promotion', fn ($q) => $q->activeAt($at))
-            ->with('promotion')
-            ->get()
-            ->groupBy(fn (PromotionTarget $t) => (int) $t->target_id);
+        return $this->targetsFor('product_variant', $ids, $at);
     }
 
     /**
@@ -135,14 +126,75 @@ class VariantPricingService
      */
     private function loadTargetsForProductIds(array $ids, \DateTimeInterface $at): Collection
     {
+        return $this->targetsFor('product', $ids, $at);
+    }
+
+    /**
+     * Завантажити акції для багатьох цілей одним запитом: наступні розрахунки на той самий момент
+     * візьмуть їх з пам'яті замість окремого запиту на кожен товар чи варіант.
+     *
+     * @param  list<int>  $ids
+     */
+    public function preloadTargets(string $targetType, array $ids, \DateTimeInterface $at): void
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), fn (int $id): bool => $id > 0)));
+        if ($ids === []) {
+            return;
+        }
+
+        $grouped = $this->queryTargets($targetType, $ids, $at);
+        foreach ($ids as $id) {
+            $this->preloadedTargets[$this->preloadKey($targetType, $id, $at)] = $grouped->get($id, collect());
+        }
+    }
+
+    /**
+     * @param  list<int>  $ids
+     * @return Collection<int, Collection<int, PromotionTarget>>  лише цілі, для яких є акції
+     */
+    public function targetsFor(string $targetType, array $ids, \DateTimeInterface $at): Collection
+    {
         if ($ids === []) {
             return collect();
         }
 
+        $out = collect();
+        $missing = [];
+        foreach ($ids as $id) {
+            $key = $this->preloadKey($targetType, (int) $id, $at);
+            if (array_key_exists($key, $this->preloadedTargets)) {
+                if ($this->preloadedTargets[$key]->isNotEmpty()) {
+                    $out->put((int) $id, $this->preloadedTargets[$key]);
+                }
+            } else {
+                $missing[] = (int) $id;
+            }
+        }
+
+        if ($missing !== []) {
+            foreach ($this->queryTargets($targetType, $missing, $at) as $id => $targets) {
+                $out->put((int) $id, $targets);
+            }
+        }
+
+        return $out;
+    }
+
+    private function preloadKey(string $targetType, int $id, \DateTimeInterface $at): string
+    {
+        return $targetType.':'.$id.':'.Carbon::parse($at)->format('U.u');
+    }
+
+    /**
+     * @param  list<int>  $ids
+     * @return Collection<int, Collection<int, PromotionTarget>>
+     */
+    private function queryTargets(string $targetType, array $ids, \DateTimeInterface $at): Collection
+    {
         $moment = Carbon::parse($at);
 
         return PromotionTarget::query()
-            ->where('target_type', 'product')
+            ->where('target_type', $targetType)
             ->whereIn('target_id', $ids)
             ->where(function ($q) use ($moment): void {
                 $q->whereNull('promotion_targets.ends_at')

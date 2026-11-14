@@ -8,9 +8,9 @@ class NovaPoshtaApiKey
 {
     public function current(): string
     {
-        $stored = ShopIntegrationSetting::record()->nova_poshta_api_key;
-        if (is_string($stored) && trim($stored) !== '') {
-            return trim($stored);
+        $stored = ShopIntegrationSetting::storefront()->readEncrypted('nova_poshta_api_key');
+        if ($stored !== null) {
+            return $stored;
         }
 
         return trim((string) config('services.nova_poshta.api_key'));
@@ -23,8 +23,11 @@ class NovaPoshtaApiKey
 
     public function hasStoredKey(): bool
     {
-        $stored = ShopIntegrationSetting::record()->nova_poshta_api_key;
+        return ShopIntegrationSetting::storefront()->hasEncryptedRaw('nova_poshta_api_key');
+    }
 
-        return is_string($stored) && trim($stored) !== '';
+    public function isStoredKeyReadable(): bool
+    {
+        return ShopIntegrationSetting::storefront()->isEncryptedReadable('nova_poshta_api_key');
     }
 }

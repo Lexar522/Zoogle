@@ -6,10 +6,10 @@ use App\Filament\Admin\Concerns\HandlesListingVariantOptions;
 use App\Filament\Admin\Concerns\PreparesBundleFormCatalogData;
 use App\Filament\Admin\Concerns\SyncsBundleItemsFromForm;
 use App\Filament\Admin\Resources\Bundles\BundleResource;
+use App\Filament\Admin\Support\BundleItemOptionFields;
 use App\Models\Bundle;
 use App\Models\Product;
 use Filament\Resources\Pages\CreateRecord;
-use Illuminate\Validation\ValidationException;
 
 class CreateBundle extends CreateRecord
 {
@@ -32,31 +32,7 @@ class CreateBundle extends CreateRecord
         $rawItems = $data['items'] ?? [];
         unset($data['items']);
 
-        $validItems = [];
-        if (is_array($rawItems)) {
-            foreach ($rawItems as $row) {
-                if (! is_array($row)) {
-                    continue;
-                }
-                $productId = (int) ($row['product_id'] ?? 0);
-                if ($productId <= 0) {
-                    continue;
-                }
-                $validItems[] = [
-                    'product_id' => $productId,
-                    'qty' => max(1, (int) ($row['qty'] ?? 1)),
-                    'sort_order' => (int) ($row['sort_order'] ?? 0),
-                ];
-            }
-        }
-
-        if ($validItems === []) {
-            throw ValidationException::withMessages([
-                'items' => 'Додайте хоча б один товар у комплект (оберіть товар у позиції).',
-            ]);
-        }
-
-        $this->pendingBundleItems = $validItems;
+        $this->pendingBundleItems = BundleItemOptionFields::normalizeAndValidateRows(is_array($rawItems) ? $rawItems : []);
 
         return $this->prepareBundleFormDataBeforePersist($data);
     }

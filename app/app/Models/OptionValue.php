@@ -2,10 +2,15 @@
 
 namespace App\Models;
 
+use App\Support\CatalogProductsTable;
+use App\Support\SchemaCache;
+use App\Support\StorefrontCategoryTreeCache;
+use App\Support\StorefrontMemo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -15,10 +20,35 @@ class OptionValue extends Model
 
     protected static function booted(): void
     {
+        $forgetTree = function (OptionValue $value): void {
+            StorefrontMemo::flush();
+            $groupId = (int) ($value->option_group_id ?? 0);
+            if ($groupId > 0 && $groupId === OptionGroup::systemCategoryGroupIdForCatalog()) {
+                StorefrontCategoryTreeCache::bump();
+            }
+        };
+        static::saved($forgetTree);
+        static::deleted($forgetTree);
+
         static::deleting(function (OptionValue $value): void {
-            $group = $value->group;
+            $group = $value->relationLoaded('group')
+                ? $value->group
+                : $value->group()->first();
+
             if (! $group || $group->slug !== 'category') {
                 return;
+            }
+
+            // nullOnDelete інакше «відв’яже» дітей у корінь при видаленні батька.
+            $childIds = self::query()
+                ->where('parent_id', $value->id)
+                ->pluck('id');
+
+            foreach ($childIds as $childId) {
+                $child = self::query()->find($childId);
+                if ($child) {
+                    $child->delete();
+                }
             }
 
             if (self::isUsedInListingsOrVariants((int) $value->id)) {
@@ -50,11 +80,19 @@ class OptionValue extends Model
             }
 
             $groupId = (int) ($value->option_group_id ?? 0);
-            $value->slug = self::makeUniqueSlugForGroup(
-                $groupId,
-                trim((string) $value->slug) !== '' ? (string) $value->slug : (string) $value->name,
-                (int) ($value->id ?? 0)
-            );
+            $slugSource = trim((string) $value->slug) !== '' ? (string) $value->slug : (string) $value->name;
+            $slugUnchanged = $value->exists
+                && ! $value->isDirty('slug')
+                && ! $value->isDirty('name')
+                && trim((string) $value->slug) !== '';
+
+            if (! $slugUnchanged) {
+                $value->slug = self::makeUniqueSlugForGroup(
+                    $groupId,
+                    $slugSource,
+                    (int) ($value->id ?? 0)
+                );
+            }
 
             if ($groupId <= 0) {
                 return;
@@ -130,58 +168,158 @@ class OptionValue extends Model
         $slug = $baseSlug;
         $suffix = 2;
 
-        while (self::query()
+        // Швидкий шлях: якщо базовий слаг вільний — без циклу зайвих EXISTS.
+        $taken = self::query()
             ->where('option_group_id', $groupId)
             ->where('slug', $slug)
             ->when($ignoreId > 0, fn ($query) => $query->whereKeyNot($ignoreId))
-            ->exists()) {
+            ->exists();
+
+        if (! $taken) {
+            return $slug;
+        }
+
+        while ($taken) {
             $slug = $baseSlug.'-'.$suffix;
             $suffix++;
+            $taken = self::query()
+                ->where('option_group_id', $groupId)
+                ->where('slug', $slug)
+                ->when($ignoreId > 0, fn ($query) => $query->whereKeyNot($ignoreId))
+                ->exists();
+
+            if ($suffix > 5000) {
+                return $baseSlug.'-'.Str::lower(Str::random(6));
+            }
         }
 
         return $slug;
     }
 
+    /**
+     * Чи використовується значення категорії в товарах/варіантах/комплектах.
+     * Лише SQL EXISTS (без Product::get() / Variant::get()) — інакше збереження дерева категорій
+     * у Filament зависає на delete orphan під час sync repeater.
+     */
     private static function isUsedInListingsOrVariants(int $valueId): bool
     {
-        $inListings = Product::query()
-            ->select(['id', 'variant_options'])
-            ->whereNotNull('variant_options')
-            ->get()
-            ->contains(function (Product $product) use ($valueId): bool {
-                foreach (($product->variant_options ?? []) as $row) {
-                    foreach (($row['option_value_ids'] ?? []) as $id) {
-                        if ((int) $id === $valueId) {
-                            return true;
-                        }
-                    }
-                }
+        if ($valueId <= 0) {
+            return false;
+        }
 
-                return false;
-            });
+        if (SchemaCache::hasTable('product_categories')) {
+            if (DB::table('product_categories')->where('category_value_id', $valueId)->exists()) {
+                return true;
+            }
+        }
 
-        if ($inListings) {
+        $productsTable = CatalogProductsTable::name();
+        if (SchemaCache::hasColumn($productsTable, 'category_value_id')
+            && Product::query()->where('category_value_id', $valueId)->exists()) {
+            return true;
+        }
+        if (SchemaCache::hasColumn($productsTable, 'category_parent_value_id')
+            && Product::query()->where('category_parent_value_id', $valueId)->exists()) {
             return true;
         }
 
-        $inProductVariants = ProductVariant::query()
-            ->select(['id', 'options'])
-            ->whereNotNull('options')
-            ->get()
-            ->contains(function (ProductVariant $variant) use ($valueId): bool {
-                foreach (($variant->options ?? []) as $pair) {
-                    if ((int) ($pair['option_value_id'] ?? 0) === $valueId) {
-                        return true;
-                    }
-                }
-
-                return false;
-            });
-
-        if ($inProductVariants) {
+        if (
+            SchemaCache::hasTable('product_care_articles')
+            && SchemaCache::hasColumn('product_care_articles', 'category_value_id')
+            && DB::table('product_care_articles')->where('category_value_id', $valueId)->exists()
+        ) {
             return true;
+        }
+
+        if (SchemaCache::hasTable('bundles')) {
+            if (SchemaCache::hasColumn('bundles', 'category_value_id')
+                && DB::table('bundles')->where('category_value_id', $valueId)->exists()) {
+                return true;
+            }
+            if (SchemaCache::hasColumn('bundles', 'category_parent_value_id')
+                && DB::table('bundles')->where('category_parent_value_id', $valueId)->exists()) {
+                return true;
+            }
+        }
+
+        if (SchemaCache::hasColumn($productsTable, 'variant_options')
+            && self::jsonColumnContainsOptionValueId(Product::query(), 'variant_options', $valueId, 'option_value_ids')) {
+            return true;
+        }
+
+        $variantTable = (new ProductVariant)->getTable();
+        if (SchemaCache::hasColumn($variantTable, 'options')
+            && self::jsonColumnContainsOptionValueId(ProductVariant::query(), 'options', $valueId, 'option_value_id')) {
+            return true;
+        }
+
+        if (SchemaCache::hasTable('bundles') && SchemaCache::hasColumn('bundles', 'variant_options')) {
+            if (self::jsonColumnContainsOptionValueId(DB::table('bundles'), 'variant_options', $valueId, 'option_value_ids')) {
+                return true;
+            }
         }
 
         return false;
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>|\Illuminate\Database\Query\Builder  $query
+     */
+    private static function jsonColumnContainsOptionValueId(mixed $query, string $column, int $valueId, string $jsonKey): bool
+    {
+        $driver = DB::connection()->getDriverName();
+        $id = (int) $valueId;
+        $base = $query->whereNotNull($column);
+
+        if ($driver === 'sqlite') {
+            if ($jsonKey === 'option_value_ids') {
+                return $base->whereRaw(
+                    "EXISTS (
+                        SELECT 1 FROM json_each(COALESCE({$column}, '[]')) AS je
+                        WHERE json_type(je.value) = 'object'
+                        AND EXISTS (
+                            SELECT 1 FROM json_each(
+                                COALESCE(json_extract(je.value, '$.option_value_ids'), '[]')
+                            ) AS vid
+                            WHERE CAST(vid.value AS INTEGER) = ?
+                        )
+                    )",
+                    [$id]
+                )->exists();
+            }
+
+            return $base->whereRaw(
+                "EXISTS (
+                    SELECT 1 FROM json_each(COALESCE({$column}, '[]')) AS je
+                    WHERE json_type(je.value) = 'object'
+                    AND CAST(json_extract(je.value, '$.option_value_id') AS INTEGER) = ?
+                )",
+                [$id]
+            )->exists();
+        }
+
+        // MySQL/MariaDB/інше: EXISTS + LIKE з межами числа (JSON_SEARCH не бачить numeric id).
+        // Це один SQL без гідрації моделей — на відміну від колишнього Product::get().
+        if ($jsonKey === 'option_value_ids') {
+            return $base->where(function ($q) use ($column, $id): void {
+                $q->where($column, 'like', '%"option_value_ids":['.$id.']%')
+                    ->orWhere($column, 'like', '%"option_value_ids":['.$id.',%')
+                    ->orWhere($column, 'like', '%"option_value_ids":[%,' .$id.',%')
+                    ->orWhere($column, 'like', '%"option_value_ids":[%,' .$id.']%')
+                    ->orWhere($column, 'like', '%"option_value_ids": ['.$id.']%')
+                    ->orWhere($column, 'like', '%"option_value_ids": ['.$id.',%')
+                    ->orWhere($column, 'like', '%"option_value_ids": [%, '.$id.',%')
+                    ->orWhere($column, 'like', '%"option_value_ids": [%, '.$id.']%');
+            })->exists();
+        }
+
+        return $base->where(function ($q) use ($column, $id): void {
+            $q->where($column, 'like', '%"option_value_id":'.$id.'}%')
+                ->orWhere($column, 'like', '%"option_value_id":'.$id.',%')
+                ->orWhere($column, 'like', '%"option_value_id": '.$id.'}%')
+                ->orWhere($column, 'like', '%"option_value_id": '.$id.',%')
+                ->orWhere($column, 'like', '%"option_value_id":'.$id.']%')
+                ->orWhere($column, 'like', '%"option_value_id": '.$id.']%');
+        })->exists();
     }
 }

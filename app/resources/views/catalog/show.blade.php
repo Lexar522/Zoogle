@@ -2,14 +2,12 @@
 
 @section('title', mt($listing->title) . ' — ZOOGLE')
 @section('meta_description', $pdpMetaDescription ?? mt($listing->title))
-@section('canonical_url', route('catalog.show', $listing->slug))
-@section('og_type', 'product')
-@section('og_title', mt($listing->title))
+@section('og_title', mt($listing->title) . ' — ZOOGLE')
 @section('og_description', $pdpMetaDescription ?? mt($listing->title))
-@if (! empty($pdpOgImageUrl))
-    @section('og_image', $pdpOgImageUrl)
-@endif
-
+@section('og_type', 'product')
+@section('og_image', $pdpOgImageUrl ?? '')
+@section('canonical_url', route('catalog.show', $listing->slug))
+@section('robots', config('shop.seo_index_product_pages') ? 'index,follow' : 'noindex,follow')
 @push('meta')
     @php
         $schemaAvailability = match (($listingStockMode ?? 'none')) {
@@ -25,1818 +23,174 @@
             'description' => $pdpMetaDescription ?? mt($listing->title),
             'sku' => filled(trim((string) ($listing->sku ?? ''))) ? (string) $listing->sku : (string) $listing->slug,
             'url' => route('catalog.show', $listing->slug),
-            'offers' => [
+        ];
+
+        $schemaLowPrice = number_format((float) ($pdpOfferLowPrice ?? $listingBasePrice ?? 0), 2, '.', '');
+        $schemaHighPrice = number_format((float) ($pdpOfferHighPrice ?? $listingBasePrice ?? 0), 2, '.', '');
+        // Для безкоштовних оголошень Google потрібен Offer; діапазон цін можна описати лише як AggregateOffer.
+        $schemaProduct['offers'] = $schemaLowPrice === $schemaHighPrice
+            ? [
+                '@type' => 'Offer',
+                'url' => route('catalog.show', $listing->slug),
+                'priceCurrency' => 'UAH',
+                'price' => $schemaLowPrice,
+                'itemCondition' => 'https://schema.org/NewCondition',
+                'availability' => $schemaAvailability,
+            ]
+            : [
                 '@type' => 'AggregateOffer',
                 'priceCurrency' => 'UAH',
-                'lowPrice' => number_format((float) ($pdpOfferLowPrice ?? $listingBasePrice ?? 0), 2, '.', ''),
-                'highPrice' => number_format((float) ($pdpOfferHighPrice ?? $listingBasePrice ?? 0), 2, '.', ''),
-                'offerCount' => 1,
+                'lowPrice' => $schemaLowPrice,
+                'highPrice' => $schemaHighPrice,
+                'offerCount' => max(1, (int) ($pdpOfferCount ?? 1)),
                 'availability' => $schemaAvailability,
-            ],
+            ];
+
+        if (! empty($categoryDisplayForPage)) {
+            $schemaProduct['category'] = (string) $categoryDisplayForPage;
+        }
+        $schemaProduct['brand'] = [
+            '@type' => 'Brand',
+            'name' => 'ZOOGLE',
         ];
 
         if (! empty($pdpOgImageUrl)) {
             $schemaProduct['image'] = [$pdpOgImageUrl];
         }
+
+        $schemaCrumbs = [
+            ['name' => 'ZOOGLE', 'url' => route('home')],
+        ];
+        foreach ($categoryBreadcrumb ?? [] as $crumb) {
+            $crumbName = trim((string) ($crumb['name'] ?? ''));
+            $crumbId = (int) ($crumb['id'] ?? 0);
+            if ($crumbName === '') {
+                continue;
+            }
+            $schemaCrumbs[] = [
+                'name' => $crumbName,
+                'url' => $crumbId > 0 ? route('catalog.index', ['category' => $crumbId]) : route('catalog.index'),
+            ];
+        }
+        $schemaCrumbs[] = [
+            'name' => mt($listing->title),
+            'url' => route('catalog.show', $listing->slug),
+        ];
+        $schemaBreadcrumb = [
+            '@context' => 'https://schema.org',
+            '@type' => 'BreadcrumbList',
+            'itemListElement' => array_map(
+                fn (array $crumb, int $index): array => [
+                    '@type' => 'ListItem',
+                    'position' => $index + 1,
+                    'name' => $crumb['name'],
+                    'item' => $crumb['url'],
+                ],
+                $schemaCrumbs,
+                array_keys($schemaCrumbs),
+            ),
+        ];
     @endphp
     <script type="application/ld+json">
-{!! json_encode($schemaProduct, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) !!}
+{!! json_encode($schemaProduct, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) !!}
     </script>
+    <script type="application/ld+json">
+{!! json_encode($schemaBreadcrumb, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) !!}
+    </script>
+    <meta property="product:price:amount" content="{{ $schemaLowPrice }}">
+    <meta property="product:price:currency" content="UAH">
 @endpush
 
 @php
     $galleryPhotos = is_array($galleryPhotos ?? null) ? $galleryPhotos : [];
+    $galleryItems = is_array($galleryItems ?? null) ? $galleryItems : [];
+    if ($galleryItems === [] && $galleryPhotos !== []) {
+        $galleryItems = array_map(
+            static fn (string $path): array => \App\Support\ListingMedia::storefrontItemForPath($path, []),
+            $galleryPhotos
+        );
+    }
 
     $categoryDisplayForPage = $categoryDisplayForPage ?? $categoryLabel ?? null;
     $listingBasePrice = (float) ($listingBasePrice ?? 0);
     $listingBaseCompareAt = isset($listingBaseCompareAt) && $listingBaseCompareAt !== null ? (float) $listingBaseCompareAt : null;
     $listingStockMode = $listingStockMode ?? 'none';
+    $optionsIncomplete = (bool) ($optionsIncomplete ?? false);
 
     $defaultOptionSelection = $defaultOptionSelection ?? [];
     $optionsPreselectedFromVariant = $optionsPreselectedFromVariant ?? false;
     $productOptionsDisplay = is_array($productOptionsDisplay ?? null) ? $productOptionsDisplay : [];
-    $storefrontDefaultVariantId = null;
-    $needsBareVariantPicker = false;
-    $barePickerPreselect = null;
+    $storefrontDefaultVariantId = $storefrontDefaultVariantId ?? $matchedVariantId ?? null;
+    $needsBareVariantPicker = (bool) ($needsBareVariantPicker ?? false);
+    $barePickerPreselect = $storefrontDefaultVariantId;
+    $variantsPayload = is_array($variantsPayload ?? null) ? $variantsPayload : [];
+    $matchedVariantId = isset($matchedVariantId) ? (int) $matchedVariantId : (int) ($storefrontDefaultVariantId ?? 0);
     $categoryBreadcrumb = is_array($categoryBreadcrumb ?? null) ? $categoryBreadcrumb : [];
+    $subcategoryFilterChip = is_array($subcategoryFilterChip ?? null) ? $subcategoryFilterChip : null;
     $breadcrumbQueryBase = array_filter([
-        'q' => request('q'),
         'on_sale' => request()->boolean('on_sale') ? 1 : null,
+        'category' => request()->integer('category') > 0 ? request()->integer('category') : null,
     ], fn ($v) => $v !== null && $v !== '');
+
+    $formatDimensionCm = static function (mixed $value): ?string {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $number = (float) $value;
+        if ($number <= 0) {
+            return null;
+        }
+
+        return rtrim(rtrim(number_format($number, 2, '.', ''), '0'), '.');
+    };
+    $productDimensionValues = [
+        'length' => $formatDimensionCm($listing->length_cm ?? null),
+        'width' => $formatDimensionCm($listing->width_cm ?? null),
+        'height' => $formatDimensionCm($listing->height_cm ?? null),
+    ];
+    $productDimensionRows = array_filter([
+        $productDimensionValues['length'] !== null ? 'Довжина: '.$productDimensionValues['length'].' см.' : null,
+        $productDimensionValues['width'] !== null ? 'Ширина: '.$productDimensionValues['width'].' см.' : null,
+        $productDimensionValues['height'] !== null ? 'Висота: '.$productDimensionValues['height'].' см.' : null,
+    ]);
 @endphp
 
 @push('styles')
-<style>
-    .pdp-related-section.home-shop-panel {
-        display: block;
-        width: calc(100% - (var(--pdp-block-inset) * 2));
-        max-width: 100%;
-        min-width: 0;
-        box-sizing: border-box;
-        margin: 22px auto 0;
-        border-radius: 20px;
-        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
-        transition:
-            transform .32s cubic-bezier(0.22, 1, 0.36, 1),
-            box-shadow .32s cubic-bezier(0.22, 1, 0.36, 1),
-            border-color .32s ease;
-        will-change: transform, box-shadow;
-    }
-    .pdp-related-section .home-product-carousel {
-        --home-carousel-cols: 5;
-        width: 100%;
-        max-width: 100%;
-        min-width: 0;
-        box-sizing: border-box;
-    }
-    .pdp-related-section .home-product-carousel__viewport {
-        width: 100%;
-        max-width: 100%;
-        min-width: 0;
-        box-sizing: border-box;
-    }
-    .pdp-related-section .home-product-carousel__track {
-        max-width: none;
-    }
-    @media (max-width: 1180px) {
-        .pdp-related-section .home-product-carousel {
-            --home-carousel-cols: 4;
-        }
-    }
-    @media (max-width: 980px) {
-        .pdp-related-section .home-product-carousel {
-            --home-carousel-cols: 2;
-        }
-    }
-    @media (max-width: 560px) {
-        .pdp-related-section .home-product-carousel {
-            --home-carousel-cols: 1.08;
-        }
-    }
-    @media (hover: hover) and (pointer: fine) {
-        .pdp-related-section.home-shop-panel:hover {
-            transform: translateY(-3px);
-            border-color: #dbe4ee;
-            box-shadow: 0 18px 42px rgba(15, 23, 42, 0.13);
-        }
-    }
-    @media (prefers-reduced-motion: reduce) {
-        .pdp-related-section.home-shop-panel {
-            transition: box-shadow .24s ease, border-color .24s ease;
-            will-change: auto;
-        }
-
-        .pdp-related-section.home-shop-panel:hover {
-            transform: none;
-        }
-    }
-    .product-page {
-        --pdp-block-inset: clamp(0px, 0.7vw, 10px);
-        color: #202124;
-        width: min(80vw, 100%);
-        margin: clamp(6px, 1vw, 14px) auto clamp(12px, 2vw, 28px);
-        box-sizing: border-box;
-        padding: 0;
-    }
-    .product-page a { color: #1a73e8; text-decoration: none; }
-    .product-page a:hover { color: #174ea6; }
-    .product-breadcrumb { font-size: 13px; margin-bottom: 20px; }
-    .product-breadcrumb {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 6px;
-        color: #5f6368;
-    }
-    .product-breadcrumb__sep { opacity: .65; }
-    .product-breadcrumb__selected {
-        color: #3c4043;
-        font-weight: 500;
-    }
-    .product-category-chain {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        align-items: center;
-        min-width: 0;
-        width: calc(100% - (var(--pdp-block-inset) * 2));
-        margin: 0 0 1rem;
-        margin-inline: auto;
-    }
-    .product-category-chain a {
-        touch-action: manipulation;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0;
-        padding: 0 16px;
-        min-height: 40px;
-        border: 0;
-        border-radius: 20px;
-        font-size: 0.875rem;
-        font-weight: 700;
-        font-family: inherit;
-        line-height: 1.2;
-        text-decoration: none;
-        cursor: pointer;
-        box-shadow:
-            0 12px 24px rgba(15, 23, 42, 0.08),
-            0 4px 10px rgba(15, 23, 42, 0.04);
-        transition:
-            transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
-            box-shadow 0.5s cubic-bezier(0.16, 1, 0.3, 1),
-            background-color 0.2s ease,
-            color 0.2s ease,
-            filter 0.2s ease;
-    }
-    .product-category-chain a:hover {
-        transform: translateY(-6px);
-        box-shadow:
-            0 28px 56px rgba(15, 23, 42, 0.22),
-            0 14px 32px rgba(15, 23, 42, 0.16),
-            0 6px 14px rgba(15, 23, 42, 0.1);
-    }
-    .product-category-chain a:active {
-        transform: translateY(-2px) scale(0.97);
-    }
-    .product-category-chain a:nth-child(6n+1) {
-        background-color: rgba(59, 130, 242, 0.12);
-        color: #3b82f2;
-    }
-    .product-category-chain a:nth-child(6n+1):hover {
-        background-color: #3b82f2;
-        color: #fff;
-    }
-    .product-category-chain a:nth-child(6n+1):focus-visible {
-        outline: 2px solid #3b82f2;
-        outline-offset: 2px;
-    }
-    .product-category-chain a:nth-child(6n+2) {
-        background-color: rgba(237, 54, 38, 0.12);
-        color: #ed3626;
-    }
-    .product-category-chain a:nth-child(6n+2):hover {
-        background-color: #ed3626;
-        color: #fff;
-    }
-    .product-category-chain a:nth-child(6n+2):focus-visible {
-        outline: 2px solid #ed3626;
-        outline-offset: 2px;
-    }
-    .product-category-chain a:nth-child(6n+3) {
-        background-color: rgba(252, 181, 1, 0.18);
-        color: #fcb501;
-    }
-    .product-category-chain a:nth-child(6n+3):hover {
-        background-color: #fcb501;
-        color: #fff;
-    }
-    .product-category-chain a:nth-child(6n+3):focus-visible {
-        outline: 2px solid #fcb501;
-        outline-offset: 2px;
-    }
-    .product-category-chain a:nth-child(6n+4) {
-        background-color: rgba(57, 125, 234, 0.12);
-        color: #397dea;
-    }
-    .product-category-chain a:nth-child(6n+4):hover {
-        background-color: #397dea;
-        color: #fff;
-    }
-    .product-category-chain a:nth-child(6n+4):focus-visible {
-        outline: 2px solid #397dea;
-        outline-offset: 2px;
-    }
-    .product-category-chain a:nth-child(6n+5) {
-        background-color: rgba(51, 152, 59, 0.12);
-        color: #33983b;
-    }
-    .product-category-chain a:nth-child(6n+5):hover {
-        background-color: #33983b;
-        color: #fff;
-    }
-    .product-category-chain a:nth-child(6n+5):focus-visible {
-        outline: 2px solid #33983b;
-        outline-offset: 2px;
-    }
-    .product-category-chain a:nth-child(6n+6) {
-        background-color: rgba(238, 60, 43, 0.12);
-        color: #ee3c2b;
-    }
-    .product-category-chain a:nth-child(6n+6):hover {
-        background-color: #ee3c2b;
-        color: #fff;
-    }
-    .product-category-chain a:nth-child(6n+6):focus-visible {
-        outline: 2px solid #ee3c2b;
-        outline-offset: 2px;
-    }
-    @media (prefers-reduced-motion: reduce) {
-        .product-category-chain a {
-            transition:
-                background-color 0.2s ease,
-                color 0.2s ease,
-                filter 0.2s ease;
-        }
-        .product-category-chain a:hover,
-        .product-category-chain a:active {
-            transform: none;
-        }
-    }
-    .product-grid {
-        display: grid;
-        grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr);
-        gap: clamp(12px, 1.6vw, 22px);
-        width: calc(100% - (var(--pdp-block-inset) * 2));
-        max-width: min(1680px, 100%);
-        margin: 0 auto;
-        align-items: start;
-    }
-    @media (max-width: 900px) {
-        .product-grid { grid-template-columns: 1fr; }
-    }
-    .product-main-column {
-        min-width: 0;
-        display: grid;
-        gap: clamp(12px, 1.4vw, 18px);
-    }
-    .product-gallery-column {
-        min-width: 0;
-        width: 100%;
-    }
-    .product-gallery-card,
-    .product-detail-card,
-    .product-desc,
-    .product-care-section {
-        border-radius: 20px;
-        border: 1px solid #e8eaed;
-        background: #fff;
-        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
-        transition:
-            transform .32s cubic-bezier(0.22, 1, 0.36, 1),
-            box-shadow .32s cubic-bezier(0.22, 1, 0.36, 1),
-            border-color .32s ease;
-        will-change: transform, box-shadow;
-    }
-    @media (hover: hover) and (pointer: fine) {
-        .product-gallery-card:hover,
-        .product-detail-card:hover,
-        .product-desc:hover,
-        .product-care-section:hover {
-            transform: translateY(-3px);
-            border-color: #dbe4ee;
-            box-shadow: 0 18px 42px rgba(15, 23, 42, 0.13);
-        }
-    }
-    @media (prefers-reduced-motion: reduce) {
-        .product-gallery-card,
-        .product-detail-card,
-        .product-desc,
-        .product-care-section {
-            transition: box-shadow .24s ease, border-color .24s ease;
-            will-change: auto;
-        }
-
-        .product-gallery-card:hover,
-        .product-detail-card:hover,
-        .product-desc:hover,
-        .product-care-section:hover {
-            transform: none;
-        }
-    }
-    .product-gallery-card {
-        padding: clamp(12px, 1.6vw, 18px);
-    }
-    .product-detail-column {
-        min-width: 0;
-        width: 100%;
-    }
-    .product-detail-card {
-        padding: clamp(20px, 2.6vw, 34px);
-    }
-    @media (min-width: 1024px) {
-        .product-detail-column {
-            position: sticky;
-            top: clamp(16px, calc(var(--header-sticky-offset, 0px) + 12px), 96px);
-            align-self: start;
-            max-height: calc(100vh - clamp(16px, calc(var(--header-sticky-offset, 0px) + 12px), 96px) - 16px);
-            overflow-y: auto;
-        }
-        .product-detail-card {
-            max-height: none;
-            overflow: visible;
-        }
-    }
-    @media (min-width: 769px) {
-        .product-detail-column .product-detail-card {
-            margin-bottom: 0;
-            border-bottom: none;
-            border-radius: 20px 20px 0 0;
-            padding-bottom: clamp(12px, 1.6vw, 20px);
-            box-shadow: none;
-        }
-        .product-buy-panel {
-            background: #fff;
-            border: 1px solid #e8eaed;
-            border-top: none;
-            border-radius: 0 0 20px 20px;
-            padding: 0 clamp(20px, 2.6vw, 34px) clamp(20px, 2.6vw, 34px);
-            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
-        }
-        .product-buy-panel:not(:has(.product-options-panel)) {
-            border-top: 1px solid #e8eaed;
-            padding-top: clamp(12px, 1.6vw, 20px);
-        }
-    }
-    .product-gallery-main {
-        background: #f1f3f4;
-        border-radius: 12px;
-        border: 1px solid #e8eaed;
-        aspect-ratio: 1;
-        width: 100%;
-        max-width: 100%;
-        box-sizing: border-box;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        overflow: hidden;
-        box-shadow: 0 1px 2px rgba(60, 64, 67, 0.12);
-        transition: box-shadow .2s ease, border-color .2s ease;
-    }
-    .product-gallery-main:hover {
-        border-color: #dadce0;
-        box-shadow: 0 2px 8px rgba(60, 64, 67, 0.16);
-    }
-    .product-gallery-main img {
-        width: 100%;
-        height: 100%;
-        object-position: center;
-        transition: transform .2s ease;
-    }
-    .product-gallery-main--multi-img #product-main-img {
-        transition:
-            opacity 0.28s ease,
-            transform 0.2s ease;
-    }
-    @media (prefers-reduced-motion: reduce) {
-        .product-gallery-main--multi-img #product-main-img {
-            transition: transform 0.2s ease;
-        }
-    }
-    .product-gallery-main--fit-cover img { object-fit: cover; }
-    .product-gallery-main:hover img {
-        transform: scale(1.015);
-    }
-    .product-gallery-main .placeholder {
-        color: #5f6368;
-        font-size: 14px;
-    }
-    .product-thumbs {
-        display: flex;
-        gap: 8px;
-        margin-top: 10px;
-        flex-wrap: wrap;
-    }
-    .product-thumbs button {
-        width: 64px;
-        height: 64px;
-        padding: 0;
-        border-radius: 8px;
-        border: 1px solid #dadce0;
-        background: #fff;
-        cursor: pointer;
-        overflow: hidden;
-        box-shadow: 0 1px 2px rgba(60, 64, 67, 0.1);
-        transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
-    }
-    .product-thumbs button:hover {
-        border-color: #1a73e8;
-        box-shadow: 0 1px 4px rgba(60, 64, 67, 0.2);
-        transform: translateY(-1px);
-    }
-    .product-thumbs button.active {
-        border-color: #1a73e8;
-        box-shadow: 0 0 0 1px rgba(26, 115, 232, 0.35);
-    }
-    .product-thumbs img {
-        width: 100%;
-        height: 100%;
-        object-position: center;
-    }
-    .product-thumbs--fit-cover img { object-fit: cover; }
-    .product-title { font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 700; margin: 0 0 12px; line-height: 1.2; color: #367df1; }
-    .product-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
-    .badge {
-        font-size: 12px;
-        font-weight: 600;
-        padding: 6px 12px;
-        border-radius: 8px;
-    }
-    .badge.ok { background: #dcfae6; color: #067647; }
-    .badge.pre { background: #fffaeb; color: #b54708; }
-    .badge.low { background: #fef3c7; color: #92400e; }
-    .badge.no { background: #fee4e2; color: #b42318; }
-    .product-price-row { margin-bottom: 8px; }
-    .product-price {
-        font-size: 2rem;
-        font-weight: 700;
-        color: #339a39;
-        display: inline-flex;
-        flex-wrap: wrap;
-        align-items: baseline;
-        gap: 10px 14px;
-        will-change: transform, filter, opacity;
-    }
-    .product-price--up {
-        animation: productPriceRise .32s cubic-bezier(0.22, 1, 0.36, 1);
-    }
-    .product-price--down {
-        animation: productPriceDrop .32s cubic-bezier(0.22, 1, 0.36, 1);
-    }
-    .product-price__old { font-size: 1.35rem; font-weight: 500; color: #80868b; text-decoration: line-through; }
-    .product-price__current { color: #4ade80; }
-    @keyframes productPriceRise {
-        0% { transform: translateY(0) scale(1); filter: brightness(1); }
-        40% { transform: translateY(-2px) scale(1.035); filter: brightness(1.08); }
-        100% { transform: translateY(0) scale(1); filter: brightness(1); }
-    }
-    @keyframes productPriceDrop {
-        0% { transform: translateY(0) scale(1); opacity: 1; }
-        40% { transform: translateY(1px) scale(0.985); opacity: 0.9; }
-        100% { transform: translateY(0) scale(1); opacity: 1; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-        .product-price,
-        .product-price--up,
-        .product-price--down {
-            animation: none !important;
-        }
-    }
-    .product-sku { font-size: 13px; color: #5f6368; margin-bottom: 28px; }
-    .product-buy-panel {
-        min-width: 0;
-    }
-    .product-buy-panel .product-options-panel {
-        margin-top: 0;
-    }
-    .product-options-panel { margin-top: 8px; padding-top: 20px; border-top: 1px solid #e8eaed; }
-    .product-options-heading { font-size: 15px; font-weight: 600; color: #202124; margin: 0 0 16px; letter-spacing: 0.01em; }
-    .opt-group { margin-bottom: 22px; }
-    .opt-group:last-child { margin-bottom: 0; }
-    .opt-label { font-size: 13px; font-weight: 600; color: #5f6368; margin-bottom: 10px; display: block; }
-    .opt-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-    .opt-chip {
-        border: 1px solid #dadce0;
-        background: #fff;
-        color: #202124;
-        padding: 10px 16px;
-        border-radius: 20px;
-        font-size: 14px;
-        cursor: pointer;
-        box-shadow: 0 4px 10px rgba(15, 23, 42, 0.05);
-        transition:
-            transform .26s cubic-bezier(0.22, 1, 0.36, 1),
-            border-color .18s ease,
-            background .18s ease,
-            color .18s ease,
-            box-shadow .26s cubic-bezier(0.22, 1, 0.36, 1),
-            filter .18s ease;
-        will-change: transform, box-shadow;
-    }
-    .opt-chip:hover,
-    .opt-chip:focus-visible {
-        border-color: rgba(26, 115, 232, 0.55);
-        transform: translateY(-3px) scale(1.035);
-        box-shadow:
-            0 12px 24px rgba(15, 23, 42, 0.14),
-            0 0 0 4px rgba(26, 115, 232, 0.08);
-    }
-    .opt-chip:focus-visible {
-        outline: 2px solid #1a73e8;
-        outline-offset: 3px;
-    }
-    .opt-chip.active {
-        background: #1a73e8;
-        color: #fff;
-        border-color: #1a73e8;
-        transform: translateY(-2px) scale(1.04);
-        box-shadow:
-            0 14px 30px rgba(26, 115, 232, 0.26),
-            0 0 0 4px rgba(26, 115, 232, 0.14);
-        filter: saturate(1.08);
-    }
-    .opt-chip.active:hover,
-    .opt-chip.active:focus-visible {
-        transform: translateY(-4px) scale(1.06);
-        box-shadow:
-            0 18px 34px rgba(26, 115, 232, 0.32),
-            0 0 0 5px rgba(26, 115, 232, 0.18);
-    }
-    .opt-chip:disabled {
-        opacity: .4;
-        cursor: not-allowed;
-        transform: none;
-        box-shadow: none;
-        filter: none;
-    }
-    @media (prefers-reduced-motion: reduce) {
-        .opt-chip {
-            transition:
-                border-color .18s ease,
-                background .18s ease,
-                color .18s ease,
-                box-shadow .18s ease,
-                filter .18s ease;
-            will-change: auto;
-        }
-
-        .opt-chip:hover,
-        .opt-chip:focus-visible,
-        .opt-chip.active,
-        .opt-chip.active:hover,
-        .opt-chip.active:focus-visible {
-            transform: none;
-        }
-    }
-    .opt-colors { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
-    .opt-swatch {
-        position: relative;
-        width: 44px;
-        height: 44px;
-        border-radius: 50%;
-        border: 2px solid rgba(255, 255, 255, 0.95);
-        cursor: pointer;
-        padding: 0;
-        box-sizing: border-box;
-        box-shadow:
-            0 0 0 1px rgba(15, 23, 42, 0.18),
-            0 6px 14px rgba(15, 23, 42, 0.12);
-        transition:
-            transform .26s cubic-bezier(0.22, 1, 0.36, 1),
-            box-shadow .26s cubic-bezier(0.22, 1, 0.36, 1),
-            border-color .18s ease,
-            filter .18s ease;
-        will-change: transform, box-shadow;
-    }
-    .opt-swatch::before {
-        content: attr(aria-label);
-        position: absolute;
-        left: 50%;
-        bottom: calc(100% + 8px);
-        z-index: 4;
-        max-width: 160px;
-        padding: 5px 8px;
-        border-radius: 999px;
-        background: rgba(15, 23, 42, 0.92);
-        color: #fff;
-        font-size: 11px;
-        font-weight: 700;
-        line-height: 1.2;
-        white-space: nowrap;
-        opacity: 0;
-        pointer-events: none;
-        transform: translate(-50%, 4px) scale(0.96);
-        transition:
-            opacity .18s ease,
-            transform .22s cubic-bezier(0.22, 1, 0.36, 1);
-    }
-    .opt-swatch::after {
-        content: "";
-        position: absolute;
-        inset: 50% auto auto 50%;
-        z-index: 3;
-        width: 12px;
-        height: 7px;
-        border-left: 2px solid #fff;
-        border-bottom: 2px solid #fff;
-        opacity: 0;
-        filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.72));
-        transform: translate(-50%, -58%) rotate(-45deg) scale(0.55);
-        transition:
-            opacity .18s ease,
-            transform .24s cubic-bezier(0.22, 1, 0.36, 1);
-    }
-    .opt-swatch:hover,
-    .opt-swatch:focus-visible {
-        transform: translateY(-3px) scale(1.08);
-        box-shadow:
-            0 0 0 2px rgba(54, 125, 241, 0.24),
-            0 13px 26px rgba(15, 23, 42, 0.22);
-        filter: saturate(1.12) brightness(1.03);
-    }
-    .opt-swatch:hover::before,
-    .opt-swatch:focus-visible::before {
-        opacity: 1;
-        transform: translate(-50%, 0) scale(1);
-    }
-    .opt-swatch:focus-visible {
-        outline: 2px solid #1a73e8;
-        outline-offset: 4px;
-    }
-    .opt-swatch.active {
-        border-color: #fff;
-        box-shadow:
-            0 0 0 3px #1a73e8,
-            0 0 0 7px rgba(26, 115, 232, 0.16),
-            0 14px 30px rgba(26, 115, 232, 0.24);
-        transform: translateY(-2px) scale(1.06);
-    }
-    .opt-swatch.active::after {
-        opacity: 1;
-        transform: translate(-50%, -58%) rotate(-45deg) scale(1);
-    }
-    .opt-swatch span { display: none; }
-    .opt-swatch--has-img {
-        position: relative;
-        overflow: hidden;
-        background-color: #e8eaed;
-    }
-    .opt-swatch--has-img img {
-        position: absolute;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        pointer-events: none;
-        border-radius: 50%;
-    }
-    @media (prefers-reduced-motion: reduce) {
-        .opt-swatch,
-        .opt-swatch::before,
-        .opt-swatch::after {
-            transition: none;
-            will-change: auto;
-        }
-
-        .opt-swatch:hover,
-        .opt-swatch:focus-visible,
-        .opt-swatch.active {
-            transform: none;
-        }
-    }
-    .opt-group--readonly .opt-chip--readonly,
-    .opt-group--readonly .opt-swatch--readonly {
-        cursor: default;
-        pointer-events: none;
-    }
-    .opt-group--readonly .opt-chip--readonly {
-        background: #f8f9fb;
-        border-color: #e8eaed;
-        color: #3c4043;
-        font-weight: 500;
-    }
-    .opt-group--readonly .opt-swatch--readonly {
-        opacity: 0.95;
-    }
-    .opt-group--exclusive-hidden {
-        display: none !important;
-    }
-    .product-actions {
-        margin-top: 28px;
-        display: flex;
-        flex-direction: row;
-        flex-wrap: nowrap;
-        align-items: stretch;
-        gap: 12px;
-        width: 100%;
-        max-width: 100%;
-        box-sizing: border-box;
-    }
-    .product-actions form {
-        flex: 1 1 0;
-        min-width: 0;
-    }
-    .product-actions__favorite {
-        flex: 0 0 auto;
-        min-width: 0;
-        align-self: stretch;
-    }
-    /* Лайк як друга CTA-пігулка (як «Поради по догляду»): одна кнопка з іконкою, текстом і лічильником */
-    .pdp-actions-like {
-        margin: 0;
-        padding: 0;
-        background: transparent !important;
-        border-radius: 0 !important;
-        display: flex;
-        align-items: stretch;
-    }
-    .pdp-actions-like .product-actions__favorite-btn.product-card__favorite {
-        position: relative;
-        box-sizing: border-box;
-        width: auto;
-        min-width: 88px;
-        min-height: 48px;
-        height: auto;
-        padding: 13px 18px;
-        margin: 0;
-        border-radius: 20px;
-        border: 1px solid rgba(54, 125, 241, 0.22);
-        background: #eaf2ff;
-        color: #1d5fd6;
-        font-family: inherit;
-        font-size: 16px;
-        font-weight: 700;
-        line-height: 1.2;
-        cursor: pointer;
-        box-shadow: 0 4px 14px rgba(54, 125, 241, 0.14);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        flex-wrap: nowrap;
-        transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-    }
-    .pdp-actions-like .product-actions__favorite-btn.product-card__favorite:hover {
-        background: #dbeafe;
-        box-shadow: 0 6px 18px rgba(54, 125, 241, 0.18);
-        transform: translateY(-1px);
-    }
-    .pdp-actions-like .product-actions__favorite-btn.product-card__favorite:active {
-        transform: translateY(0);
-    }
-    .pdp-actions-like .product-actions__favorite-btn.product-card__favorite:focus-visible {
-        outline: 2px solid #367df1;
-        outline-offset: 2px;
-    }
-    .pdp-actions-like .product-actions__favorite-btn.product-card__favorite.is-favorite {
-        border-color: rgba(239, 56, 41, 0.35);
-        background: #fff5f5;
-        color: #c81e4d;
-        box-shadow: 0 4px 14px rgba(239, 56, 41, 0.16);
-    }
-    .pdp-actions-like .product-actions__favorite-btn.product-card__favorite.is-favorite:hover {
-        background: #ffe8ec;
-        box-shadow: 0 6px 18px rgba(239, 56, 41, 0.22);
-    }
-    .pdp-actions-like .product-actions__favorite-btn.product-card__favorite::after {
-        display: none !important;
-        animation: none !important;
-    }
-    .pdp-actions-like .product-actions__favorite-icon {
-        flex-shrink: 0;
-        width: 22px;
-        height: 22px;
-    }
-    .pdp-actions-like .product-actions__favorite-count {
-        min-width: 1.5em;
-        height: auto;
-        margin: 0;
-        padding: 0;
-        font-size: 0.95rem;
-        font-weight: 700;
-        font-variant-numeric: tabular-nums;
-        color: inherit;
-        opacity: 0.88;
-    }
-    .pdp-actions-like .product-actions__favorite-btn.product-card__favorite .product-actions__favorite-icon path {
-        fill: currentColor;
-        stroke: currentColor;
-    }
-    .pdp-actions-like .product-actions__favorite-btn.product-card__favorite:hover .product-actions__favorite-icon path {
-        fill: currentColor;
-        stroke: currentColor;
-    }
-    .product-care-cta {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: auto;
-        flex: 1 1 0;
-        min-width: 0;
-        max-width: none;
-        min-height: 48px;
-        padding: 13px 14px;
-        border-radius: 20px;
-        border: 1px solid rgba(54, 125, 241, 0.22);
-        background: #eaf2ff;
-        color: #1d5fd6 !important;
-        font-size: clamp(0.78rem, 2.4vw, 16px);
-        font-weight: 700;
-        text-decoration: none;
-        text-align: center;
-        line-height: 1.25;
-        box-shadow: 0 4px 14px rgba(54, 125, 241, 0.14);
-        transition: background .15s ease, box-shadow .15s ease, transform .15s ease;
-    }
-    .product-care-cta:hover {
-        background: #dbeafe;
-        box-shadow: 0 6px 18px rgba(54, 125, 241, 0.18);
-        transform: translateY(-1px);
-    }
-    .product-actions .btn-product {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 100%;
-        max-width: none;
-        min-width: 0;
-        min-height: 48px;
-        padding: 13px clamp(10px, 2.5vw, 20px);
-        border-radius: 20px;
-        border: none;
-        font-size: clamp(0.82rem, 2.6vw, 16px);
-        font-weight: 600;
-        cursor: pointer;
-        background: #ef3829;
-        color: #fff;
-        box-shadow: 0 4px 14px rgba(239, 56, 41, 0.35);
-        transition: background .15s, filter .15s, box-shadow .15s;
-        text-align: center;
-        line-height: 1.25;
-    }
-    .product-actions .btn-product:hover:not(:disabled) {
-        background: #d62f22;
-        filter: brightness(1.03);
-        box-shadow: 0 6px 18px rgba(239, 56, 41, 0.45);
-    }
-    .product-actions .btn-product:disabled { opacity: .45; cursor: not-allowed; }
-    /* Верхній sheet у дусі Apple: системна типографіка, «grabber», спокійні кольори. */
-    .pdp-defer-modal {
-        position: fixed;
-        left: 50%;
-        top: max(12px, env(safe-area-inset-top, 0px));
-        z-index: 270;
-        width: min(calc(100% - 32px), 540px);
-        max-width: calc(100vw - 32px);
-        margin: 0;
-        padding: 0;
-        border: 0;
-        background: transparent;
-        box-sizing: border-box;
-        transform: translateX(-50%);
-        pointer-events: none;
-        font-family:
-            -apple-system,
-            BlinkMacSystemFont,
-            'SF Pro Text',
-            'Segoe UI',
-            Roboto,
-            'Helvetica Neue',
-            Arial,
-            sans-serif;
-        --apple-blue: #007aff;
-        --apple-label: #1d1d1f;
-        --apple-body: rgba(29, 29, 31, 0.92);
-        --apple-secondary: rgba(60, 60, 67, 0.74);
-        --apple-tertiary: rgba(60, 60, 67, 0.45);
-        --apple-fill: rgba(120, 120, 128, 0.12);
-    }
-    .pdp-defer-modal[hidden] { display: none !important; }
-    .pdp-defer-modal__panel {
-        position: relative;
-        pointer-events: auto;
-        max-width: 100%;
-        width: 100%;
-        max-height: min(88dvh, calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px));
-        overflow-x: hidden;
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        -webkit-overflow-scrolling: touch;
-        padding: 28px 26px 20px;
-        border-radius: 22px;
-        border: 0.5px solid rgba(0, 0, 0, 0.08);
-        background: #fff;
-        box-shadow:
-            0 28px 80px rgba(0, 0, 0, 0.12),
-            0 12px 32px rgba(0, 0, 0, 0.08);
-        opacity: 0;
-        transform: translateY(-14px) scale(0.97);
-        transition:
-            opacity 0.32s cubic-bezier(0.32, 0.72, 0, 1),
-            transform 0.38s cubic-bezier(0.32, 0.72, 0, 1);
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-        text-rendering: optimizeLegibility;
-    }
-    /* Індикатор як у системного bottom/side sheet */
-    .pdp-defer-modal__panel::before {
-        content: '';
-        position: absolute;
-        top: 10px;
-        left: 50%;
-        width: 38px;
-        height: 5px;
-        margin-left: -19px;
-        border-radius: 100px;
-        background: rgba(0, 0, 0, 0.12);
-        pointer-events: none;
-    }
-    .pdp-defer-modal.is-visible .pdp-defer-modal__panel {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-    @media (prefers-reduced-motion: reduce) {
-        .pdp-defer-modal__panel {
-            transition-duration: 0.01ms;
-        }
-        .pdp-defer-modal__contact:hover {
-            transform: none;
-        }
-        .pdp-defer-modal__contact:hover .pdp-defer-modal__icon-wrap {
-            transform: none;
-        }
-    }
-    .pdp-defer-modal__eyebrow {
-        margin: 4px 0 10px;
-        font-size: 0.75rem;
-        font-weight: 700;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-        color: var(--apple-secondary);
-        line-height: 1.35;
-    }
-    .pdp-defer-modal__title {
-        margin: 0 0 18px;
-        font-size: clamp(1.2rem, 3.5vw, 1.45rem);
-        font-weight: 700;
-        letter-spacing: -0.024em;
-        line-height: 1.28;
-        color: var(--apple-label);
-    }
-    .pdp-defer-modal__lead {
-        margin: 0 0 22px;
-        padding: 16px 18px;
-        font-size: 0.9375rem;
-        line-height: 1.45;
-        font-weight: 600;
-        letter-spacing: -0.008em;
-        color: var(--apple-body);
-        border-radius: 16px;
-        border: none;
-        background: rgba(0, 0, 0, 0.045);
-        box-shadow: none;
-    }
-    .pdp-defer-modal__contacts-heading {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        margin: 0 0 12px;
-        font-size: 0.875rem;
-        font-weight: 700;
-        letter-spacing: -0.008em;
-        text-transform: none;
-        color: var(--apple-secondary);
-        line-height: 1.4;
-    }
-    .pdp-defer-modal__contacts-heading::before {
-        content: '';
-        flex-shrink: 0;
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background: #34c759;
-        opacity: 0.9;
-    }
-    .pdp-defer-modal__contacts {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-        gap: 10px;
-        margin-bottom: 2px;
-    }
-    .pdp-defer-modal__contact {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 10px;
-        padding: 15px 11px 14px;
-        border-radius: 16px;
-        border: 0.5px solid rgba(0, 0, 0, 0.06);
-        background: rgba(255, 255, 255, 0.65);
-        text-decoration: none;
-        color: var(--apple-label);
-        font-size: 0.875rem;
-        font-weight: 600;
-        text-align: center;
-        line-height: 1.38;
-        letter-spacing: -0.012em;
-        transition:
-            background-color 0.2s ease,
-            box-shadow 0.22s ease,
-            transform 0.22s cubic-bezier(0.32, 0.72, 0, 1);
-        word-break: break-word;
-        hyphens: auto;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-    }
-    .pdp-defer-modal__contact:hover {
-        border-color: rgba(0, 0, 0, 0.08);
-        background: rgba(255, 255, 255, 0.92);
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-        transform: translateY(-1px);
-    }
-    .pdp-defer-modal__contact:focus-visible {
-        outline: 2px solid var(--apple-blue);
-        outline-offset: 2px;
-    }
-    .pdp-defer-modal__icon-wrap {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 48px;
-        height: 48px;
-        border-radius: 14px;
-        flex-shrink: 0;
-        box-shadow: none;
-        transition: transform 0.2s ease, opacity 0.2s ease;
-    }
-    .pdp-defer-modal__contact:hover .pdp-defer-modal__icon-wrap {
-        transform: scale(1.03);
-    }
-    .pdp-defer-modal__contact--phone .pdp-defer-modal__icon-wrap {
-        background: rgba(52, 199, 89, 0.14);
-        color: #248a3d;
-    }
-    .pdp-defer-modal__contact--viber .pdp-defer-modal__icon-wrap {
-        background: rgba(142, 68, 173, 0.12);
-        color: #6b3fa0;
-    }
-    .pdp-defer-modal__contact--whatsapp .pdp-defer-modal__icon-wrap {
-        background: rgba(37, 211, 102, 0.14);
-        color: #1d8a48;
-    }
-    .pdp-defer-modal__contact--telegram .pdp-defer-modal__icon-wrap {
-        background: rgba(0, 122, 255, 0.12);
-        color: #007aff;
-    }
-    .pdp-defer-modal__contact-label {
-        max-width: 100%;
-    }
-    .pdp-defer-modal__actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        justify-content: stretch;
-        align-items: stretch;
-        margin-top: 22px;
-        margin-left: -26px;
-        margin-right: -26px;
-        margin-bottom: -6px;
-        padding: 18px 26px 12px;
-        border-top: 0.5px solid rgba(0, 0, 0, 0.08);
-        background: rgba(248, 248, 248, 0.55);
-    }
-    .pdp-defer-modal__btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        flex: 1 1 auto;
-        min-width: 0;
-        min-height: 50px;
-        margin: 0;
-        padding: 0 18px;
-        border: none;
-        border-radius: 14px;
-        font-family: inherit;
-        font-weight: 700;
-        line-height: 1.25;
-        cursor: pointer;
-        transition: opacity 0.15s ease, transform 0.12s ease;
-        -webkit-tap-highlight-color: transparent;
-    }
-    .pdp-defer-modal__btn:active:not(:disabled) {
-        transform: scale(0.98);
-        opacity: 0.88;
-    }
-    .pdp-defer-modal__btn--secondary {
-        flex: 1 1 38%;
-        background: var(--apple-fill);
-        color: var(--apple-label);
-    }
-    .pdp-defer-modal__btn--primary {
-        flex: 1 1 52%;
-        background: var(--apple-blue);
-        color: #fff;
-        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.22) inset;
-    }
-    .pdp-defer-modal__btn--primary:hover {
-        filter: brightness(1.03);
-    }
-    .pdp-defer-modal__btn--secondary:hover {
-        background: rgba(120, 120, 128, 0.16);
-    }
-    .pdp-defer-modal__btn:focus-visible {
-        outline: 2px solid var(--apple-blue);
-        outline-offset: 2px;
-    }
-    @media (max-width: 420px) {
-        .pdp-defer-modal__actions {
-            flex-direction: column;
-            gap: 9px;
-        }
-        .pdp-defer-modal__btn,
-        .pdp-defer-modal__btn--secondary,
-        .pdp-defer-modal__btn--primary {
-            flex: none;
-            width: 100%;
-        }
-        .pdp-defer-modal__btn--primary {
-            order: -1;
-        }
-    }
-    .product-hint { font-size: 13px; color: #5f6368; min-height: 1.2em; }
-    .product-variant-select {
-        width: 100%;
-        max-width: 420px;
-        margin-top: 4px;
-        padding: 12px 14px;
-        font-size: 15px;
-        border-radius: 10px;
-        border: 1px solid #dadce0;
-        background: #fff;
-        color: #202124;
-        cursor: pointer;
-    }
-    .product-variant-select:focus {
-        outline: none;
-        border-color: #1a73e8;
-        box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.2);
-    }
-    .product-desc {
-        max-width: none;
-        margin: 0;
-        padding: clamp(18px, 2.4vw, 30px);
-    }
-    .product-desc h2 { font-size: 18px; margin-bottom: 12px; }
-    .product-desc p { color: #3c4043; line-height: 1.6; }
-    .product-desc__body {
-        color: #3c4043;
-        line-height: 1.65;
-        font-size: 15px;
-    }
-    .product-desc__body > * + * { margin-top: 0.75em; }
-    .product-desc__body p { margin: 0 0 0.75em; }
-    .product-desc__body p:last-child { margin-bottom: 0; }
-    .product-desc__body ul,
-    .product-desc__body ol { margin: 0.35em 0 0.75em 1.25em; padding: 0; }
-    .product-desc__body li { margin: 0.3em 0; }
-    .product-desc__body h1,
-    .product-desc__body h2,
-    .product-desc__body h3,
-    .product-desc__body h4 { margin: 0.85em 0 0.4em; line-height: 1.3; color: #202124; }
-    .product-desc__body h1:first-child,
-    .product-desc__body h2:first-child,
-    .product-desc__body h3:first-child { margin-top: 0; }
-    .product-desc__body a {
-        color: #1a73e8;
-        text-decoration: underline;
-        text-underline-offset: 2px;
-        overflow-wrap: anywhere;
-        word-break: break-word;
-    }
-    .product-desc__body a:hover { color: #1557b0; }
-    .product-desc__body blockquote {
-        border-left: 3px solid #dadce0;
-        margin: 0.75em 0;
-        padding-left: 1em;
-        color: #5f6368;
-    }
-    .product-desc__body code { font-size: 0.92em; background: #f1f3f4; padding: 0.1em 0.35em; border-radius: 4px; }
-    .product-desc__body pre { margin: 0.75em 0; padding: 12px 14px; background: #f8f9fa; border-radius: 8px; overflow-x: auto; font-size: 13px; }
-    .product-desc__body pre code { background: transparent; padding: 0; }
-    .product-desc__body table { border-collapse: collapse; width: 100%; margin: 0.75em 0; font-size: 14px; }
-    .product-desc__body th,
-    .product-desc__body td { border: 1px solid #e8eaed; padding: 8px 10px; text-align: left; vertical-align: top; }
-    .product-desc__body th { background: #f8f9fa; font-weight: 600; }
-    .product-desc__body hr { border: none; border-top: 1px solid #e8eaed; margin: 1.25em 0; }
-    .product-desc__body img { max-width: 100%; height: auto; border-radius: 6px; }
-    .product-desc__body sub,
-    .product-desc__body sup { font-size: 0.8em; line-height: 0; }
-    .product-desc__body li > ul,
-    .product-desc__body li > ol { margin-top: 0.35em; margin-bottom: 0.35em; }
-    .product-care-section {
-        max-width: none;
-        width: 100%;
-        box-sizing: border-box;
-        margin: 0;
-        padding: clamp(18px, 2.4vw, 30px);
-        border-radius: 20px;
-        border: 1px solid #e8eaed;
-        background: linear-gradient(180deg, #fff 0%, #f8fbff 100%);
-        box-shadow: 0 10px 26px rgba(15, 23, 42, 0.07);
-    }
-    .product-care-section__head {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: flex-end;
-        justify-content: space-between;
-        gap: 0.9rem 1rem;
-        margin-bottom: 1rem;
-    }
-    .product-care-section__intro {
-        flex: 1 1 12rem;
-        min-width: 0;
-    }
-    .product-care-section__all-btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-        min-height: 40px;
-        padding: 8px 16px;
-        border-radius: 999px;
-        border: 1px solid rgba(54, 125, 241, 0.24);
-        background: #fff;
-        color: #1d5fd6 !important;
-        font-size: 0.88rem;
-        font-weight: 700;
-        line-height: 1.2;
-        text-decoration: none;
-        white-space: nowrap;
-        box-shadow: 0 1px 3px rgba(54, 125, 241, 0.1);
-        transition:
-            background-color 0.15s ease,
-            border-color 0.15s ease,
-            box-shadow 0.15s ease;
-    }
-    .product-care-section__all-btn:hover {
-        background: #eaf2ff;
-        border-color: rgba(54, 125, 241, 0.35);
-        box-shadow: 0 2px 8px rgba(54, 125, 241, 0.14);
-        transform: none;
-    }
-    .product-care-section__title {
-        margin: 0;
-        color: #367df1;
-        font-size: clamp(1.25rem, 2.4vw, 1.6rem);
-        letter-spacing: -0.03em;
-    }
-    .product-care-section__lead {
-        margin: 0.35rem 0 0;
-        color: #5f6368;
-        line-height: 1.45;
-    }
-    .product-care-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 0.9rem;
-    }
-    .product-main-column .product-care-grid {
-        grid-template-columns: 1fr;
-    }
-    .product-care-card {
-        display: flex;
-        flex-direction: column;
-        min-height: 100%;
-        padding: 1rem;
-        border-radius: 16px;
-        border: 1px solid #e6ebf2;
-        background: #fff;
-        color: inherit;
-        text-decoration: none;
-        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
-        transition: transform .15s ease, box-shadow .15s ease;
-    }
-    .product-care-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 12px 26px rgba(15, 23, 42, 0.09);
-    }
-    .product-care-card__title {
-        margin: 0;
-        color: #0f172a;
-        font-size: 1rem;
-        line-height: 1.3;
-    }
-    .product-care-card__excerpt {
-        margin: 0.55rem 0 0;
-        color: #5f6368;
-        font-size: 0.88rem;
-        line-height: 1.45;
-    }
-    .product-care-card__more {
-        margin-top: auto;
-        padding-top: 0.85rem;
-        color: var(--color-cta);
-        font-weight: 900;
-    }
-
-    @media (max-width: 768px) {
-        .product-page {
-            width: 100%;
-        }
-
-        .product-page {
-            --pdp-block-inset: 0px;
-            margin: 0 auto 18px;
-            padding: 0 0 max(20px, env(safe-area-inset-bottom, 0px));
-        }
-
-        .product-breadcrumb,
-        .product-category-chain {
-            padding-inline: max(12px, env(safe-area-inset-left, 0px)) max(12px, env(safe-area-inset-right, 0px));
-        }
-
-        .product-breadcrumb {
-            margin-bottom: 10px;
-            font-size: 11px;
-        }
-
-        .product-category-chain {
-            gap: 6px;
-            margin-bottom: 0.65rem;
-        }
-
-        .product-category-chain a {
-            min-height: 34px;
-            padding: 0 11px;
-            font-size: 0.78rem;
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
-        }
-
-        .product-category-chain a:hover,
-        .product-category-chain a:active {
-            transform: none;
-            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
-        }
-
-        /* Галерея → картка товару (опції, кнопки) → опис → поради */
-        .product-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .product-main-column,
-        .product-detail-column {
-            display: contents;
-        }
-
-        .product-gallery-card { order: 1; }
-        .product-detail-card { order: 2; }
-        .product-buy-panel { order: 3; }
-        .product-desc { order: 4; }
-        .product-care-section { order: 5; }
-
-        /* Усі картки PDP — однакові бокові відступи й заокруглення */
-        .product-page .product-detail-card,
-        .product-page .product-buy-panel,
-        .product-page .product-desc,
-        .product-page .product-gallery-card,
-        .product-page .product-care-section {
-            width: calc(100% - (max(12px, env(safe-area-inset-left, 0px)) + max(12px, env(safe-area-inset-right, 0px))));
-            max-width: calc(100% - (max(12px, env(safe-area-inset-left, 0px)) + max(12px, env(safe-area-inset-right, 0px))));
-            margin-inline: auto;
-            border-radius: 14px;
-            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.07);
-            box-sizing: border-box;
-        }
-
-        .product-page .product-detail-card,
-        .product-page .product-buy-panel,
-        .product-page .product-desc,
-        .product-page .product-care-section {
-            padding: 12px;
-        }
-
-        /* Назва/ціна + опції/кнопки — одна візуальна картка */
-        .product-page .product-detail-card {
-            margin-bottom: 0;
-            padding-bottom: 10px;
-            border-bottom: none;
-            border-radius: 14px 14px 0 0;
-            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
-        }
-
-        .product-page .product-buy-panel {
-            margin-top: 0;
-            padding-top: 10px;
-            background: #fff;
-            border: 1px solid #e8eaed;
-            border-top: 1px solid #e8eaed;
-            border-radius: 0 0 14px 14px;
-            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
-        }
-
-        .product-page .product-desc,
-        .product-page .product-care-section,
-        .product-page .product-gallery-card {
-            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
-        }
-
-        .product-page .product-gallery-card {
-            padding: 8px;
-        }
-
-        .product-buy-panel .product-options-panel {
-            margin-top: 0;
-            padding-top: 0;
-            border-top: 0;
-            background: transparent;
-        }
-
-        .product-main-column {
-            gap: 10px;
-        }
-
-        .product-title {
-            font-size: clamp(0.98rem, 4.2vw, 1.18rem);
-            line-height: 1.22;
-            margin-bottom: 6px;
-        }
-
-        .product-badges {
-            gap: 6px;
-            margin-bottom: 10px;
-        }
-
-        .product-badges .badge {
-            font-size: 10px;
-            padding: 4px 8px;
-            border-radius: 6px;
-        }
-
-        .product-gallery-main {
-            border-radius: 12px;
-            aspect-ratio: 1;
-        }
-
-        .product-thumbs {
-            gap: 6px;
-            margin-top: 8px;
-            flex-wrap: nowrap;
-            overflow-x: auto;
-            padding-bottom: 4px;
-            scrollbar-width: thin;
-        }
-
-        .product-thumbs button {
-            width: 48px;
-            height: 48px;
-            flex: 0 0 auto;
-        }
-
-        .product-price {
-            font-size: 1.22rem;
-            gap: 6px 10px;
-        }
-
-        .product-price__old {
-            font-size: 0.88rem;
-        }
-
-        .product-price span[style] {
-            font-size: 0.78rem !important;
-        }
-
-        .product-price-note {
-            font-size: 11px !important;
-            margin-top: 4px !important;
-        }
-
-        .product-sku {
-            font-size: 11px;
-            margin-bottom: 12px;
-        }
-
-        .product-options-panel {
-            margin-top: 0;
-            padding-top: 0;
-            padding-bottom: 0;
-        }
-
-        .product-options-heading {
-            font-size: 13px;
-            margin-bottom: 10px;
-        }
-
-        .opt-group {
-            margin-bottom: 14px;
-        }
-
-        .opt-label {
-            font-size: 12px;
-            margin-bottom: 6px;
-        }
-
-        .opt-chips {
-            gap: 6px;
-        }
-
-        .opt-colors {
-            gap: 10px;
-        }
-
-        .opt-chip,
-        .opt-chip--readonly {
-            min-height: 32px;
-            padding: 5px 10px;
-            font-size: 0.72rem;
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
-        }
-
-        .opt-chip:hover,
-        .opt-chip:focus-visible,
-        .opt-chip.active,
-        .opt-chip.active:hover,
-        .opt-chip.active:focus-visible {
-            transform: none;
-            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
-        }
-
-        .opt-swatch,
-        .opt-swatch--readonly {
-            width: 34px;
-            height: 34px;
-        }
-
-        .product-hint {
-            font-size: 11px;
-        }
-
-        .product-actions {
-            margin-top: 12px;
-            flex-direction: row;
-            flex-wrap: nowrap;
-            align-items: stretch;
-            gap: 6px;
-            max-width: none;
-            padding-bottom: 2px;
-        }
-
-        .pdp-actions-like {
-            flex: 0 0 auto;
-            width: auto;
-        }
-
-        .pdp-actions-like .product-actions__favorite-btn.product-card__favorite {
-            min-width: 52px;
-            min-height: 38px;
-            padding: 7px 9px;
-            border-radius: 12px;
-            font-size: 0.8rem;
-            box-shadow: 0 2px 8px rgba(54, 125, 241, 0.12);
-        }
-
-        .pdp-actions-like .product-actions__favorite-icon {
-            width: 18px;
-            height: 18px;
-        }
-
-        .pdp-actions-like .product-actions__favorite-count {
-            font-size: 0.82rem;
-        }
-
-        .product-actions .btn-product {
-            max-width: none;
-            min-height: 38px;
-            padding: 8px 10px;
-            font-size: 0.82rem;
-            border-radius: 12px;
-        }
-
-        .product-care-cta {
-            max-width: none;
-            min-height: 38px;
-            padding: 8px 10px;
-            font-size: 0.82rem;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(54, 125, 241, 0.12);
-        }
-
-        .product-care-section__title {
-            font-size: 1rem;
-        }
-
-        .product-care-section__lead {
-            font-size: 0.78rem;
-        }
-
-        .product-care-section__head {
-            flex-direction: column;
-            align-items: stretch;
-            gap: 0.65rem;
-            margin-bottom: 0.75rem;
-        }
-
-        .product-care-section__intro {
-            flex: none;
-            width: 100%;
-        }
-
-        .product-care-section__all-btn {
-            width: 100%;
-            min-height: 40px;
-            padding: 9px 12px;
-            border-radius: 12px;
-            font-size: 0.82rem;
-            white-space: normal;
-            text-align: center;
-        }
-
-        .product-care-card {
-            padding: 0.85rem;
-            border-radius: 12px;
-        }
-
-        .product-care-card__title {
-            font-size: 0.88rem;
-        }
-
-        .product-care-card__excerpt {
-            font-size: 0.78rem;
-        }
-
-        .product-care-card__more {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            align-self: flex-start;
-            margin-top: 0.55rem;
-            padding: 0.4rem 0.68rem;
-            border-radius: 999px;
-            border: 1px solid rgba(239, 56, 41, 0.22);
-            background: rgba(239, 56, 41, 0.06);
-            font-size: 0.76rem;
-            font-weight: 700;
-            line-height: 1.2;
-            letter-spacing: -0.01em;
-        }
-
-        .product-desc h2 {
-            font-size: 0.88rem;
-            margin-bottom: 6px;
-        }
-
-        .product-desc h2[style] {
-            margin-top: 14px !important;
-        }
-
-        .product-desc__body {
-            font-size: 0.8rem;
-            line-height: 1.45;
-        }
-
-        .product-desc,
-        .product-care-section {
-            margin-top: 0;
-        }
-
-        .pdp-related-section.home-shop-panel {
-            margin-top: 14px;
-            border-radius: 14px;
-        }
-
-        .pdp-defer-modal {
-            left: 0;
-            right: 0;
-            width: auto;
-            max-width: none;
-            transform: none;
-            padding:
-                max(8px, env(safe-area-inset-top, 0px))
-                max(12px, env(safe-area-inset-right, 0px))
-                max(12px, env(safe-area-inset-bottom, 0px))
-                max(12px, env(safe-area-inset-left, 0px));
-        }
-
-        .pdp-defer-modal__panel {
-            border-radius: 18px;
-            padding: 20px 14px 14px;
-            max-height: min(86dvh, calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px));
-        }
-
-        .pdp-defer-modal__panel::before {
-            top: 8px;
-            width: 34px;
-            height: 4px;
-            margin-left: -17px;
-        }
-
-        .pdp-defer-modal__eyebrow {
-            margin: 2px 0 8px;
-            font-size: 0.6875rem;
-        }
-
-        .pdp-defer-modal__title {
-            margin: 0 0 12px;
-            font-size: 1.0625rem;
-            line-height: 1.25;
-        }
-
-        .pdp-defer-modal__lead {
-            margin: 0 0 16px;
-            padding: 12px 13px;
-            font-size: 0.8125rem;
-            line-height: 1.4;
-            border-radius: 12px;
-        }
-
-        .pdp-defer-modal__contacts-heading {
-            margin: 0 0 10px;
-            font-size: 0.8125rem;
-        }
-
-        .pdp-defer-modal__contacts {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 8px;
-        }
-
-        .pdp-defer-modal__contact {
-            padding: 12px 8px 11px;
-            gap: 8px;
-            font-size: 0.8125rem;
-            border-radius: 12px;
-        }
-
-        .pdp-defer-modal__icon-wrap {
-            width: 40px;
-            height: 40px;
-            border-radius: 12px;
-        }
-
-        .pdp-defer-modal__icon {
-            width: 22px;
-            height: 22px;
-        }
-
-        .pdp-defer-modal__actions {
-            margin-top: 16px;
-            margin-left: -14px;
-            margin-right: -14px;
-            margin-bottom: -4px;
-            padding: 14px 14px 10px;
-            gap: 8px;
-        }
-
-        .pdp-defer-modal__btn {
-            min-height: 44px;
-            font-size: 0.875rem;
-            border-radius: 12px;
-        }
-    }
-
-    @media (max-width: 380px) {
-        .pdp-defer-modal__contacts {
-            grid-template-columns: 1fr;
-        }
-    }
-</style>
+@vite('resources/css/storefront/product-show.css')
 @endpush
 
 @section('content')
 <div class="product-page" data-favorite-ids="{{ e(json_encode($favoriteProductIds ?? [])) }}">
     @if (count($categoryBreadcrumb))
-        <div class="product-category-chain">
-            <a
-                href="{{ route('catalog.index', array_filter($breadcrumbQueryBase)) }}"
-            >
-                {{ __('shop.catalog_toolbar_catalog') }}
-            </a>
-            @foreach ($categoryBreadcrumb as $catPart)
-                @php
-                    $categoryLinkId = (int) ($catPart['id'] ?? 0);
-                    $categoryLinkQuery = array_filter(
-                        array_merge(
-                            $breadcrumbQueryBase,
-                            $categoryLinkId > 0 ? ['category' => $categoryLinkId] : []
-                        ),
-                        fn ($v) => $v !== null && $v !== ''
-                    );
-                @endphp
-                <a href="{{ route('catalog.index', $categoryLinkQuery) }}">
-                    {{ $catPart['name'] ?? '' }}
+        <div class="product-category-chain-card">
+            <div class="product-category-chain" aria-label="Навігація по категоріях">
+                <a
+                    href="{{ route('catalog.index', array_filter($breadcrumbQueryBase)) }}"
+                >
+                    {{ __('shop.catalog_toolbar_catalog') }}
                 </a>
-            @endforeach
+                @foreach ($categoryBreadcrumb as $catPart)
+                    @php
+                        $categoryLinkId = (int) ($catPart['id'] ?? 0);
+                        $categoryLinkQuery = array_filter(
+                            array_merge(
+                                $breadcrumbQueryBase,
+                                $categoryLinkId > 0 ? ['category' => $categoryLinkId] : []
+                            ),
+                            fn ($v) => $v !== null && $v !== ''
+                        );
+                    @endphp
+                    <span class="product-category-chain__sep" aria-hidden="true">&gt;</span>
+                    <a href="{{ route('catalog.index', $categoryLinkQuery) }}">
+                        {{ $catPart['name'] ?? '' }}
+                    </a>
+                @endforeach
+                @if (! empty($subcategoryFilterChip))
+                    <span class="product-category-chain__sep" aria-hidden="true">&gt;</span>
+                    <a href="{{ $subcategoryFilterChip['href'] }}">{{ $subcategoryFilterChip['label'] }}</a>
+                @endif
+            </div>
         </div>
     @else
         <div class="product-breadcrumb">
@@ -1851,11 +205,17 @@
             <div class="product-gallery-card">
                 <div class="product-gallery-column" id="product-gallery-zone">
                     <div
-                        class="product-gallery-main product-gallery-main--fit-cover @if (count($galleryPhotos) > 1) product-gallery-main--multi-img @endif"
+                        class="product-gallery-main product-gallery-main--fit-cover @if (count($galleryItems) > 1) product-gallery-main--multi-img @endif"
                         id="product-main-visual"
                     >
-                        @if (count($galleryPhotos))
-                            <img src="{{ asset('storage/' . $galleryPhotos[0]) }}" alt="{{ mt($listing->title) }}" id="product-main-img">
+                        @if (count($galleryItems))
+                            @include('catalog.partials.product-gallery-media', [
+                                'item' => $galleryItems[0],
+                                'id' => ($galleryItems[0]['type'] ?? 'image') === 'video' ? 'product-main-video' : 'product-main-img',
+                                'alt' => mt($listing->title),
+                                'autoplay' => ($galleryItems[0]['type'] ?? 'image') === 'video',
+                                'loop' => ($galleryItems[0]['type'] ?? 'image') === 'video',
+                            ])
                         @else
                             <span class="placeholder">{{ __('shop.pdp_no_photo') }}</span>
                         @endif
@@ -1863,12 +223,30 @@
                     <div
                         class="product-thumbs product-thumbs--fit-cover"
                         id="product-thumbs"
-                        @if (count($galleryPhotos) <= 1) style="display:none" @endif
-                        data-has-thumbs="{{ count($galleryPhotos) > 1 ? '1' : '0' }}"
+                        @if (count($galleryItems) <= 1) style="display:none" @endif
+                        data-has-thumbs="{{ count($galleryItems) > 1 ? '1' : '0' }}"
                     >
-                        @foreach ($galleryPhotos as $i => $photo)
-                            <button type="button" class="{{ $i === 0 ? 'active' : '' }}" data-src="{{ asset('storage/' . $photo) }}" aria-label="{{ __('shop.pdp_photo_aria', ['n' => $i + 1]) }}">
-                                <img src="{{ asset('storage/' . $photo) }}" alt="">
+                        @foreach ($galleryItems as $i => $item)
+                            @php
+                                $optimizeThumbs = \App\Models\ShopMediaSetting::optimizeImagesEnabled();
+                                $thumbUrl = $optimizeThumbs ? (string) ($item['card_url'] ?? '') : '';
+                                if ($thumbUrl === '') {
+                                    $thumbUrl = (string) (($item['type'] ?? '') === 'video' ? ($item['poster_url'] ?? '') : ($item['url'] ?? ''));
+                                }
+                                $thumbIsVideo = ! $optimizeThumbs && ($item['type'] ?? '') === 'video' && (string) ($item['url'] ?? '') !== '';
+                                $thumbIsGif = ! $optimizeThumbs && ($item['type'] ?? '') === 'gif';
+                            @endphp
+                            <button type="button" class="{{ $i === 0 ? 'active' : '' }}" data-gallery-index="{{ $i }}" aria-label="{{ __('shop.pdp_photo_aria', ['n' => $i + 1]) }}">
+                                @if ($thumbIsVideo)
+                                    <video src="{{ $item['url'] }}" muted playsinline loop autoplay preload="auto" data-zoogle-animated-media="video" style="{{ $item['object_position'] ?? '' }}"></video>
+                                @elseif ($thumbUrl !== '')
+                                    <img
+                                        src="{{ $thumbUrl }}"
+                                        alt=""
+                                        style="{{ $item['object_position'] ?? '' }}"
+                                        @if ($thumbIsGif) data-zoogle-animated-media="gif" data-zoogle-animated-gif="1" loading="eager" decoding="sync" @else decoding="async" @endif
+                                    >
+                                @endif
                             </button>
                         @endforeach
                     </div>
@@ -1893,13 +271,12 @@
                     <div class="product-care-section__head">
                         <div class="product-care-section__intro">
                             <h2 id="product-care-heading" class="product-care-section__title">{{ __('shop.pdp_care_section_title') }}</h2>
-                            <p class="product-care-section__lead">{{ __('shop.pdp_care_section_lead') }}</p>
                         </div>
                         <a class="product-care-section__all-btn" href="{{ route('catalog.care.index', $listing->slug) }}">{{ __('shop.pdp_care_all') }}</a>
                     </div>
                     <div class="product-care-grid">
                         @foreach ($careArticles->take(3) as $article)
-                            <a class="product-care-card" href="{{ route('catalog.care.show', [$listing->slug, $article->slug]) }}">
+                            <a class="product-care-card" href="{{ $article->storefrontUrl() }}">
                                 <h3 class="product-care-card__title">{{ mt($article->title) }}</h3>
                                 @if (filled($article->excerpt))
                                     <p class="product-care-card__excerpt">{{ mt($article->excerpt) }}</p>
@@ -1936,16 +313,43 @@
                     <span class="product-price__current">{{ number_format((float) $listingBasePrice, 0, '', ' ') }} <span style="font-size:1rem;font-weight:500;">₴</span></span>
                 </span>
             </div>
-            <p class="product-price-note" id="product-price-note" style="font-size:13px;color:#5f6368;margin:6px 0 0;"></p>
-            @if (filled(trim((string) ($listing->sku ?? ''))))
-                <p class="product-sku">{{ __('shop.pdp_sku', ['sku' => $listing->sku]) }}</p>
+            <p class="product-price-note" id="product-price-note"></p>
+            @if (filled(trim((string) ($listing->sku ?? ''))) || $productDimensionRows !== [])
+                <div class="product-meta">
+                    @if (filled(trim((string) ($listing->sku ?? ''))))
+                        <p class="product-sku">{{ __('shop.pdp_sku', ['sku' => $listing->sku]) }}</p>
+                    @endif
+                    @if ($productDimensionRows !== [])
+                        <div class="product-dimensions">
+                            @foreach ($productDimensionRows as $dimensionRow)
+                                <p class="product-dimension-row">{{ $dimensionRow }}</p>
+                            @endforeach
+                        </div>
+                    @endif
+                </div>
             @endif
             </div>
 
             <div class="product-buy-panel">
-            @if (count($optionBlocks))
-                <div id="product-options" class="product-options-panel" data-has-variants="0">
+            @if (count($optionBlocks) || $needsBareVariantPicker)
+                <div id="product-options" class="product-options-panel" data-has-variants="{{ count($variantsPayload) > 0 ? '1' : '0' }}">
                     <h2 class="product-options-heading">{{ __('shop.pdp_options_heading') }}</h2>
+                    @if ($needsBareVariantPicker && $variantsPayload !== [])
+                        <div class="product-variant-picker">
+                            <label class="product-variant-picker__label" for="product-variant-picker">{{ __('shop.pdp_variant_picker_label') }}</label>
+                            <select id="product-variant-picker" class="product-variant-picker__select">
+                                @foreach ($variantsPayload as $variantRow)
+                                    <option
+                                        value="{{ (int) ($variantRow['id'] ?? 0) }}"
+                                        @selected((int) ($variantRow['id'] ?? 0) === (int) $barePickerPreselect)
+                                    >
+                                        {{ $variantRow['label'] ?? ('#'.($variantRow['id'] ?? '')) }}
+                                        — {{ number_format((float) ($variantRow['price'] ?? 0), 0, '', ' ') }} ₴
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endif
                     @foreach ($optionBlocks as $block)
                         @php
                             $rawDefault = $defaultOptionSelection[$block['id']] ?? null;
@@ -1961,16 +365,23 @@
                                 && collect($targetIds)->every(fn (int $id) => in_array($id, $valueIdsInBlock, true));
                             $isMultipleBlock = ($block['selection_mode'] ?? 'single') === 'multiple';
                             $targetValueIdForSingle = count($targetIds) === 1 ? $targetIds[0] : null;
+                            $basePriceValueId = collect($block['values'])->first(
+                                fn (array $val): bool => ! empty($val['is_base_price'])
+                            )['id'] ?? null;
+                            $basePriceValueId = $basePriceValueId !== null ? (int) $basePriceValueId : null;
                         @endphp
                         @php
-                            $exclusiveForVariantId = 0;
-                            $exclusiveApplies = true;
+                            $exclusiveForVariantId = (int) ($block['exclusive_for_variant_id'] ?? 0);
+                            $exclusiveApplies = $exclusiveForVariantId <= 0
+                                || $exclusiveForVariantId === (int) $matchedVariantId;
                         @endphp
                         <div
                             class="opt-group {{ $exclusiveForVariantId > 0 && ! $exclusiveApplies ? 'opt-group--exclusive-hidden' : '' }}"
                             data-group-id="{{ $block['id'] }}"
                             data-mode="{{ $block['selection_mode'] }}"
                             data-value-type="{{ $block['value_type'] }}"
+                            @if ($exclusiveForVariantId > 0) data-exclusive-for-variant-id="{{ $exclusiveForVariantId }}" @endif
+                            @if (! empty($block['exclusivity_key'])) data-exclusivity-key="{{ $block['exclusivity_key'] }}" @endif
                         >
                             <span class="opt-label">{{ $block['name'] }}</span>
                             @if (($block['value_type'] ?? 'text') === 'color')
@@ -1980,10 +391,16 @@
                                             if ($exclusiveForVariantId > 0 && ! $exclusiveApplies) {
                                                 $isOptActive = false;
                                             } elseif ($isMultipleBlock) {
+                                                $isOptActive = $hasTargetInBlock
+                                                    && in_array((int) $val['id'], $targetIds, true);
+                                            } elseif ($hasTargetInBlock) {
+                                                $isOptActive = (int) $val['id'] === $targetValueIdForSingle;
+                                            } elseif (! empty($block['exclusivity_key'])) {
+                                                // Сімʼя «Назва: …» — без дефолту в цій групі нічого не підсвічуємо
                                                 $isOptActive = false;
                                             } else {
-                                                $isOptActive = ($hasTargetInBlock && (int) $val['id'] === $targetValueIdForSingle)
-                                                    || (! $hasTargetInBlock && $loop->first);
+                                                $isOptActive = ($basePriceValueId !== null && (int) $val['id'] === $basePriceValueId)
+                                                    || ($basePriceValueId === null && $loop->first);
                                             }
                                         @endphp
                                         @php
@@ -1992,8 +409,9 @@
                                         @endphp
                                         <button
                                             type="button"
-                                            class="opt-swatch {{ $isOptActive ? 'active' : '' }} {{ $swatchHasImg ? 'opt-swatch--has-img' : '' }}"
+                                            class="opt-swatch {{ $isOptActive ? 'active' : '' }} {{ ! empty($val['is_base_price']) ? 'opt-swatch--base-price' : '' }} {{ $swatchHasImg ? 'opt-swatch--has-img' : '' }}"
                                             data-value-id="{{ $val['id'] }}"
+                                            @if (! empty($val['is_base_price'])) data-is-base-price="1" @endif
                                             @if ($swatchHasImg)
                                                 style="background-color: {{ $val['color_hex'] ?? '#e8eaed' }};"
                                             @else
@@ -2016,13 +434,23 @@
                                             if ($exclusiveForVariantId > 0 && ! $exclusiveApplies) {
                                                 $isOptActive = false;
                                             } elseif ($isMultipleBlock) {
+                                                $isOptActive = $hasTargetInBlock
+                                                    && in_array((int) $val['id'], $targetIds, true);
+                                            } elseif ($hasTargetInBlock) {
+                                                $isOptActive = (int) $val['id'] === $targetValueIdForSingle;
+                                            } elseif (! empty($block['exclusivity_key'])) {
                                                 $isOptActive = false;
                                             } else {
-                                                $isOptActive = ($hasTargetInBlock && (int) $val['id'] === $targetValueIdForSingle)
-                                                    || (! $hasTargetInBlock && $loop->first);
+                                                $isOptActive = ($basePriceValueId !== null && (int) $val['id'] === $basePriceValueId)
+                                                    || ($basePriceValueId === null && $loop->first);
                                             }
                                         @endphp
-                                        <button type="button" class="opt-chip {{ $isOptActive ? 'active' : '' }}" data-value-id="{{ $val['id'] }}">
+                                        <button
+                                            type="button"
+                                            class="opt-chip {{ $isOptActive ? 'active' : '' }} {{ ! empty($val['is_base_price']) ? 'opt-chip--base-price' : '' }}"
+                                            data-value-id="{{ $val['id'] }}"
+                                            @if (! empty($val['is_base_price'])) data-is-base-price="1" @endif
+                                        >
                                             {{ $val['name'] }}
                                             @if (($val['price'] ?? null) !== null && (float) $val['price'] > 0)
                                                 <span style="opacity:.75"> +{{ number_format((float) $val['price'], 0, '', ' ') }} ₴</span>
@@ -2035,55 +463,11 @@
                     @endforeach
                 </div>
             @elseif (count($productOptionsDisplay))
-                <div class="product-options-readonly product-options-panel" id="product-options-readonly" aria-label="{{ __('shop.pdp_options_aria') }}">
-                    <h2 class="product-options-heading">{{ __('shop.pdp_options_heading') }}</h2>
-                    @foreach ($productOptionsDisplay as $block)
-                        @php
-                            $roExclusiveVid = (int) ($block['exclusive_for_variant_id'] ?? 0);
-                            $roExclusiveApplies = $roExclusiveVid <= 0
-                                || ($storefrontDefaultVariantId !== null && $storefrontDefaultVariantId === $roExclusiveVid);
-                        @endphp
-                        <div class="opt-group opt-group--readonly {{ $roExclusiveVid > 0 && ! $roExclusiveApplies ? 'opt-group--exclusive-hidden' : '' }}">
-                            <span class="opt-label">{{ $block['name'] }}</span>
-                            @if (($block['value_type'] ?? 'text') === 'color')
-                                <div class="opt-colors" role="list">
-                                    @foreach ($block['values'] as $val)
-                                        @php
-                                            $roSwatchPath = isset($val['swatch_image']) && is_string($val['swatch_image']) ? trim($val['swatch_image']) : '';
-                                            $roSwatchHasImg = $roSwatchPath !== '' && ! filled($val['color_hex'] ?? null);
-                                        @endphp
-                                        <span
-                                            class="opt-swatch opt-swatch--readonly {{ $roSwatchHasImg ? 'opt-swatch--has-img' : '' }}"
-                                            @if (! $roSwatchHasImg)
-                                                style="background-color: {{ $val['color_hex'] ?? '#666' }};"
-                                            @else
-                                                style="background-color: {{ $val['color_hex'] ?? '#e8eaed' }};"
-                                            @endif
-                                            title="{{ $val['name'] }}"
-                                            role="listitem"
-                                            aria-label="{{ $val['name'] }}"
-                                        >
-                                            @if ($roSwatchHasImg)
-                                                <img src="{{ asset('storage/' . ltrim($roSwatchPath, '/')) }}" alt="" aria-hidden="true">
-                                            @endif
-                                        </span>
-                                    @endforeach
-                                </div>
-                            @else
-                                <div class="opt-chips" role="list">
-                                    @foreach ($block['values'] as $val)
-                                        <span class="opt-chip opt-chip--readonly" role="listitem">
-                                            {{ $val['name'] }}
-                                            @if (($val['price'] ?? null) !== null && (float) $val['price'] > 0)
-                                                <span style="opacity:.75"> +{{ number_format((float) $val['price'], 0, '', ' ') }} ₴</span>
-                                            @endif
-                                        </span>
-                                    @endforeach
-                                </div>
-                            @endif
-                        </div>
-                    @endforeach
-                </div>
+                @include('catalog.partials.storefront-options-readonly', [
+                    'optionBlocks' => $productOptionsDisplay,
+                    'storefrontDefaultVariantId' => $storefrontDefaultVariantId,
+                    'panelId' => 'product-options-readonly',
+                ])
             @endif
 
             <p class="product-hint" id="product-variant-hint"></p>
@@ -2093,13 +477,9 @@
                     @csrf
                     <input type="hidden" name="product_id" value="{{ $listing->id }}">
                     <input type="hidden" name="option_value_ids" value="[]" id="input-option-value-ids">
-                    <button class="btn-product" type="submit" id="product-add-btn">{{ __('shop.pdp_add_to_cart') }}</button>
+                    <input type="hidden" name="variant_id" value="{{ (int) ($matchedVariantId ?? 0) }}" id="input-variant-id">
+                    <button class="btn-product" type="submit" id="product-add-btn" @disabled($listingStockMode === 'none' || ! empty($optionsIncomplete))>{{ __('shop.pdp_add_to_cart') }}</button>
                 </form>
-                @if (($careArticles ?? collect())->isNotEmpty())
-                    <a class="product-care-cta" href="{{ route('catalog.care.index', $listing->slug) }}">
-                        {{ __('shop.pdp_care_cta') }}
-                    </a>
-                @endif
                 <div class="product-card__like-react product-actions__favorite pdp-actions-like">
                     <button
                         type="button"
@@ -2235,3 +615,12 @@
 @endpush
 @include('home.partials.home-product-carousel')
 @endsection
+
+@if (\App\Support\MarketingTags::enabled())
+    @push('scripts')
+        <script>
+            window.zgCurrentItem = @json(['id' => (string) $listing->id, 'name' => mt($listing->title), 'price' => (float) ($pdpOfferLowPrice ?? $listingBasePrice ?? 0)]);
+            window.zgTrack('view_item', { currency: 'UAH', value: window.zgCurrentItem.price, items: [window.zgCurrentItem] });
+        </script>
+    @endpush
+@endif

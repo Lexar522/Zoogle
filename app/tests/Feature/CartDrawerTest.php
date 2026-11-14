@@ -8,6 +8,7 @@ use App\Models\OptionGroup;
 use App\Models\OptionValue;
 use App\Models\Product;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class CartDrawerTest extends TestCase
@@ -43,6 +44,9 @@ class CartDrawerTest extends TestCase
     public function test_drawer_prefers_primary_product_photo_over_variant_photo(): void
     {
         [$product, $colorValue, $sizeValue] = $this->makeProductWithDisplayOptions();
+
+        Storage::disk('public')->put('products/main-photo.jpg', 'main');
+        Storage::disk('public')->put('product-variants/secondary-photo.jpg', 'secondary');
 
         $product->forceFill([
             'photos' => ['products/main-photo.jpg'],
