@@ -30,13 +30,21 @@
         && isset($pickupDisplay['lat'], $pickupDisplay['lng'])
         && is_numeric($pickupDisplay['lat'])
         && is_numeric($pickupDisplay['lng']);
-    $defaultDeliveryType = $pickupEnabled
-        ? \App\Models\Order::DELIVERY_PICKUP
-        : \App\Models\Order::DELIVERY_NOVA_POSHTA_WAREHOUSE;
-    $deliveryTypeCurrent = old('delivery_type', $defaultDeliveryType);
-    if ($categoryRequiresPickupOnly) {
-        $deliveryTypeCurrent = \App\Models\Order::DELIVERY_PICKUP;
+    $deliveryTypes = $deliveryTypes ?? [\App\Models\Order::DELIVERY_PICKUP];
+    $deliveryTypeLabels = [
+        \App\Models\Order::DELIVERY_PICKUP => __('shop.checkout_delivery_pickup'),
+        \App\Models\Order::DELIVERY_TAXI => __('shop.checkout_delivery_taxi'),
+        \App\Models\Order::DELIVERY_NOVA_POSHTA_WAREHOUSE => __('shop.checkout_delivery_np_wh'),
+        \App\Models\Order::DELIVERY_NOVA_POSHTA_COURIER => __('shop.checkout_delivery_np_courier'),
+    ];
+    $deliveryTypeCurrent = old('delivery_type', $deliveryTypes[0] ?? '');
+    if (! in_array($deliveryTypeCurrent, $deliveryTypes, true)) {
+        $deliveryTypeCurrent = $deliveryTypes[0] ?? '';
     }
+    $deliveryTypeLocked = count($deliveryTypes) === 1;
+    $taxiEnabled = in_array(\App\Models\Order::DELIVERY_TAXI, $deliveryTypes, true);
+    $showTaxiMap = $deliveryTypeCurrent === \App\Models\Order::DELIVERY_TAXI;
+    $shopHasCoords = is_numeric($pickupDisplay['lat'] ?? null) && is_numeric($pickupDisplay['lng'] ?? null);
     $showPickupMapPanel = $pickupHasMap && $deliveryTypeCurrent === \App\Models\Order::DELIVERY_PICKUP;
     $showNpWarehouseMap = $novaPoshtaConfigured && $deliveryTypeCurrent === \App\Models\Order::DELIVERY_NOVA_POSHTA_WAREHOUSE;
     $showNpCourierMapApi = $novaPoshtaConfigured && $deliveryTypeCurrent === \App\Models\Order::DELIVERY_NOVA_POSHTA_COURIER;
@@ -94,7 +102,7 @@
             <h2 id="checkout-delivery-heading" class="checkout-page__section-heading">{{ __('shop.checkout_delivery') }}</h2>
             @if ($categoryRequiresPickupOnly)
                 <p class="muted" style="margin:0 0 0.75rem;line-height:1.5;font-size:0.95rem;">
-                    {!! __('shop.checkout_delivery_pickup_only') !!}
+                    {!! $taxiEnabled ? __('shop.checkout_delivery_no_nova_poshta') : __('shop.checkout_delivery_pickup_only') !!}
                 </p>
             @endif
 
@@ -104,14 +112,10 @@
                     <div>
                         <label for="delivery_type">{{ __('shop.checkout_delivery_type') }}</label>
                         @php($dt = $deliveryTypeCurrent)
-                        <select id="delivery_type" name="delivery_type" required @if($categoryRequiresPickupOnly) class="checkout-delivery-type--locked" aria-readonly="true" @endif>
-                            @if ($pickupEnabled)
-                                <option value="{{ \App\Models\Order::DELIVERY_PICKUP }}" @selected($dt === \App\Models\Order::DELIVERY_PICKUP)>{{ __('shop.checkout_delivery_pickup') }}</option>
-                            @endif
-                            @unless ($categoryRequiresPickupOnly)
-                                <option value="{{ \App\Models\Order::DELIVERY_NOVA_POSHTA_WAREHOUSE }}" @selected($dt === \App\Models\Order::DELIVERY_NOVA_POSHTA_WAREHOUSE)>{{ __('shop.checkout_delivery_np_wh') }}</option>
-                                <option value="{{ \App\Models\Order::DELIVERY_NOVA_POSHTA_COURIER }}" @selected($dt === \App\Models\Order::DELIVERY_NOVA_POSHTA_COURIER)>{{ __('shop.checkout_delivery_np_courier') }}</option>
-                            @endunless
+                        <select id="delivery_type" name="delivery_type" required @if($deliveryTypeLocked) class="checkout-delivery-type--locked" aria-readonly="true" @endif>
+                            @foreach ($deliveryTypes as $deliveryTypeOption)
+                                <option value="{{ $deliveryTypeOption }}" @selected($dt === $deliveryTypeOption)>{{ $deliveryTypeLabels[$deliveryTypeOption] ?? $deliveryTypeOption }}</option>
+                            @endforeach
                         </select>
                         @error('delivery_type') <p class="alert error">{{ $message }}</p> @enderror
                     </div>
@@ -126,6 +130,17 @@
                             @endif
                         </div>
                     </div>
+
+                    @if ($taxiEnabled)
+                        <div id="taxi-block" class="np-field" hidden>
+                            <label for="delivery_address_taxi">{!! __('shop.checkout_address_taxi') !!}</label>
+                            <textarea id="delivery_address_taxi" name="delivery_address" rows="3" placeholder="{{ __('shop.checkout_address_taxi_placeholder') }}" autocomplete="street-address">{{ old('delivery_address') }}</textarea>
+                            <button type="button" class="btn secondary np-courier-geocode-btn" id="taxi-geocode-btn">{{ __('shop.checkout_geocode_btn') }}</button>
+                            {{-- contain: довга підказка не розширює картку й не стискає карту поруч --}}
+                            <p class="muted" style="margin:0.6rem 0 0;font-size:0.9rem;line-height:1.5;contain:inline-size;">{{ __('shop.checkout_taxi_hint') }}</p>
+                            @error('delivery_address') <p class="alert error">{{ $message }}</p> @enderror
+                        </div>
+                    @endif
 
                     <div id="np-block" class="np-delivery" hidden>
                         @unless ($novaPoshtaConfigured)
@@ -234,6 +249,13 @@
                             <p class="muted" style="font-size:0.86rem;line-height:1.45;margin:0.5rem 0 0;">{{ __('shop.checkout_map_drag_hint') }}</p>
                         </div>
                     @endif
+                    @if ($taxiEnabled)
+                        <div id="taxi-map-column" class="np-checkout-map-col" @unless($showTaxiMap) hidden @endunless>
+                            <p class="np-map-caption muted">{{ __('shop.checkout_caption_taxi_map') }}</p>
+                            <div id="taxi-map" class="np-map" role="region" aria-label="{{ __('shop.checkout_map_address_aria') }}"></div>
+                            <p class="muted" style="font-size:0.86rem;line-height:1.45;margin:0.5rem 0 0;">{{ __('shop.checkout_map_drag_hint') }}</p>
+                        </div>
+                    @endif
                     @unless ($novaPoshtaConfigured)
                         <div id="np-courier-map-column-manual" class="np-checkout-map-col" @unless($showNpCourierMapManual) hidden @endunless>
                             <p class="np-map-caption muted">{{ __('shop.checkout_caption_address_map') }}</p>
@@ -323,6 +345,9 @@
                     pickup: @json(\App\Models\Order::DELIVERY_PICKUP),
                     npWh: @json(\App\Models\Order::DELIVERY_NOVA_POSHTA_WAREHOUSE),
                     npCourier: @json(\App\Models\Order::DELIVERY_NOVA_POSHTA_COURIER),
+                    taxi: @json(\App\Models\Order::DELIVERY_TAXI),
+                    shopLat: @json($shopHasCoords ? (float) $pickupDisplay['lat'] : null),
+                    shopLng: @json($shopHasCoords ? (float) $pickupDisplay['lng'] : null),
                     pickupHasMap: {{ $pickupHasMap ? 'true' : 'false' }},
                     pickupEnabled: {{ $pickupEnabled ? 'true' : 'false' }},
                     pickupLat: @json($pickupHasMap ? (float) $pickupDisplay['lat'] : null),
@@ -331,12 +356,13 @@
                 };
 
                 var sel = document.getElementById('delivery_type');
-                if (cfg.categoryRequiresPickupOnly && sel && cfg.pickupEnabled) {
-                    sel.value = cfg.pickup;
+                if (sel && sel.options.length === 1) {
                     sel.disabled = true;
                 }
                 var npBlock = document.getElementById('np-block');
                 var pickupBlock = document.getElementById('pickup-block');
+                var taxiBlock = document.getElementById('taxi-block');
+                var lastSyncedDeliveryType = null;
                 var npManualCityBlock = document.getElementById('np-manual-city-block');
                 var npManualWarehouseBlock = document.getElementById('np-manual-warehouse-block');
                 var npManualCourierBlock = document.getElementById('np-manual-courier-block');
@@ -427,15 +453,29 @@
                     return !!(sel && sel.value === cfg.npCourier && !cfg.npEnabled);
                 }
 
+                // Таксі ділить з курʼєром карту й геокодування, але має своє поле адреси й контейнер карти.
+                function taxiActive() {
+                    return !!(sel && sel.value === cfg.taxi);
+                }
+
                 function getCourierAddressTextarea() {
+                    if (taxiActive()) return document.getElementById('delivery_address_taxi');
                     return document.getElementById('delivery_address_courier') || document.getElementById('delivery_address_manual');
+                }
+
+                function courierHasSavedCoords() {
+                    var la = document.getElementById('delivery_lat');
+                    var ln = document.getElementById('delivery_lng');
+                    return !!(la && ln && la.value && ln.value);
                 }
 
                 function buildCourierGeocodeQuery() {
                     var city = '';
-                    if (cityNameIn && cityNameIn.value) city = cityNameIn.value.trim();
-                    var mc = document.getElementById('delivery_city_manual');
-                    if ((!city || city.length < 1) && mc && mc.value) city = mc.value.trim();
+                    if (!taxiActive()) {
+                        if (cityNameIn && cityNameIn.value) city = cityNameIn.value.trim();
+                        var mc = document.getElementById('delivery_city_manual');
+                        if ((!city || city.length < 1) && mc && mc.value) city = mc.value.trim();
+                    }
                     var ta = getCourierAddressTextarea();
                     var addr = ta && ta.value ? ta.value.trim() : '';
                     addr = addr.replace(/\s+/g, ' ');
@@ -533,6 +573,7 @@
                 }
 
                 function getCourierMapContainer() {
+                    if (taxiActive()) return document.getElementById('taxi-map');
                     return document.getElementById('courier-map') || document.getElementById('courier-map-manual');
                 }
 
@@ -550,6 +591,10 @@
                             startLng = ln0;
                             z = 15;
                         }
+                    } else if (taxiActive() && cfg.shopLat != null && cfg.shopLng != null) {
+                        startLat = cfg.shopLat;
+                        startLng = cfg.shopLng;
+                        z = 12;
                     } else if (npCityLat != null && npCityLng != null) {
                         startLat = npCityLat;
                         startLng = npCityLng;
@@ -559,7 +604,7 @@
                 }
 
                 function initCourierMap() {
-                    if (!npCourierActive() && !manualCourierActive()) return;
+                    if (!npCourierActive() && !manualCourierActive() && !taxiActive()) return;
                     var el = getCourierMapContainer();
                     if (!el) return;
 
@@ -642,7 +687,10 @@
                                 syncLngG = lnS;
                             }
                         }
-                        setCourierCoordsAndSyncAddress(syncLatG, syncLngG);
+                        // Мітка таксі стартує біля магазину: адресу магазину в поле не підставляємо.
+                        if (!taxiActive() || courierHasSavedCoords()) {
+                            setCourierCoordsAndSyncAddress(syncLatG, syncLngG);
+                        }
                         setTimeout(function () {
                             if (courierGoogleMap && typeof google !== 'undefined' && google.maps) {
                                 google.maps.event.trigger(courierGoogleMap, 'resize');
@@ -713,7 +761,9 @@
                             syncLngL = lnL;
                         }
                     }
-                    setCourierCoordsAndSyncAddress(syncLatL, syncLngL);
+                    if (!taxiActive() || courierHasSavedCoords()) {
+                        setCourierCoordsAndSyncAddress(syncLatL, syncLngL);
+                    }
                     setTimeout(function () {
                         if (courierLeafletMap && typeof courierLeafletMap.invalidateSize === 'function') courierLeafletMap.invalidateSize();
                     }, 80);
@@ -1465,13 +1515,16 @@
 
                 function syncDeliverySections() {
                     var v = sel && sel.value;
-                    if (v !== cfg.npCourier) {
+                    // Курʼєр і таксі малюють карту в різних контейнерах — при зміні способу будуємо її заново.
+                    if (v !== lastSyncedDeliveryType) {
                         destroyCourierMap();
                     }
+                    lastSyncedDeliveryType = v;
                     if (v !== cfg.pickup) {
                         destroyPickupMap();
                     }
                     if (pickupBlock) pickupBlock.hidden = v !== cfg.pickup;
+                    if (taxiBlock) taxiBlock.hidden = v !== cfg.taxi;
                     if (v === cfg.pickup || v === cfg.npWh) {
                         var dla = document.getElementById('delivery_lat');
                         var dlng = document.getElementById('delivery_lng');
@@ -1536,6 +1589,16 @@
                     }
                     }
 
+                    var taxiMapCol = document.getElementById('taxi-map-column');
+                    if (taxiMapCol) {
+                        taxiMapCol.hidden = !taxiActive();
+                    }
+                    if (taxiActive()) {
+                        setTimeout(function () {
+                            initCourierMap();
+                        }, 100);
+                    }
+
                     var npCourierMapColManual = document.getElementById('np-courier-map-column-manual');
                     if (npCourierMapColManual) {
                         npCourierMapColManual.hidden = !manualCourierActive();
@@ -1563,6 +1626,8 @@
                         } else if (cfg.npEnabled && (v === cfg.npWh || v === cfg.npCourier)) {
                             showDeliveryMaps = true;
                         } else if (!cfg.npEnabled && v === cfg.npCourier) {
+                            showDeliveryMaps = true;
+                        } else if (v === cfg.taxi) {
                             showDeliveryMaps = true;
                         }
                         deliveryMapCard.hidden = !showDeliveryMaps;
@@ -1715,6 +1780,13 @@
 
                 var courierGeoBtn = document.getElementById('courier-geocode-btn');
                 var courierGeoBtnManual = document.getElementById('courier-geocode-btn-manual');
+                var taxiGeoBtn = document.getElementById('taxi-geocode-btn');
+                if (taxiGeoBtn) {
+                    taxiGeoBtn.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        geocodeCourierAddress();
+                    });
+                }
                 if (courierGeoBtn) {
                     courierGeoBtn.addEventListener('click', function (e) {
                         e.preventDefault();

@@ -69,6 +69,8 @@ class SecurityHardeningTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/script-src[^;]*(\s\*|https:\s|https:;)/', $csp);
         $this->assertStringContainsString("frame-ancestors 'self'", $csp);
         $this->assertStringContainsString("object-src 'none'", $csp);
+        // Фонові скрипти адмінки (обробка фото) створюються з blob: — без цього браузер їх блокує
+        $this->assertStringContainsString("worker-src 'self' blob:", $csp);
     }
 
     private function order(): Order

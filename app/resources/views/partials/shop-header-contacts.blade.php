@@ -1,23 +1,9 @@
 @php
     $contactIconsColored = filter_var($contactIconsColored ?? false, FILTER_VALIDATE_BOOLEAN);
-    $cdnHero = 'https://cdn.jsdelivr.net/npm/heroicons@2.1.5/24/outline';
-    $commons = 'https://upload.wikimedia.org/wikipedia/commons';
-    $cdnTelegramOfficial = 'https://telegram.org/img/t_logo.svg';
 @endphp
 @foreach ($shopHeaderContactItems ?? [] as $item)
     @php
-        $coloredIconSrc = null;
-        if ($contactIconsColored) {
-            $coloredIconSrc = match ($item['kind'] ?? '') {
-                'phone' => "{$cdnHero}/phone.svg",
-                'email' => "{$commons}/7/7e/Gmail_icon_%282020%29.svg",
-                'instagram' => "{$commons}/9/95/Instagram_logo_2022.svg",
-                'tiktok' => "{$commons}/a/a6/Tiktok_icon.svg",
-                'viber' => asset('images/contacts/viber.svg'),
-                'whatsapp' => "{$commons}/6/6b/WhatsApp.svg",
-                default => $cdnTelegramOfficial,
-            };
-        }
+        $coloredIconSrc = $contactIconsColored ? \App\Support\ShopHeaderContacts::coloredIconUrl((string) ($item['kind'] ?? '')) : null;
     @endphp
     <a
         href="{{ e($item['href']) }}"

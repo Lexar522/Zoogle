@@ -26,36 +26,60 @@
         ];
 
         $schemaLowPrice = number_format((float) ($pdpOfferLowPrice ?? $listingBasePrice ?? 0), 2, '.', '');
-        $schemaHighPrice = number_format((float) ($pdpOfferHighPrice ?? $listingBasePrice ?? 0), 2, '.', '');
-        // Для безкоштовних оголошень Google потрібен Offer; діапазон цін можна описати лише як AggregateOffer.
-        $schemaProduct['offers'] = $schemaLowPrice === $schemaHighPrice
-            ? [
-                '@type' => 'Offer',
-                'url' => route('catalog.show', $listing->slug),
-                'priceCurrency' => 'UAH',
-                'price' => $schemaLowPrice,
-                'itemCondition' => 'https://schema.org/NewCondition',
-                'availability' => $schemaAvailability,
-            ]
-            : [
-                '@type' => 'AggregateOffer',
-                'priceCurrency' => 'UAH',
-                'lowPrice' => $schemaLowPrice,
-                'highPrice' => $schemaHighPrice,
-                'offerCount' => max(1, (int) ($pdpOfferCount ?? 1)),
-                'availability' => $schemaAvailability,
-            ];
+        // Звіт «Товари в продавців» (безкоштовні оголошення) приймає лише Offer, AggregateOffer там — помилка.
+        // Тому завжди Offer з найнижчою ціною: саме її передає фід Merchant (найдешевший варіант).
+        $schemaProduct['offers'] = [
+            '@type' => 'Offer',
+            'url' => route('catalog.show', $listing->slug),
+            'priceCurrency' => 'UAH',
+            'price' => $schemaLowPrice,
+            'itemCondition' => 'https://schema.org/NewCondition',
+            'availability' => $schemaAvailability,
+        ];
 
         if (! empty($categoryDisplayForPage)) {
             $schemaProduct['category'] = (string) $categoryDisplayForPage;
         }
         $schemaProduct['brand'] = [
             '@type' => 'Brand',
-            'name' => 'ZOOGLE',
+            'name' => \App\Services\GoogleMerchantFeed::BRAND,
         ];
 
-        if (! empty($pdpOgImageUrl)) {
-            $schemaProduct['image'] = [$pdpOgImageUrl];
+        // Кілька ракурсів підвищують шанс на фото у видачі; перше — те саме, що og:image.
+        $schemaImages = collect([$pdpOgImageUrl ?? null])
+            ->merge(collect($galleryItems ?? [])
+                ->filter(fn ($item): bool => is_array($item) && ($item['type'] ?? 'image') === 'image')
+                ->pluck('url'))
+            ->filter(fn ($url): bool => is_string($url) && $url !== '')
+            ->unique()
+            ->take(10)
+            ->values()
+            ->all();
+        if ($schemaImages !== []) {
+            $schemaProduct['image'] = $schemaImages;
+        }
+
+        // Зірочки в Google — лише зі справжніх схвалених відгуків
+        if (($reviewCount ?? 0) > 0 && ($reviewAverage ?? null) !== null) {
+            $schemaProduct['aggregateRating'] = [
+                '@type' => 'AggregateRating',
+                'ratingValue' => number_format((float) $reviewAverage, 1, '.', ''),
+                'reviewCount' => (int) $reviewCount,
+                'bestRating' => \App\Models\ProductReview::RATING_MAX,
+                'worstRating' => \App\Models\ProductReview::RATING_MIN,
+            ];
+            $schemaProduct['review'] = ($reviews ?? collect())->take(5)->map(fn (\App\Models\ProductReview $review): array => [
+                '@type' => 'Review',
+                'author' => ['@type' => 'Person', 'name' => $review->publicName()],
+                'datePublished' => ($review->approved_at ?? $review->created_at)->toDateString(),
+                'reviewBody' => $review->body,
+                'reviewRating' => [
+                    '@type' => 'Rating',
+                    'ratingValue' => $review->rating,
+                    'bestRating' => \App\Models\ProductReview::RATING_MAX,
+                    'worstRating' => \App\Models\ProductReview::RATING_MIN,
+                ],
+            ])->values()->all();
         }
 
         $schemaCrumbs = [
@@ -99,6 +123,11 @@
     </script>
     <meta property="product:price:amount" content="{{ $schemaLowPrice }}">
     <meta property="product:price:currency" content="UAH">
+    {{-- Facebook / Instagram: зв'язок сторінки з каталогом товарів (id як у фіді) --}}
+    <meta property="product:availability" content="{{ $schemaAvailability === 'https://schema.org/InStock' ? 'in stock' : ($schemaAvailability === 'https://schema.org/PreOrder' ? 'preorder' : 'out of stock') }}">
+    <meta property="product:condition" content="new">
+    <meta property="product:brand" content="{{ \App\Services\GoogleMerchantFeed::BRAND }}">
+    <meta property="product:retailer_item_id" content="{{ $listing->id }}">
 @endpush
 
 @php
@@ -261,10 +290,32 @@
                     @endif
                     @if ($listing->hasDisplayableDescription())
                         <h2 style="margin-top:24px;">{{ __('shop.pdp_long_heading') }}</h2>
-                        <div class="product-desc__body">{!! $listing->safeDescriptionHtml() !!}</div>
+                        {{-- Довгий опис згортається скриптом; увесь текст лишається в HTML (Google бачить його повністю) --}}
+                        <div class="product-desc__collapse" data-desc-collapse>
+                            <div class="product-desc__body" id="product-long-description">{!! $listing->safeDescriptionHtml() !!}</div>
+                        </div>
+                        <button
+                            type="button"
+                            class="product-desc__toggle"
+                            data-desc-toggle
+                            data-label-more="{{ __('shop.pdp_desc_more') }}"
+                            data-label-less="{{ __('shop.pdp_desc_less') }}"
+                            aria-controls="product-long-description"
+                            aria-expanded="false"
+                            hidden
+                        >{{ __('shop.pdp_desc_more') }}</button>
+                        <script src="{{ \App\Support\StorefrontAsset::url('js/storefront/product-description.js') }}" defer></script>
                     @endif
                 </div>
             @endif
+
+            @include('catalog.partials.product-reviews', [
+                'reviews' => $reviews ?? collect(),
+                'reviewCount' => (int) ($reviewCount ?? 0),
+                'reviewAverage' => $reviewAverage ?? null,
+                'questions' => $questions ?? collect(),
+                'questionCount' => (int) ($questionCount ?? 0),
+            ])
 
             @if (($careArticles ?? collect())->isNotEmpty())
                 <section class="product-care-section" aria-labelledby="product-care-heading">
@@ -509,7 +560,24 @@
                         <span class="product-card__like-count product-actions__favorite-count" data-product-like-count>{{ (int) ($listing->favorited_by_users_count ?? 0) }}</span>
                     </button>
                 </div>
+                <button
+                    type="button"
+                    class="pdp-share-btn"
+                    data-product-share
+                    data-share-url="{{ route('catalog.show', $listing->slug) }}"
+                    data-share-title="{{ mt($listing->title) }}"
+                    data-share-copied="{{ __('shop.pdp_share_copied') }}"
+                    aria-label="{{ __('shop.pdp_share') }}"
+                    title="{{ __('shop.pdp_share') }}"
+                >
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                        <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/>
+                    </svg>
+                    <span class="pdp-share-btn__toast" data-product-share-toast role="status" aria-live="polite" hidden></span>
+                </button>
             </div>
+            <script src="{{ \App\Support\StorefrontAsset::url('js/storefront/product-share.js') }}" defer></script>
 
             @if (! empty($pdpDefersOnlinePayment ?? false))
                 <div
@@ -570,20 +638,10 @@
                     <path d="M15 18l-6-6 6-6" />
                 </svg>
             </button>
-            <div class="home-product-carousel__viewport" tabindex="0">
-                <div class="home-product-carousel__track">
-                    @foreach ($pdpRecommended as $product)
-                        <div class="home-product-carousel__cell">
-                            @include('catalog.partials.product-card', [
-                                'listing' => $product,
-                                'listingQuotes' => $recommendedListingQuotes ?? [],
-                                'bundleQuotes' => [],
-                                'cardImagePriority' => $loop->index,
-                            ])
-                        </div>
-                    @endforeach
-                </div>
-            </div>
+            @include('home.partials.product-swipe-pages', [
+                'products' => $pdpRecommended,
+                'listingQuotes' => $recommendedListingQuotes ?? [],
+            ])
             <button
                 type="button"
                 class="home-product-carousel__btn home-product-carousel__btn--next"

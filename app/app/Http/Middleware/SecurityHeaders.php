@@ -54,6 +54,8 @@ class SecurityHeaders
             return $policy;
         }
 
-        return $policy."; script-src 'self' 'unsafe-inline' 'unsafe-eval' ".implode(' ', self::SCRIPT_HOSTS);
+        // worker-src: адмінка (завантаження й обробка фото) запускає фонові скрипти з blob:
+        return $policy."; script-src 'self' 'unsafe-inline' 'unsafe-eval' ".implode(' ', self::SCRIPT_HOSTS)
+            ."; worker-src 'self' blob:";
     }
 }

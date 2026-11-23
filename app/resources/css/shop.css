@@ -3022,6 +3022,9 @@
             align-items: baseline;
             column-gap: 0.3em;
         }
+        .catalog-toolbar__title-sep {
+            color: #9aa0a6;
+        }
         .catalog-toolbar__meta {
             font-size: 0.875rem;
             font-weight: 600;
@@ -7430,4 +7433,1210 @@ body {
         background-color: #f5f5f7;
         color: #1d1d1f;
     }
+}
+
+/* Благодійність: кнопка в шапці, сторінка з банкою, запрошення після замовлення */
+.site-header__charity-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    box-sizing: border-box;
+    height: 44px;
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: 20px;
+    background: #fdecef;
+    color: #c2185b;
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    line-height: 1.1;
+    text-decoration: none;
+    white-space: nowrap;
+    box-shadow: var(--shop-header-btn-shadow, 0 1px 3px rgba(0, 0, 0, 0.08));
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+.site-header__charity-btn::before {
+    content: "♥";
+    font-size: 0.95em;
+}
+.site-header__charity-btn:hover,
+.site-header__charity-btn:focus-visible {
+    background: #c2185b;
+    color: #fff;
+}
+.charity-page__actions {
+    display: flex;
+    justify-content: center;
+    margin: 1.5rem 0 0;
+}
+.charity-page__donate {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    padding: 0 32px;
+    border-radius: 24px;
+    font-size: 1rem;
+}
+.charity-invite {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px 20px;
+    margin: 1rem 0;
+    background: #fff5f7;
+    border: 1px solid #f8d3dc;
+}
+.charity-invite__text {
+    flex: 1 1 260px;
+    margin: 0;
+    font-weight: 700;
+    line-height: 1.45;
+    color: #1d1d1f;
+}
+.charity-invite__btn {
+    background: #c2185b;
+    color: #fff;
+    border-color: #c2185b;
+    white-space: nowrap;
+}
+.charity-invite__btn:hover,
+.charity-invite__btn:focus-visible {
+    background: #9f1249;
+    border-color: #9f1249;
+    color: #fff;
+}
+@media (max-width: 640px) {
+    .site-header__charity-btn {
+        height: 36px;
+        min-height: 36px;
+        padding: 0 10px;
+        font-size: 0.72rem;
+    }
+    .site-header__charity-btn::before {
+        display: none;
+    }
+    .charity-invite__btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+/* Віртуальна опіка */
+.site-header__charity-btn--opika {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+.site-header__charity-btn--opika::before {
+    content: "🐾";
+}
+.site-header__charity-btn--opika:hover,
+.site-header__charity-btn--opika:focus-visible {
+    background: #2e7d32;
+    color: #fff;
+}
+.opika {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 0 0 2rem;
+}
+.opika__title {
+    margin: 0 0 0.5rem;
+    font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2.2rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #1d1d1f;
+}
+.opika__intro {
+    max-width: 760px;
+    margin: 0 auto 1.75rem;
+    text-align: center;
+}
+.opika__text {
+    color: #424245;
+    line-height: 1.6;
+}
+.opika__back {
+    margin: 0 0 1rem;
+    font-size: 0.9rem;
+}
+.opika__back a {
+    color: #6e6e73;
+    text-decoration: none;
+}
+.opika__back a:hover {
+    color: #1d1d1f;
+}
+.opika__empty {
+    text-align: center;
+}
+.opika-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+    gap: 20px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.opika-card__link {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    border-radius: 22px;
+    background: #fff;
+    color: inherit;
+    text-decoration: none;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.opika-card__link:hover,
+.opika-card__link:focus-visible {
+    transform: translateY(-3px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05), 0 16px 32px rgba(0, 0, 0, 0.1);
+}
+.opika-card__media {
+    display: block;
+    aspect-ratio: 4 / 5;
+    background: #f5f5f7;
+}
+.opika-card__media img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.opika-card__placeholder {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    font-size: 3rem;
+    background: #f5f5f7;
+}
+.opika-card__body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 16px 18px;
+}
+.opika-card__name {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: #1d1d1f;
+}
+.opika-card__species {
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #2e7d32;
+}
+.opika-card__excerpt {
+    font-size: 0.9rem;
+    line-height: 1.45;
+    color: #6e6e73;
+}
+.opika-animal__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    gap: 32px;
+    align-items: start;
+}
+.opika-animal__gallery {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+.opika-animal__photo {
+    margin: 0;
+    overflow: hidden;
+    aspect-ratio: 1 / 1;
+    border-radius: 16px;
+    background: #f5f5f7;
+}
+.opika-animal__photo--main {
+    grid-column: 1 / -1;
+    aspect-ratio: 4 / 3;
+    border-radius: 22px;
+}
+.opika-animal__photo img,
+.opika-animal__photo video {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.opika-animal__info {
+    padding: 24px;
+    border-radius: 22px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+.opika-animal__story {
+    margin-top: 1.25rem;
+    text-align: left;
+    color: #424245;
+    line-height: 1.65;
+}
+.opika-become {
+    margin: 1rem 0 0;
+}
+.opika-become__toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    padding: 0 28px;
+    border-radius: 24px;
+    font-size: 1rem;
+    list-style: none;
+    cursor: pointer;
+}
+.opika-become__toggle::-webkit-details-marker {
+    display: none;
+}
+.opika-become[open] .opika-become__toggle {
+    opacity: 0.85;
+}
+.opika-become__panel {
+    margin-top: 14px;
+    padding: 16px;
+    border-radius: 18px;
+    background: #f5f5f7;
+}
+.opika-become__title {
+    margin: 0 0 10px;
+    font-weight: 800;
+    color: #1d1d1f;
+}
+.opika-terms {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.opika-term {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border: 2px solid transparent;
+    border-radius: 14px;
+    background: #fff;
+    color: #1d1d1f;
+    text-decoration: none;
+    transition: border-color 0.15s ease;
+}
+.opika-term:hover,
+.opika-term:focus-visible {
+    border-color: #2e7d32;
+}
+.opika-term__label {
+    font-weight: 700;
+}
+.opika-term__price {
+    font-weight: 800;
+    color: #2e7d32;
+    white-space: nowrap;
+}
+.opika-sponsors {
+    margin-top: 2rem;
+    padding: 24px;
+    border-radius: 22px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+.opika-sponsors__title {
+    margin: 0 0 1rem;
+    color: #1d1d1f;
+    font-size: 1.25rem;
+    font-weight: 800;
+}
+.opika-sponsors__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px 20px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.opika-sponsor {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    width: 76px;
+    text-align: center;
+}
+.opika-sponsor__photo {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+.opika-sponsor__photo--empty {
+    display: grid;
+    place-items: center;
+    background: #e8f5e9;
+    color: #2e7d32;
+    font-size: 1.4rem;
+    font-weight: 800;
+}
+.opika-sponsor__name {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #1d1d1f;
+    overflow-wrap: anywhere;
+}
+.opika-form-card {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 28px;
+    border-radius: 22px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+.opika-form-card__head {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 1.25rem;
+}
+.opika-form-card__thumb {
+    flex: 0 0 auto;
+    width: 72px;
+    height: 72px;
+    border-radius: 16px;
+    object-fit: cover;
+}
+.opika-form-card__summary {
+    margin: 0;
+    color: #424245;
+}
+.opika-form {
+    display: grid;
+    gap: 14px;
+}
+.opika-form__row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+.opika-form__field label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #1d1d1f;
+}
+.opika-form__field input:not([type="file"]),
+.opika-form__field textarea {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #d2d2d7;
+    border-radius: 12px;
+    background: #fff;
+    font: inherit;
+    color: #1d1d1f;
+}
+.opika-form__field input:focus,
+.opika-form__field textarea:focus {
+    outline: none;
+    border-color: #2e7d32;
+    box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.15);
+}
+.opika-form__field input[type="file"] {
+    width: 100%;
+    font: inherit;
+}
+.opika-form__hint {
+    margin: 6px 0 0;
+    font-size: 0.82rem;
+    color: #6e6e73;
+}
+.opika-form__check {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 0.92rem;
+    color: #424245;
+    cursor: pointer;
+}
+.opika-form__check input[type="checkbox"] {
+    margin-top: 3px;
+    width: 18px;
+    height: 18px;
+    accent-color: #2e7d32;
+}
+.opika-form__submit,
+.opika-payment__pay {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 50px;
+    padding: 0 28px;
+    border-radius: 25px;
+    font-size: 1rem;
+}
+.opika-payment__status {
+    display: inline-block;
+    margin: 0 0 0.75rem;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+.opika-payment__status--active {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+.opika-payment__details {
+    display: grid;
+    gap: 8px;
+    margin: 1rem 0;
+    padding: 16px;
+    border-radius: 16px;
+    background: #f5f5f7;
+}
+.opika-payment__details div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+.opika-payment__details dt {
+    color: #6e6e73;
+}
+.opika-payment__details dd {
+    margin: 0;
+    text-align: right;
+    color: #1d1d1f;
+}
+.opika-payment__hint {
+    margin: 0 0 1rem;
+    color: #424245;
+    line-height: 1.5;
+}
+.opika-payment__actions {
+    margin: 0 0 1.25rem;
+}
+.opika-payment__thanks {
+    padding: 16px;
+    border-radius: 16px;
+    background: #e8f5e9;
+    color: #1b5e20;
+    line-height: 1.55;
+}
+.opika-payment__thanks p {
+    margin: 0;
+}
+.opika-payment__back {
+    margin: 1.25rem 0 0;
+    font-size: 0.9rem;
+}
+.opika-payment__back a {
+    color: #6e6e73;
+    text-decoration: none;
+}
+.opika-payment__back a:hover {
+    color: #1d1d1f;
+}
+@media (max-width: 860px) {
+    .opika-animal__layout {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+}
+@media (max-width: 560px) {
+    .opika-form__row {
+        grid-template-columns: 1fr;
+    }
+    .opika-form-card,
+    .opika-animal__info,
+    .opika-sponsors {
+        padding: 18px;
+    }
+    .opika-become__toggle,
+    .opika-form__submit,
+    .opika-payment__pay {
+        width: 100%;
+    }
+}
+
+/* Дві кнопки (опіка, благодійність) не виштовхують кошик за край вузького екрана */
+@media (max-width: 400px) {
+    .site-header__zone--right .site-header__top-actions-row {
+        flex-wrap: wrap;
+        row-gap: 6px;
+    }
+    .site-header__charity-btn {
+        padding: 0 8px;
+        font-size: 0.68rem;
+    }
+}
+
+/* ===== Мобільна шапка: лого зліва; вхід (гість), кошик і бургер справа ===== */
+.site-header__mobile-actions {
+    display: none;
+}
+@media (max-width: 768px) {
+    .site-header .site-header__hero .site-header__row {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "logo mobile"
+            "search search";
+        align-items: center;
+        gap: 10px 8px;
+    }
+    .site-header .site-header__hero .site-header__zone--right {
+        display: none !important;
+    }
+    .site-header .site-header__hero .site-header__zone--center {
+        display: contents;
+    }
+    .site-header .site-header__hero .site-logo {
+        grid-area: logo;
+        justify-self: start;
+        margin: 0;
+        width: min(140px, 40vw);
+        max-width: min(140px, 40vw);
+    }
+    .site-header .site-header__hero .site-logo__img {
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+    }
+    .site-header .site-header__hero .site-header__search {
+        grid-area: search;
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+    }
+    .site-header .site-header__compact-bar .site-header__zone--right {
+        display: none !important;
+    }
+    .site-header .site-header__compact-bar .site-header__row {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .site-header .site-header__compact-bar .site-logo {
+        grid-column: 1;
+        grid-row: 1;
+    }
+    .site-header .site-header__compact-bar .site-header__mobile-actions {
+        grid-column: 2;
+        grid-row: 1;
+    }
+    .site-header__mobile-actions {
+        grid-area: mobile;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        justify-self: end;
+        gap: 8px;
+    }
+    /* Акаунт — як на комп'ютері: білий кружок, синя іконка */
+    .site-header__mobile-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        width: 42px;
+        height: 42px;
+        padding: 0;
+        border: 1px solid var(--border, #e4e7ec);
+        border-radius: 50%;
+        background: #fff;
+        color: #2563eb;
+        line-height: 0;
+        box-shadow: var(--shop-product-btn-shadow, 0 10px 18px rgba(15, 23, 42, 0.14));
+        -webkit-tap-highlight-color: transparent;
+    }
+    .site-header__mobile-icon .site-header__account-icon,
+    .site-header__mobile-icon svg {
+        width: 21px;
+        height: 21px;
+        fill: currentColor;
+    }
+    /* Кошик — «пігулка» сайту: біла з червоним світінням, із товарами — зелена */
+    .site-header__mobile-cart {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        flex: 0 0 auto;
+        height: 42px;
+        padding: 0 13px 0 11px;
+        border: 1px solid var(--border, #e4e7ec);
+        border-radius: 21px;
+        background: #fff;
+        color: #707277;
+        font: inherit;
+        font-size: 0.92rem;
+        font-weight: 700;
+        line-height: 1;
+        cursor: pointer;
+        box-shadow:
+            0 8px 16px rgba(15, 23, 42, 0.1),
+            0 8px 22px rgba(var(--color-cta-rgb, 239, 56, 41), 0.22);
+        transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .site-header__mobile-cart-icon {
+        width: 20px;
+        height: 20px;
+    }
+    .site-header__mobile-cart-count {
+        min-width: 0.7em;
+        text-align: center;
+    }
+    .site-header__mobile-cart.cart-pill--has-items {
+        border-color: #339b3b;
+        background: #339b3b;
+        color: #fff;
+        box-shadow:
+            0 8px 16px rgba(15, 23, 42, 0.1),
+            0 8px 22px rgba(51, 155, 59, 0.3);
+    }
+    /* Меню — синій акцент, як «Поради по догляду» */
+    .site-header__burger {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        width: 42px;
+        height: 42px;
+        padding: 0;
+        border: 0;
+        border-radius: 50%;
+        background: linear-gradient(180deg, #3b8bf0 0%, #1a73e8 100%);
+        color: #fff;
+        cursor: pointer;
+        box-shadow: 0 8px 18px rgba(26, 115, 232, 0.35);
+        -webkit-tap-highlight-color: transparent;
+    }
+    .site-header__burger[aria-expanded="true"] {
+        background: #1558c0;
+    }
+    .site-header__burger-lines {
+        display: grid;
+        gap: 4px;
+        width: 18px;
+    }
+    .site-header__burger-lines span {
+        display: block;
+        height: 2px;
+        border-radius: 2px;
+        background: currentColor;
+    }
+    .site-header__burger-lines span:nth-child(2) {
+        width: 70%;
+        justify-self: end;
+    }
+    .site-header__mobile-icon:active,
+    .site-header__mobile-cart:active,
+    .site-header__burger:active {
+        transform: scale(0.95);
+    }
+}
+
+/* ===== Бургер-меню (панель справа) ===== */
+.mobile-menu[hidden] {
+    display: none;
+}
+.mobile-menu {
+    position: fixed;
+    inset: 0;
+    z-index: 120;
+}
+.mobile-menu__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.32);
+    opacity: 0;
+    transition: opacity 0.28s ease;
+}
+.mobile-menu__panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    width: min(86vw, 360px);
+    padding: max(16px, env(safe-area-inset-top, 0px)) 18px max(20px, env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: #fff;
+    box-shadow: -12px 0 40px rgba(0, 0, 0, 0.18);
+    transform: translateX(100%);
+    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+    outline: none;
+}
+.mobile-menu.is-open .mobile-menu__backdrop {
+    opacity: 1;
+}
+.mobile-menu.is-open .mobile-menu__panel {
+    transform: translateX(0);
+}
+html.mobile-menu-open,
+html.mobile-menu-open body {
+    overflow: hidden;
+}
+.mobile-menu__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+.mobile-menu__title {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #1d1d1f;
+}
+.mobile-menu__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: #f5f5f7;
+    color: #1d1d1f;
+    cursor: pointer;
+}
+.mobile-menu__user {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding: 12px;
+    border-radius: 16px;
+    background: #f5f5f7;
+    color: inherit;
+    text-decoration: none;
+}
+.mobile-menu__user-avatar {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #fbbc05;
+    color: #1d1d1f;
+    font-weight: 800;
+}
+.mobile-menu__user-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.mobile-menu__user-name {
+    overflow: hidden;
+    font-weight: 800;
+    color: #1d1d1f;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.mobile-menu__user-hint {
+    font-size: 0.82rem;
+    color: #6e6e73;
+}
+.mobile-menu__list {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.mobile-menu__link {
+    display: flex;
+    align-items: center;
+    min-height: 48px;
+    padding: 0 12px;
+    border-radius: 12px;
+    color: #1d1d1f;
+    font-size: 1.05rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+.mobile-menu__link:hover,
+.mobile-menu__link:focus-visible,
+.mobile-menu__link[aria-current="page"] {
+    background: #f5f5f7;
+}
+.mobile-menu__link--care {
+    color: #1a73e8;
+}
+.mobile-menu__link--opika {
+    color: #2e7d32;
+}
+.mobile-menu__link--charity {
+    color: #c2185b;
+}
+.mobile-menu__link--blue {
+    color: #1a73e8;
+}
+.mobile-menu__link--green {
+    color: #2e7d32;
+}
+.mobile-menu__link--pink {
+    color: #c2185b;
+}
+.mobile-menu__link--red {
+    color: #ef3829;
+}
+.mobile-menu__section {
+    margin: 16px 12px 4px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #86868b;
+}
+.mobile-menu__list--secondary .mobile-menu__link {
+    min-height: 44px;
+    font-size: 0.98rem;
+    font-weight: 600;
+    color: #424245;
+}
+.mobile-menu__login {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 50px;
+    margin-top: auto;
+    border-radius: 25px;
+}
+
+/* ===== Контакти в правому нижньому куті ===== */
+.floating-contacts {
+    position: fixed;
+    right: max(16px, env(safe-area-inset-right, 0px));
+    bottom: calc(max(16px, env(safe-area-inset-bottom, 0px)) + 8px);
+    z-index: 90;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 12px;
+    pointer-events: none;
+}
+.floating-contacts > * {
+    pointer-events: auto;
+}
+.floating-contacts__toggle {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 58px;
+    height: 58px;
+    padding: 0;
+    border: 3px solid #fff;
+    border-radius: 50%;
+    background: linear-gradient(180deg, #ff5a4a 0%, #ef3829 100%);
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 10px 24px rgba(239, 56, 41, 0.42);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+/* Хвиля навколо трубки: раз на кілька секунд привертає увагу */
+.floating-contacts__toggle::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 50%;
+    border: 2px solid rgba(239, 56, 41, 0.55);
+    animation: floating-contacts-ring 2.8s ease-out infinite;
+    pointer-events: none;
+}
+@keyframes floating-contacts-ring {
+    0% { transform: scale(1); opacity: 0.9; }
+    70%, 100% { transform: scale(1.45); opacity: 0; }
+}
+.floating-contacts.is-open .floating-contacts__toggle::after {
+    display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+    .floating-contacts__toggle::after {
+        animation: none;
+        display: none;
+    }
+}
+.floating-contacts__toggle:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 28px rgba(239, 56, 41, 0.5);
+}
+.floating-contacts__toggle:active {
+    transform: scale(0.95);
+}
+.floating-contacts__toggle:focus-visible {
+    outline: 2px solid #ef3829;
+    outline-offset: 3px;
+}
+.floating-contacts__icon--close,
+.floating-contacts.is-open .floating-contacts__icon--open {
+    display: none;
+}
+.floating-contacts.is-open .floating-contacts__icon--close {
+    display: block;
+}
+.floating-contacts.is-open .floating-contacts__toggle {
+    background: #1d1d1f;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.3);
+}
+.floating-contacts__panel {
+    width: min(calc(100vw - 32px), 300px);
+    max-height: min(70vh, 520px);
+    padding: 14px;
+    box-sizing: border-box;
+    overflow-y: auto;
+    border-radius: 20px;
+    background: #fff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06), 0 16px 40px rgba(0, 0, 0, 0.16);
+    transform-origin: bottom right;
+    animation: floating-contacts-in 0.2s ease;
+}
+.floating-contacts__panel[hidden] {
+    display: none;
+}
+@keyframes floating-contacts-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.97); }
+    to { opacity: 1; transform: none; }
+}
+.floating-contacts__title {
+    margin: 0 4px 10px;
+    font-size: 0.8rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #86868b;
+}
+.floating-contacts__list {
+    display: grid;
+    gap: 6px;
+}
+.floating-contacts__list .site-header__contact-card {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    border: 0;
+    box-shadow: none;
+    justify-content: flex-start;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    padding: 6px 10px;
+    border-radius: 12px;
+    background: #f5f5f7;
+    color: #1d1d1f;
+    font-weight: 700;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+.floating-contacts__list .site-header__contact-card:hover {
+    background: #e8f0fe;
+}
+.floating-contacts__list .site-header__contact-icon,
+.floating-contacts__list .site-header__contact-icon img {
+    flex: 0 0 auto;
+    width: 24px;
+    height: 24px;
+}
+html.mobile-menu-open .floating-contacts {
+    display: none;
+}
+
+/* Віртуальна опіка: відступ від пошуку, спокійний текст карток, компактна сітка на телефоні */
+.opika {
+    padding-top: clamp(12px, 2vw, 20px);
+}
+.opika__back {
+    margin: 0 0 14px;
+}
+.opika__back a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 36px;
+    padding: 0 14px 0 10px;
+    border: 1px solid var(--border, #e4e7ec);
+    border-radius: 18px;
+    background: #fff;
+    font-size: 0.88rem;
+    font-weight: 700;
+}
+.opika-card__name {
+    line-height: 1.25;
+}
+.opika-card__excerpt {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-family: var(--font-body, 'Source Sans 3', system-ui, sans-serif);
+    font-weight: 400;
+    line-height: 1.45;
+}
+@media (max-width: 640px) {
+    .opika__intro {
+        margin-bottom: 1.1rem;
+    }
+    .opika-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+    .opika-card__link {
+        border-radius: 18px;
+    }
+    .opika-card__media {
+        aspect-ratio: 1 / 1;
+    }
+    .opika-card__body {
+        gap: 2px;
+        padding: 10px 12px 14px;
+    }
+    .opika-card__name {
+        font-size: 1rem;
+    }
+    .opika-card__species {
+        font-size: 0.78rem;
+    }
+    .opika-card__excerpt {
+        font-size: 0.84rem;
+    }
+    .opika-animal__photo--main {
+        aspect-ratio: 1 / 1;
+    }
+    .opika-animal__info {
+        padding: 18px;
+    }
+    .opika-animal__story {
+        font-size: 1rem;
+        line-height: 1.6;
+    }
+}
+
+/* Контакти в бургер-меню: телефони, email і соцмережі, на які можна одразу натиснути */
+.mobile-menu__contacts {
+    display: grid;
+    gap: 6px;
+    margin: 4px 0 16px;
+}
+.mobile-menu__contacts .site-header__contact-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: none;
+    min-height: 46px;
+    margin: 0;
+    padding: 6px 12px;
+    border: 0;
+    border-radius: 12px;
+    background: #f5f5f7;
+    box-shadow: none;
+    color: #1d1d1f;
+    font-weight: 700;
+    text-decoration: none;
+    justify-content: flex-start;
+    overflow-wrap: anywhere;
+}
+.mobile-menu__contacts .site-header__contact-card:active {
+    background: #e8f0fe;
+}
+.mobile-menu__contacts .site-header__contact-icon,
+.mobile-menu__contacts .site-header__contact-icon img {
+    flex: 0 0 auto;
+    width: 24px;
+    height: 24px;
+}
+
+/* Ціна в картці — жирніша й помітніша (була надто «легкою» поруч із кнопкою «У кошик») */
+.product-card-shell > .product-card.product-card .product-card__price:not(.product-card__price--old) {
+    font-size: 1.24rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #1d1d1f;
+}
+.product-card-shell > .product-card.product-card .product-card__price--sale {
+    color: var(--product-card-accent, #ef3829);
+}
+.product-card-shell > .product-card.product-card .product-card__price:not(.product-card__price--old) .product-card__price-currency {
+    margin-left: 2px;
+    font-size: 0.78em;
+    font-weight: 700;
+    color: #6e6e73;
+}
+@media (max-width: 768px) {
+    :is(
+        .catalog-results.catalog-results--listing,
+        .home-product-carousel.home-product-carousel--mobile-feed
+    ) .product-card-shell > .product-card.product-card .product-card__price:not(.product-card__price--old) {
+        font-size: 1.12rem;
+    }
+}
+
+/* Запасне правило: картки без сторінок у мобільному блоці стоять по дві, а не стискаються до нуля */
+@media (max-width: 768px) {
+    .home-product-carousel.home-product-carousel--mobile-feed .home-product-carousel__track > .home-product-carousel__cell {
+        flex: 0 0 calc(50% - 4px);
+    }
+}
+
+/* Віртуальна опіка: одне фото на комп'ютері — на всю висоту картки з історією, без порожнечі знизу */
+@media (min-width: 861px) {
+    .opika-animal__layout:has(.opika-animal__gallery > .opika-animal__photo:only-child) {
+        align-items: stretch;
+    }
+    .opika-animal__gallery:has(> .opika-animal__photo:only-child) {
+        display: block;
+        height: 100%;
+    }
+    /* Завжди від верху картки до низу — і коли розкриваються терміни опікунства */
+    .opika-animal__gallery > .opika-animal__photo--main:only-child {
+        height: 100%;
+        min-height: 360px;
+        aspect-ratio: auto;
+    }
+}
+
+/* Сторінка оплати опіки: усе вирівняно по лівому краю картки, подяка на всю ширину */
+.opika-payment__hint {
+    margin: 0 0 14px;
+    font-size: 0.95rem;
+    font-weight: 400;
+    line-height: 1.5;
+    color: #6e6e73;
+}
+.opika-payment__actions {
+    margin: 0 0 16px;
+}
+.opika-payment__pay {
+    display: flex;
+    width: 100%;
+    box-sizing: border-box;
+}
+.opika-payment .opika-payment__thanks,
+.opika-payment .opika-payment__thanks.info-page__body {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 14px 16px;
+    text-align: left;
+}
+.opika-payment .opika-payment__thanks p,
+.opika-payment .opika-payment__thanks * {
+    text-align: left;
 }

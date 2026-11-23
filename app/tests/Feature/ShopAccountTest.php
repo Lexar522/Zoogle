@@ -231,8 +231,8 @@ class ShopAccountTest extends TestCase
         $this->actingAs($user)
             ->get(route('account.orders.index', ['payment' => 'deferred_pending']))
             ->assertOk()
-            ->assertSee('10,00 UAH', false)
-            ->assertDontSee('20,00 UAH', false);
+            ->assertSee('>10 ₴<', false)
+            ->assertDontSee('>20 ₴<', false);
     }
 
     public function test_guest_cannot_toggle_favorites(): void

@@ -54,6 +54,8 @@
             @endif
         </section>
 
+        @include('partials.charity-invite')
+
         <div class="checkout-page__actions">
             <a class="btn btn-buy" href="{{ route('orders.track', ['order' => $order, 'token' => $order->success_token]) }}">{{ __('shop.checkout_success_btn_track') }}</a>
             <a class="btn secondary" href="{{ route('catalog.index') }}">{{ __('shop.checkout_success_btn_catalog') }}</a>

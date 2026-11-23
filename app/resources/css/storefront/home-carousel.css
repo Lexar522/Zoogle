@@ -306,3 +306,96 @@
 .home-product-carousel.home-product-carousel--mobile-feed .home-product-carousel__btn {
     display: none !important;
 }
+
+/* Хіти / рекомендовані: товари згруповані сторінками по 4.
+   Комп'ютер — сторінки «розчиняються» в звичайній сітці; телефон — свайп сторінками 2×2. */
+.home-product-carousel__page {
+    display: contents;
+}
+.home-product-carousel__dots {
+    display: none;
+}
+@media (max-width: 768px) {
+    .home-product-carousel.home-product-carousel--mobile-feed .home-product-carousel__viewport {
+        overflow-x: auto;
+        overflow-y: hidden;
+        scroll-snap-type: x mandatory;
+        scroll-behavior: smooth;
+        overscroll-behavior-x: contain;
+        touch-action: pan-x pan-y;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+    }
+    .home-product-carousel.home-product-carousel--mobile-feed .home-product-carousel__viewport::-webkit-scrollbar {
+        display: none;
+    }
+    .home-product-carousel.home-product-carousel--mobile-feed .home-product-carousel__track {
+        display: flex !important;
+        /* Кожна сторінка своєї висоти: одна картка на останній сторінці не розтягується на весь блок */
+        align-items: flex-start;
+        gap: 0;
+    }
+    .home-product-carousel.home-product-carousel--mobile-feed .home-product-carousel__page {
+        display: grid;
+        flex: 0 0 100%;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-auto-rows: auto;
+        align-content: start;
+        gap: 8px;
+        box-sizing: border-box;
+        min-width: 0;
+        padding-right: 1px;
+        scroll-snap-align: start;
+        scroll-snap-stop: always;
+    }
+    .home-product-carousel.home-product-carousel--mobile-feed .home-product-carousel__dots {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        margin-top: 12px;
+    }
+    .home-product-carousel__dot-list {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .home-product-carousel__page-arrow {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        padding: 0;
+        border: 1px solid #e4e7ec;
+        border-radius: 50%;
+        background: #fff;
+        color: #1d1d1f;
+        cursor: pointer;
+        box-shadow: 0 6px 14px rgba(15, 23, 42, 0.1);
+        transition: opacity 0.2s ease, transform 0.15s ease;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .home-product-carousel__page-arrow:active {
+        transform: scale(0.94);
+    }
+    .home-product-carousel__page-arrow:disabled {
+        opacity: 0.35;
+        cursor: default;
+        box-shadow: none;
+    }
+    .home-product-carousel__dot {
+        width: 9px;
+        height: 9px;
+        padding: 0;
+        border: 0;
+        border-radius: 999px;
+        background: #c7c7cc;
+        cursor: pointer;
+        transition: width 0.2s ease, background-color 0.2s ease;
+    }
+    .home-product-carousel__dot[aria-current="true"] {
+        width: 24px;
+        background: #ef3829;
+    }
+}

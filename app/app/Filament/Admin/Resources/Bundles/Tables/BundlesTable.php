@@ -76,6 +76,7 @@ class BundlesTable
                     ->searchable(),
                 TextColumn::make('slug')
                     ->label('Slug')
+                    ->visibleFrom('md')
                     ->searchable(),
                 IconColumn::make('is_visible')
                     ->label('Вітрина')

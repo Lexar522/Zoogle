@@ -59,7 +59,7 @@
 
                     <div class="account-order-card__amount">
                         <span class="account-order-card__label">{{ __('shop.account_order_card_total') }}</span>
-                        <span class="account-order-card__sum">{{ number_format((float) $order->total, 2, ',', ' ') }} UAH</span>
+                        <span class="account-order-card__sum">{{ \App\Support\ShopPrice::amount((float) $order->total) }} ₴</span>
                     </div>
 
                     <div class="account-order-card__state">
@@ -84,12 +84,12 @@
                     </div>
                 </article>
             @empty
-                <p class="account-empty" style="margin:0;">{{ __('shop.account_orders_empty') }}</p>
+                <p class="account-empty">{{ __('shop.account_orders_empty') }}</p>
             @endforelse
         </div>
 
         @if ($orders->hasPages())
-            <div style="margin-top:1.1rem;">{{ $orders->links() }}</div>
+            <div class="account-pagination">{{ $orders->links() }}</div>
         @endif
     </section>
 @endsection

@@ -116,6 +116,7 @@
                     <div class="catalog-toolbar__title-line">
                         @if ($showRecommendedLabel)
                             <span class="catalog-toolbar__title catalog-toolbar__title-label">{{ __('shop.catalog_toolbar_recommended_prefix') }}</span>
+                            <span class="catalog-toolbar__title catalog-toolbar__title-sep" aria-hidden="true">/</span>
                         @endif
                         <h1 class="catalog-toolbar__title">{{ $toolbarTitle }}</h1>
                     </div>

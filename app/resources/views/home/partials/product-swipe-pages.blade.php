@@ -1,0 +1,37 @@
+{{-- Товари блоку сторінками по 4: на телефоні сторінка = сітка 2×2 і гортається свайпом, на комп'ютері сторінки «розчиняються» в звичайній сітці. --}}
+@php($swipePages = $products->values()->chunk(4))
+<div class="home-product-carousel__viewport" tabindex="0">
+    <div class="home-product-carousel__track">
+        @foreach ($swipePages as $pageIndex => $pageProducts)
+            <div class="home-product-carousel__page" data-carousel-page>
+                @foreach ($pageProducts as $cardIndex => $product)
+                    <div class="home-product-carousel__cell">
+                        @include('catalog.partials.product-card', [
+                            'listing' => $product,
+                            'listingQuotes' => $listingQuotes ?? [],
+                            'bundleQuotes' => [],
+                            'cardImagePriority' => $cardIndex,
+                            'homeCardBadge' => $badge ?? null,
+                            'homeCardBadgeClass' => $badgeClass ?? null,
+                        ])
+                    </div>
+                @endforeach
+            </div>
+        @endforeach
+    </div>
+</div>
+@if ($swipePages->count() > 1)
+    <div class="home-product-carousel__dots" data-carousel-dots>
+        <button type="button" class="home-product-carousel__page-arrow" data-carousel-page-prev aria-label="{{ __('shop.home_carousel_prev') }}" disabled>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <span class="home-product-carousel__dot-list">
+            @foreach ($swipePages as $pageIndex => $pageProducts)
+                <button type="button" class="home-product-carousel__dot" data-carousel-page-dot="{{ $loop->index }}" aria-label="{{ __('shop.home_carousel_page', ['page' => $loop->iteration, 'total' => $swipePages->count()]) }}" @if ($loop->first) aria-current="true" @endif></button>
+            @endforeach
+        </span>
+        <button type="button" class="home-product-carousel__page-arrow" data-carousel-page-next aria-label="{{ __('shop.home_carousel_next') }}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+    </div>
+@endif

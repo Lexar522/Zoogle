@@ -394,6 +394,8 @@ class ProductsTable
                 TextColumn::make('published_at')
                     ->label('Опубліковано')
                     ->dateTime()
+                    ->placeholder('—')
+                    ->visibleFrom('md')
                     ->sortable(),
                 TextColumn::make('created_at')
                     ->label('Створено')

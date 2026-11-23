@@ -8,20 +8,22 @@ use App\Models\OptionGroup;
 use App\Models\OptionValue;
 use App\Models\Product;
 use App\Models\ProductCareArticle;
+use App\Models\ProductQuestion;
+use App\Models\ProductReview;
 use App\Models\ShopCatalogPaginationSetting;
 use App\Models\ShopHeaderBanner;
 use App\Services\BundlePricingService;
-use App\Services\ShopAnalytics;
 use App\Services\CareArticleCatalog;
 use App\Services\ProductShowPageService;
+use App\Services\ShopAnalytics;
 use App\Services\VariantPricingService;
 use App\Support\CatalogCategoryTree;
-use App\Support\SchemaCache;
-use App\Support\ShopSeo;
-use App\Support\CatalogTitleMatch;
-use App\Support\ShopHeaderViewData;
-use App\Support\StorefrontCategoryTreeCache;
 use App\Support\CatalogProductsTable;
+use App\Support\CatalogTitleMatch;
+use App\Support\SchemaCache;
+use App\Support\ShopHeaderViewData;
+use App\Support\ShopSeo;
+use App\Support\StorefrontCategoryTreeCache;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -38,6 +40,12 @@ class CatalogController extends Controller
 
     /** @var list<int> */
     private const CATALOG_PER_PAGES = [12, 16, 24, 48];
+
+    /** Скільки останніх відгуків показувати на картці товару. */
+    private const REVIEWS_SHOWN = 20;
+
+    /** Скільки останніх питань із відповідями показувати на картці товару. */
+    private const QUESTIONS_SHOWN = 20;
 
     public function __construct(
         private readonly ProductShowPageService $productShowPage,
@@ -723,6 +731,23 @@ class CatalogController extends Controller
     /**
      * @param  Collection<int, array{type: string, id: int, sort_at: int, title: string, price_sort: float, popularity: int}>  $rows
      */
+    /**
+     * @param  Collection<int, array<string, mixed>>  $rows
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function sortCatalogRowsByRelevance(Collection $rows, string $search): Collection
+    {
+        return $rows
+            ->map(fn (array $row): array => [
+                ...$row,
+                'relevance' => CatalogTitleMatch::relevance($search, mt((string) ($row['title'] ?? '')))
+                    ?? CatalogTitleMatch::RELEVANCE_LAST,
+            ])
+            ->sort(fn (array $a, array $b): int => [$a['relevance'], -($a['popularity'] ?? 0), $a['id']]
+                <=> [$b['relevance'], -($b['popularity'] ?? 0), $b['id']])
+            ->values();
+    }
+
     private function sortCatalogRows(Collection $rows, string $sort): Collection
     {
         $cmpTitle = static function (array $a, array $b): int {
@@ -949,17 +974,17 @@ class CatalogController extends Controller
         $productRows = $bundlesOnly
             ? collect()
             : (clone $productQuery)
-            ->select(['id', 'title', 'price', 'published_at', 'created_at'])
-            ->withCount('favoritedByUsers')
-            ->get()
-            ->map(fn (Product $product): array => [
-                'type' => 'product',
-                'id' => (int) $product->id,
-                'sort_at' => (int) (($product->published_at ?? $product->created_at)?->getTimestamp() ?? 0),
-                'title' => (string) $product->title,
-                'price_sort' => (float) $product->price,
-                'popularity' => (int) ($product->favorited_by_users_count ?? 0),
-            ]);
+                ->select(['id', 'title', 'price', 'published_at', 'created_at'])
+                ->withCount('favoritedByUsers')
+                ->get()
+                ->map(fn (Product $product): array => [
+                    'type' => 'product',
+                    'id' => (int) $product->id,
+                    'sort_at' => (int) (($product->published_at ?? $product->created_at)?->getTimestamp() ?? 0),
+                    'title' => (string) $product->title,
+                    'price_sort' => (float) $product->price,
+                    'popularity' => (int) ($product->favorited_by_users_count ?? 0),
+                ]);
 
         $sortPriceSql = $this->bundleSortPriceSelectExpression();
         $popularitySql = $this->bundleCatalogPopularitySelectExpression();
@@ -984,7 +1009,11 @@ class CatalogController extends Controller
 
         $combinedRows = $productRows->concat($bundleRows);
         $sort = is_string($sort) ? $sort : 'random';
-        if ($sort === 'random') {
+        if ($sort === 'random' && $search !== '') {
+            // Пошук без обраного сортування — найкращі збіги першими, а не випадковий порядок
+            $request->query->remove('mix');
+            $catalogRows = $this->sortCatalogRowsByRelevance($combinedRows, $search);
+        } elseif ($sort === 'random') {
             $mix = $this->catalogShuffleSeed($request);
             $request->query->set('mix', $mix);
             $catalogRows = $this->shuffleCatalogRows($combinedRows, $mix);
@@ -1090,6 +1119,8 @@ class CatalogController extends Controller
         return view('catalog.show', array_merge(
             $this->productShowPage->buildViewData($request, $listing, $nav),
             ['favoriteProductIds' => $this->favoriteProductIdsForUser()],
+            $this->reviewsViewData($listing),
+            $this->questionsViewData($listing),
         ));
     }
 
@@ -1122,6 +1153,48 @@ class CatalogController extends Controller
             'article' => $article,
             'careArticles' => $careArticles,
         ]));
+    }
+
+    /**
+     * Схвалені відгуки для картки товару: підсумок рахуємо з усіх, показуємо останні.
+     *
+     * @return array{reviews: Collection<int, ProductReview>, reviewCount: int, reviewAverage: ?float}
+     */
+    private function reviewsViewData(Product $listing): array
+    {
+        if (! SchemaCache::hasTable('product_reviews')) {
+            return ['reviews' => collect(), 'reviewCount' => 0, 'reviewAverage' => null];
+        }
+
+        $summary = $listing->reviews()->approved()
+            ->selectRaw('COUNT(*) as review_count, AVG(rating) as review_average')
+            ->first();
+        $count = (int) ($summary?->review_count ?? 0);
+
+        return [
+            'reviews' => $count > 0 ? $listing->approvedReviews()->limit(self::REVIEWS_SHOWN)->get() : collect(),
+            'reviewCount' => $count,
+            'reviewAverage' => $count > 0 ? round((float) $summary->review_average, 1) : null,
+        ];
+    }
+
+    /**
+     * Питання покупців із відповідями магазину.
+     *
+     * @return array{questions: Collection<int, ProductQuestion>, questionCount: int}
+     */
+    private function questionsViewData(Product $listing): array
+    {
+        if (! SchemaCache::hasTable('product_questions')) {
+            return ['questions' => collect(), 'questionCount' => 0];
+        }
+
+        $count = $listing->questions()->answered()->count();
+
+        return [
+            'questions' => $count > 0 ? $listing->answeredQuestions()->limit(self::QUESTIONS_SHOWN)->get() : collect(),
+            'questionCount' => $count,
+        ];
     }
 
     private function storefrontProductBySlug(string $slug): Product

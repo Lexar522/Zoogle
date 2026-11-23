@@ -1,9 +1,12 @@
 @extends('layouts.shop')
 
-@section('title', __('shop.home_page_title'))
-@section('meta_description', __('shop.home_meta_description'))
-@section('og_title', __('shop.home_og_title'))
-@section('og_description', __('shop.home_og_description'))
+@php
+    $homeSeo = \App\Models\ShopSeoSetting::home();
+@endphp
+@section('title', $homeSeo['title'])
+@section('meta_description', $homeSeo['description'])
+@section('og_title', $homeSeo['og_title'])
+@section('og_description', $homeSeo['og_description'])
 @section('canonical_url', route('home'))
 
 @push('meta')
@@ -106,22 +109,11 @@
                             <path d="M15 18l-6-6 6-6" />
                         </svg>
                     </button>
-                    <div class="home-product-carousel__viewport" tabindex="0">
-                        <div class="home-product-carousel__track">
-                            @foreach ($hitsProducts as $product)
-                                <div class="home-product-carousel__cell">
-                                    @include('catalog.partials.product-card', [
-                                        'listing' => $product,
-                                        'listingQuotes' => $listingQuotes ?? [],
-                                        'bundleQuotes' => [],
-                                        'cardImagePriority' => $loop->index,
-                                        'homeCardBadge' => __('shop.home_badge_hit'),
-                                        'homeCardBadgeClass' => 'hit',
-                                    ])
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
+                    @include('home.partials.product-swipe-pages', [
+                        'products' => $hitsProducts,
+                        'badge' => __('shop.home_badge_hit'),
+                        'badgeClass' => 'hit',
+                    ])
                     <button
                         type="button"
                         class="home-product-carousel__btn home-product-carousel__btn--next"
@@ -168,22 +160,11 @@
                             <path d="M15 18l-6-6 6-6" />
                         </svg>
                     </button>
-                    <div class="home-product-carousel__viewport" tabindex="0">
-                        <div class="home-product-carousel__track">
-                            @foreach ($recommendedProducts as $product)
-                                <div class="home-product-carousel__cell">
-                                    @include('catalog.partials.product-card', [
-                                        'listing' => $product,
-                                        'listingQuotes' => $listingQuotes ?? [],
-                                        'bundleQuotes' => [],
-                                        'cardImagePriority' => $loop->index,
-                                        'homeCardBadge' => __('shop.home_badge_recommended'),
-                                        'homeCardBadgeClass' => 'recommended',
-                                    ])
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
+                    @include('home.partials.product-swipe-pages', [
+                        'products' => $recommendedProducts,
+                        'badge' => __('shop.home_badge_recommended'),
+                        'badgeClass' => 'recommended',
+                    ])
                     <button
                         type="button"
                         class="home-product-carousel__btn home-product-carousel__btn--next"

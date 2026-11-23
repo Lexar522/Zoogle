@@ -65,3 +65,86 @@
     flex: 1 1 12rem !important;
     box-sizing: border-box;
 }
+
+/* Кнопка «Фільтри» потрібна лише на телефоні */
+.fi-ta-ctn .fi-ta-list-products-search-row__toggle {
+    display: none;
+}
+
+/* Телефон: пошук + кнопка «Фільтри» в одному рядку; фільтри розкриваються по натиску, кожен на всю ширину */
+@media (max-width: 640px) {
+    .fi-ta-ctn .fi-ta-header-toolbar > div:has(> .fi-ta-list-products-search-row) {
+        flex-wrap: wrap;
+        align-items: flex-start;
+        width: 100%;
+    }
+
+    .fi-ta-ctn .fi-ta-list-products-search-row {
+        flex: 1 1 100%;
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+    }
+
+    .fi-ta-ctn .fi-ta-list-products-search-row .fi-ta-search-field {
+        grid-column: 1;
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .fi-ta-ctn .fi-ta-list-products-search-row__toggle {
+        grid-column: 2;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 100%;
+        min-height: 40px;
+        padding: 0 14px;
+        border: 1px solid var(--zo-separator, rgba(120, 120, 128, 0.24));
+        border-radius: 12px;
+        background: var(--zo-fill, rgba(120, 120, 128, 0.12));
+        color: inherit;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .fi-ta-ctn .fi-ta-list-products-search-row.is-filters-open .fi-ta-list-products-search-row__toggle {
+        border-color: #007aff;
+        color: #007aff;
+    }
+
+    .fi-ta-ctn .fi-ta-list-products-search-row__toggle-icon {
+        width: 18px;
+        height: 18px;
+    }
+
+    .fi-ta-ctn .fi-ta-list-products-search-row__category,
+    .fi-ta-ctn .fi-ta-list-products-search-row__stock,
+    .fi-ta-ctn .fi-ta-list-products-search-row__vitrine,
+    .fi-ta-ctn .fi-ta-list-products-search-row__sort {
+        display: none;
+        grid-column: 1 / -1;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    .fi-ta-ctn .fi-ta-list-products-search-row.is-filters-open .fi-ta-list-products-search-row__category,
+    .fi-ta-ctn .fi-ta-list-products-search-row.is-filters-open .fi-ta-list-products-search-row__stock,
+    .fi-ta-ctn .fi-ta-list-products-search-row.is-filters-open .fi-ta-list-products-search-row__vitrine,
+    .fi-ta-ctn .fi-ta-list-products-search-row.is-filters-open .fi-ta-list-products-search-row__sort {
+        display: block;
+    }
+
+    .fi-ta-ctn .fi-ta-list-products-search-row__sort .fi-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* Кнопка «колонки» — над пошуком праворуч, а не посередині між фільтрами */
+    .fi-ta-ctn .fi-ta-header-toolbar:has(.fi-ta-list-products-search-row) .fi-ta-col-manager-dropdown {
+        order: -1;
+        margin-left: auto;
+    }
+}

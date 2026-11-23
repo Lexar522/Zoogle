@@ -3,6 +3,7 @@
 namespace App\Filament\Admin\Concerns;
 
 use App\Models\Product;
+use App\Support\ListingPhotoDerivative;
 use App\Support\StoragePublicPath;
 use Illuminate\Support\Facades\Storage;
 
@@ -181,7 +182,7 @@ trait ProtectsListingPhotosOnSave
         return array_values(array_filter(
             $paths,
             fn (string $path): bool => ! str_starts_with($path, 'livewire-tmp/')
-                && ! \App\Support\ListingPhotoDerivative::isDerivativePath($path)
+                && ! ListingPhotoDerivative::isDerivativePath($path)
                 && $disk->exists($path)
         ));
     }

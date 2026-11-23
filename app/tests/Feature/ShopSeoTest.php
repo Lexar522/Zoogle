@@ -56,7 +56,8 @@ class ShopSeoTest extends TestCase
         $productPage->assertSee('property="og:title" content="Клітка для папуги — ZOOGLE"', false);
         $productPage->assertSee('property="og:type" content="product"', false);
         $productPage->assertSee('name="robots" content="index,follow"', false);
-        $productPage->assertSee('Клітки. Металева клітка', false);
+        $productPage->assertSee('content="Металева клітка', false);
+        $productPage->assertDontSee('Клітки. Металева клітка', false);
         $productPage->assertSee('"category":"Клітки"', false);
         $productPage->assertDontSee('t.me/share/url', false);
         $productPage->assertDontSee('facebook.com/sharer', false);

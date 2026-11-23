@@ -6,6 +6,9 @@ use App\Filament\Admin\Pages\Dashboard;
 use App\Filament\Admin\Resources\Orders\Widgets\OrdersSummaryWidget;
 use App\Filament\Admin\Resources\Products\Pages\ListProducts;
 use App\Filament\Admin\Widgets\AdminHomeWidget;
+use App\Filament\Admin\Widgets\QuestionsAttentionWidget;
+use App\Filament\Admin\Widgets\ReviewsAttentionWidget;
+use App\Filament\Admin\Widgets\SponsorshipAttentionWidget;
 use App\Http\Middleware\AuthenticateAdminPanel;
 use App\Http\Middleware\SetNoReferrerPolicy;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -34,6 +37,9 @@ class AdminPanelProvider extends PanelProvider
             ->authGuard('web')
             ->login()
             ->profile()
+            // Дзвіночок: нові питання покупців до товарів
+            ->databaseNotifications()
+            ->databaseNotificationsPolling('60s')
             ->brandName('ZOOGLE')
             ->favicon(asset('favicon.png'))
             ->brandLogo(asset('images/zoogle-logo-new.png'))
@@ -113,6 +119,9 @@ class AdminPanelProvider extends PanelProvider
             ->discoverWidgets(in: app_path('Filament/Admin/Widgets'), for: 'App\Filament\Admin\Widgets')
             ->widgets([
                 AdminHomeWidget::class,
+                SponsorshipAttentionWidget::class,
+                QuestionsAttentionWidget::class,
+                ReviewsAttentionWidget::class,
                 OrdersSummaryWidget::class,
             ])
             ->middleware([

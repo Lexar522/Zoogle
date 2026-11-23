@@ -239,13 +239,18 @@ class OptionGroupForm
 
         return [
             Toggle::make('pickup_only_subtree')
-                ->label('Уся гілка: лише самовивіз (без Нової Пошти)')
-                ->helperText('Коренева рубрика: усі товари в цій гілці — лише самовивіз; Нова Пошта на чекауті недоступна.')
+                ->label('Уся гілка: без Нової Пошти (самовивіз або таксі)')
+                ->helperText('Коренева рубрика, напр. «Тварини»: на чекауті лишаються тільки самовивіз і таксі-доставка по місту.')
                 ->default(false)
                 ->columnSpanFull(),
             Toggle::make('defer_online_payment')
                 ->label('Відкласти онлайн-оплату до узгодження з менеджером')
                 ->helperText('Коренева рубрика: на чекауті не буде LiqPay; після дзвінка менеджер у картці замовлення вмикає оплату, клієнт — з акаунта.')
+                ->default(false)
+                ->columnSpanFull(),
+            Toggle::make('exclude_from_merchant_feed')
+                ->label('Не передавати в Google Merchant (вкладка «Покупки»)')
+                ->helperText('Коренева рубрика: товари гілки не потрапляють у фід Google. Потрібно для живих тварин — Google забороняє їх рекламувати.')
                 ->default(false)
                 ->columnSpanFull(),
         ];
@@ -300,6 +305,14 @@ class OptionGroupForm
                 ->label($slugLabel)
                 ->required(),
         ];
+
+        if (DbSchema::hasColumn('option_values', 'exclude_from_merchant_feed')) {
+            $schema[] = Toggle::make('exclude_from_merchant_feed')
+                ->label('Не передавати в Google Merchant')
+                ->helperText('Підкатегорія з живими тваринами чи живим кормом: її товари не потрапляють у фід Google і Meta.')
+                ->default(false)
+                ->columnSpanFull();
+        }
 
         if ($level >= CatalogCategoryTree::MAX_DEPTH) {
             return $schema;

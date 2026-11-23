@@ -28,3 +28,12 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# Кеш браузера для статики (PageSpeed «ефективні значення TTL кешу»).
+# build/* мають хеш у назві, js/css підключаються з ?v=… — після оновлення
+# сайту браузер усе одно завантажить нову версію.
+<IfModule mod_headers.c>
+    <FilesMatch "\.(css|js|mjs|woff2?|ttf|otf|eot|svg|ico|png|jpe?g|gif|webp|avif|mp4|webm)$">
+        Header set Cache-Control "public, max-age=2592000"
+    </FilesMatch>
+</IfModule>

@@ -54,28 +54,28 @@
         <form method="POST" action="{{ route('account.profile.update') }}" class="account-profile-form">
             @csrf
             @method('PATCH')
-            <div class="row-2" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0.75rem 1rem;margin-bottom:0.75rem;">
-                @if ($errors->any())
-                    <div style="grid-column:1/-1;">
-                        @foreach ($errors->all() as $err)
-                            <p class="alert error" style="margin:0 0 0.5rem;">{{ $err }}</p>
-                        @endforeach
-                    </div>
-                @endif
-                <div>
+            @if ($errors->any())
+                <div class="account-form-errors">
+                    @foreach ($errors->all() as $err)
+                        <p class="alert error">{{ $err }}</p>
+                    @endforeach
+                </div>
+            @endif
+            <div class="account-form-grid">
+                <div class="account-form-field">
                     <label for="profile_first_name">{{ __('shop.account_profile_first_name') }}</label>
                     <input id="profile_first_name" name="first_name" type="text" value="{{ old('first_name', $user->first_name) }}" maxlength="120" autocomplete="given-name">
                 </div>
-                <div>
+                <div class="account-form-field">
                     <label for="profile_last_name">{{ __('shop.account_profile_last_name') }}</label>
                     <input id="profile_last_name" name="last_name" type="text" value="{{ old('last_name', $user->last_name) }}" maxlength="120" autocomplete="family-name">
                 </div>
             </div>
-            <div style="margin-bottom:1rem;">
+            <div class="account-form-field">
                 <label for="profile_phone">{{ __('shop.account_profile_phone') }}</label>
                 <input id="profile_phone" name="phone" type="tel" value="{{ old('phone', $user->phone) }}" maxlength="50" placeholder="+380971234567" autocomplete="tel">
             </div>
-            <button type="submit" class="btn secondary">{{ __('shop.account_profile_save') }}</button>
+            <button type="submit" class="account-btn account-btn--primary">{{ __('shop.account_profile_save') }}</button>
         </form>
     </section>
 
@@ -84,11 +84,13 @@
             <span class="account-tile__label">{{ __('shop.account_tile_orders') }}</span>
             <span class="account-tile__value">{{ $ordersTotal }}</span>
             <span class="account-tile__hint">{{ __('shop.account_tile_orders_hint') }}</span>
+            <svg class="account-tile__chevron" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="m9 6 6 6-6 6"/></svg>
         </a>
         <a class="account-tile account-tile--fav" href="{{ route('account.favorites') }}">
             <span class="account-tile__label">{{ __('shop.account_tile_favorites') }}</span>
             <span class="account-tile__value">{{ $favoritesCount }}</span>
             <span class="account-tile__hint">{{ __('shop.account_tile_favorites_hint') }}</span>
+            <svg class="account-tile__chevron" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="m9 6 6 6-6 6"/></svg>
         </a>
     </div>
 
@@ -100,7 +102,7 @@
             @endunless
         </div>
         @if ($recentOrders->isEmpty())
-            <p class="account-empty" style="margin:0;">{{ __('shop.account_recent_orders_empty') }}</p>
+            <p class="account-empty">{{ __('shop.account_recent_orders_empty') }}</p>
         @else
             <ul class="account-order-list">
                 @foreach ($recentOrders as $order)
@@ -114,8 +116,8 @@
                             </div>
                             <div class="account-order-row__side">
                                 <div>
-                                    <span class="account-order-row__sum">{{ number_format((float) $order->total, 2) }} UAH</span>
-                                    <span class="account-order-row__chev" aria-hidden="true"> ›</span>
+                                    <span class="account-order-row__sum">{{ \App\Support\ShopPrice::amount((float) $order->total) }} ₴</span>
+                                    <span class="account-order-row__chev" aria-hidden="true">›</span>
                                 </div>
                                 <span class="account-order-row__status">{{ $order->statusLabel() }}</span>
                             </div>

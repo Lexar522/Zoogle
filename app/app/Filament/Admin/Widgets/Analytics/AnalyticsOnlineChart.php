@@ -18,7 +18,7 @@ class AnalyticsOnlineChart extends ChartWidget
 
     protected ?string $maxHeight = '220px';
 
-    protected int | string | array $columnSpan = 'full';
+    protected int|string|array $columnSpan = 'full';
 
     public function getDescription(): ?string
     {

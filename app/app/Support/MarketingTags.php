@@ -3,9 +3,10 @@
 namespace App\Support;
 
 use App\Models\Order;
+use App\Models\ShopMarketingSetting;
 
 /**
- * Лічильники Google Analytics 4 і Meta Pixel. ID задаються в .env.
+ * Лічильники Google Analytics 4 і Meta Pixel. ID задаються в адмінці («Маркетинг і соцмережі») або в .env.
  */
 final class MarketingTags
 {
@@ -13,16 +14,12 @@ final class MarketingTags
 
     public static function ga4Id(): ?string
     {
-        $id = trim((string) config('shop.marketing.ga4_id'));
-
-        return preg_match('/^G-[A-Z0-9]+$/', $id) === 1 ? $id : null;
+        return ShopMarketingSetting::resolved()['ga4_id'];
     }
 
     public static function metaPixelId(): ?string
     {
-        $id = trim((string) config('shop.marketing.meta_pixel_id'));
-
-        return preg_match('/^\d+$/', $id) === 1 ? $id : null;
+        return ShopMarketingSetting::resolved()['meta_pixel_id'];
     }
 
     public static function enabled(): bool

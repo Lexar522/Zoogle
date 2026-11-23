@@ -67,6 +67,9 @@ class Order extends Model
 
     public const DELIVERY_NOVA_POSHTA_LOCKER = 'nova_poshta_locker';
 
+    /** Таксі по місту: адреса або точка на карті. Єдиний спосіб, крім самовивозу, для живих тварин. */
+    public const DELIVERY_TAXI = 'taxi';
+
     public const STATUS_NEW = 'new';
 
     public const STATUS_PAID = 'paid';
@@ -190,6 +193,7 @@ class Order extends Model
     {
         return [
             self::DELIVERY_PICKUP => __('shop.order_delivery_pickup'),
+            self::DELIVERY_TAXI => __('shop.order_delivery_taxi'),
             self::DELIVERY_NOVA_POSHTA_WAREHOUSE => __('shop.order_delivery_np_warehouse'),
             self::DELIVERY_NOVA_POSHTA_COURIER => __('shop.order_delivery_np_courier'),
             self::DELIVERY_NOVA_POSHTA_LOCKER => __('shop.order_delivery_np_locker'),
@@ -355,7 +359,23 @@ class Order extends Model
             return $addr !== '' ? $addr : $city;
         }
 
+        if ($this->delivery_type === self::DELIVERY_TAXI) {
+            return trim((string) ($this->delivery_address ?? ''));
+        }
+
         return '';
+    }
+
+    /**
+     * Точка доставки, яку покупець поставив на карті (таксі, курʼєр), — посилання для менеджера.
+     */
+    public function deliveryMapUrl(): ?string
+    {
+        $position = $this->courierDeliveryMapPosition();
+
+        return $position === null
+            ? null
+            : 'https://www.google.com/maps/search/?api=1&query='.rawurlencode($position['lat'].','.$position['lng']);
     }
 
     /**
@@ -453,11 +473,13 @@ class Order extends Model
     ];
 
     /**
+     * Точка доставки до дверей (курʼєр НП або таксі).
+     *
      * @return array{lat: float, lng: float}|null
      */
     public function courierDeliveryMapPosition(): ?array
     {
-        if (! self::isNovaPoshtaCourier($this->delivery_type)) {
+        if (! self::isNovaPoshtaCourier($this->delivery_type) && $this->delivery_type !== self::DELIVERY_TAXI) {
             return null;
         }
 

@@ -50,6 +50,24 @@ class EditProductSaveTest extends TestCase
         $this->assertStringContainsString('Новий опис товару', (string) $product->description);
     }
 
+    public function test_admin_marks_product_as_live_animal_for_merchant_feed(): void
+    {
+        $this->seed(RolesAndPermissionsSeeder::class);
+
+        $admin = User::query()->where('email', 'admin@sitezoo.local')->firstOrFail();
+        $product = $this->makeEditableProduct();
+
+        $this->actingAs($admin);
+
+        Livewire::test(EditProduct::class, ['record' => (string) $product->id])
+            ->assertFormFieldExists('exclude_from_merchant_feed')
+            ->set('data.exclude_from_merchant_feed', true)
+            ->call('save', false, false)
+            ->assertHasNoErrors();
+
+        $this->assertTrue($product->refresh()->exclude_from_merchant_feed);
+    }
+
     public function test_edit_product_page_has_no_care_articles_field(): void
     {
         $this->seed(RolesAndPermissionsSeeder::class);

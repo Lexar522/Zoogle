@@ -7,6 +7,17 @@
     $stockOptions = Product::stockStatusOptions();
 @endphp
 
+    <button
+        type="button"
+        class="fi-ta-list-products-search-row__toggle"
+        x-on:click="filtersOpen = ! filtersOpen"
+        x-bind:aria-expanded="filtersOpen.toString()"
+        aria-expanded="false"
+    >
+        <x-filament::icon :icon="Heroicon::OutlinedAdjustmentsHorizontal" class="fi-ta-list-products-search-row__toggle-icon" />
+        <span>{{ __('Фільтри') }}</span>
+    </button>
+
     <div class="fi-ta-list-products-search-row__category">
         <label class="fi-sr-only">
             {{ __('Категорія') }}

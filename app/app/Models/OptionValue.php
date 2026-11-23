@@ -6,6 +6,7 @@ use App\Support\CatalogProductsTable;
 use App\Support\SchemaCache;
 use App\Support\StorefrontCategoryTreeCache;
 use App\Support\StorefrontMemo;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -129,6 +130,7 @@ class OptionValue extends Model
         'is_active',
         'pickup_only_subtree',
         'defer_online_payment',
+        'exclude_from_merchant_feed',
     ];
 
     protected $casts = [
@@ -137,6 +139,7 @@ class OptionValue extends Model
         'sort_order' => 'integer',
         'pickup_only_subtree' => 'boolean',
         'defer_online_payment' => 'boolean',
+        'exclude_from_merchant_feed' => 'boolean',
     ];
 
     public function group(): BelongsTo
@@ -263,7 +266,7 @@ class OptionValue extends Model
     }
 
     /**
-     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>|\Illuminate\Database\Query\Builder  $query
+     * @param  Builder<Model>|\Illuminate\Database\Query\Builder  $query
      */
     private static function jsonColumnContainsOptionValueId(mixed $query, string $column, int $valueId, string $jsonKey): bool
     {
@@ -304,8 +307,8 @@ class OptionValue extends Model
             return $base->where(function ($q) use ($column, $id): void {
                 $q->where($column, 'like', '%"option_value_ids":['.$id.']%')
                     ->orWhere($column, 'like', '%"option_value_ids":['.$id.',%')
-                    ->orWhere($column, 'like', '%"option_value_ids":[%,' .$id.',%')
-                    ->orWhere($column, 'like', '%"option_value_ids":[%,' .$id.']%')
+                    ->orWhere($column, 'like', '%"option_value_ids":[%,'.$id.',%')
+                    ->orWhere($column, 'like', '%"option_value_ids":[%,'.$id.']%')
                     ->orWhere($column, 'like', '%"option_value_ids": ['.$id.']%')
                     ->orWhere($column, 'like', '%"option_value_ids": ['.$id.',%')
                     ->orWhere($column, 'like', '%"option_value_ids": [%, '.$id.',%')

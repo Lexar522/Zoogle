@@ -162,8 +162,12 @@
     @if ($seoCanonical !== '')
         <link rel="canonical" href="{{ $seoCanonical }}">
     @endif
-    @if (filled(config('shop.google_site_verification')))
-        <meta name="google-site-verification" content="{{ e(config('shop.google_site_verification')) }}">
+    @php($shopMarketing = \App\Models\ShopMarketingSetting::resolved())
+    @if ($shopMarketing['google_site_verification'] !== null)
+        <meta name="google-site-verification" content="{{ $shopMarketing['google_site_verification'] }}">
+    @endif
+    @if ($shopMarketing['facebook_domain_verification'] !== null)
+        <meta name="facebook-domain-verification" content="{{ $shopMarketing['facebook_domain_verification'] }}">
     @endif
     <meta property="og:locale" content="{{ $seoOgLocale }}">
     <meta property="og:site_name" content="{{ $siteName }}">
@@ -190,7 +194,11 @@
     <meta name="theme-color" content="#367df1">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Rubik:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet">
+    @php($shopFontsUrl = 'https://fonts.googleapis.com/css2?family=Rubik:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap')
+    {{-- Шрифти не блокують перший показ сторінки (PageSpeed): текст одразу видно запасним шрифтом --}}
+    <link rel="preload" as="style" href="{{ $shopFontsUrl }}">
+    <link rel="stylesheet" href="{{ $shopFontsUrl }}" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="{{ $shopFontsUrl }}"></noscript>
     @stack('meta')
     @vite([
         'resources/css/shop.css',
@@ -224,6 +232,7 @@
     </script>
 
     @include('cart.partials.drawer-shell')
+    @include('partials.shop-mobile-menu')
 
     <div class="site-shell">
         <div class="container site-main">
@@ -250,11 +259,13 @@
     </div>
 
     @include('partials.shop-footer')
+    @include('partials.shop-floating-contacts')
     @vite(['resources/js/catalog-card-media.js'])
     @include('partials.shop-search-suggest')
     @include('partials.marketing-tags')
     @stack('scripts')
     <script src="{{ \App\Support\StorefrontAsset::url('js/storefront/cart-drawer.js') }}" defer></script>
     <script src="{{ \App\Support\StorefrontAsset::url('js/storefront/header-compact.js') }}" defer></script>
+    <script src="{{ \App\Support\StorefrontAsset::url('js/storefront/site-menu.js') }}" defer></script>
 </body>
 </html>

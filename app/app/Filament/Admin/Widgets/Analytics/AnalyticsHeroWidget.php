@@ -14,7 +14,7 @@ class AnalyticsHeroWidget extends Widget
 
     protected string $view = 'filament.admin.widgets.analytics-hero';
 
-    protected int | string | array $columnSpan = 'full';
+    protected int|string|array $columnSpan = 'full';
 
     /**
      * @return array<string, mixed>

@@ -105,7 +105,7 @@
                             {{ $item->title_snapshot }}
                         @endif
                     </p>
-                    <p class="order-track__item-meta">{{ __('shop.order_track_qty_price', ['qty' => $item->qty, 'price' => number_format((float) $item->price, 2, ',', ' ')]) }}</p>
+                    <p class="order-track__item-meta">{{ __('shop.order_track_qty_price', ['qty' => $item->qty, 'price' => \App\Support\ShopPrice::amount((float) $item->price)]) }}</p>
                 </div>
                 <span class="order-track__item-price">{{ number_format((float) $item->line_total, 2, ',', ' ') }} UAH</span>
             </li>

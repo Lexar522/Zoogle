@@ -47,7 +47,7 @@
         </div>
         <div class="account-order-detail__cell">
             <span class="account-order-detail__label">{{ __('shop.order_track_label_total') }}</span>
-            <span class="account-order-detail__value account-order-detail__value--price">{{ number_format((float) $order->total, 2, ',', ' ') }} UAH</span>
+            <span class="account-order-detail__value account-order-detail__value--price">{{ \App\Support\ShopPrice::amount((float) $order->total) }} ₴</span>
         </div>
     </div>
 
@@ -76,7 +76,7 @@
 <section class="account-order-detail__panel" aria-labelledby="order-items-title">
     <div class="account-order-detail__items-head">
         <h2 id="order-items-title" class="account-order-detail__items-title">{{ __('shop.order_track_items_title') }}</h2>
-        <span class="account-order-detail__label" style="margin:0;">{{ __('shop.order_track_pieces', ['count' => $order->items->count()]) }}</span>
+        <span class="account-order-detail__label account-order-detail__label--inline">{{ __('shop.order_track_pieces', ['count' => $order->items->count()]) }}</span>
     </div>
 
     <ul class="account-order-items">
@@ -119,9 +119,9 @@
                             {{ $item->title_snapshot }}
                         @endif
                     </p>
-                    <p class="account-order-item__meta">{{ __('shop.order_track_qty_price', ['qty' => $item->qty, 'price' => number_format((float) $item->price, 2, ',', ' ')]) }}</p>
+                    <p class="account-order-item__meta">{{ __('shop.order_track_qty_price', ['qty' => $item->qty, 'price' => \App\Support\ShopPrice::amount((float) $item->price)]) }}</p>
                 </div>
-                <span class="account-order-item__price">{{ number_format((float) $item->line_total, 2, ',', ' ') }} UAH</span>
+                <span class="account-order-item__price">{{ \App\Support\ShopPrice::amount((float) $item->line_total) }} ₴</span>
             </li>
         @endforeach
     </ul>

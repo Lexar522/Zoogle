@@ -8,6 +8,7 @@ use App\Http\Controllers\CareController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\CatalogSuggestController;
+use App\Http\Controllers\CharityController;
 use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\GeocodeController;
 use App\Http\Controllers\HomeController;
@@ -17,8 +18,12 @@ use App\Http\Controllers\OrderTrackController;
 use App\Http\Controllers\Payments\LiqPayCallbackController;
 use App\Http\Controllers\Payments\WayForPayCallbackController;
 use App\Http\Controllers\ProductFavoriteController;
+use App\Http\Controllers\ProductQuestionController;
+use App\Http\Controllers\ProductReviewController;
 use App\Http\Controllers\SeoController;
 use App\Http\Controllers\ShopInfoPageController;
+use App\Http\Controllers\SponsorshipController;
+use App\Support\MarketingTags;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/robots.txt', [SeoController::class, 'robots'])->name('seo.robots');
@@ -72,6 +77,21 @@ Route::get('/contacts', fn () => view('pages.static', [
     'body' => __('shop.static_contacts_body'),
 ]))->name('contacts');
 
+Route::get('/charity', CharityController::class)->name('charity');
+
+// На сайті тварина відкривається за slug (/opika/stepan), в адмінці — за id.
+Route::prefix('opika')->name('sponsorship.')->group(function (): void {
+    Route::get('/', [SponsorshipController::class, 'index'])->name('index');
+    Route::get('/zayavka/{token}', [SponsorshipController::class, 'payment'])
+        ->where('token', '[A-Za-z0-9]{20,64}')
+        ->name('payment');
+    Route::get('/{animal:slug}', [SponsorshipController::class, 'show'])->name('show');
+    Route::get('/{animal:slug}/anketa', [SponsorshipController::class, 'apply'])->name('apply');
+    Route::post('/{animal:slug}/anketa', [SponsorshipController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('store');
+});
+
 Route::get('/porady', [CareController::class, 'index'])->name('care.index');
 Route::get('/porady/{articleSlug}', [CareController::class, 'show'])
     ->where('articleSlug', '[a-z0-9]+(?:-[a-z0-9]+)*')
@@ -89,11 +109,23 @@ Route::get('/delivery-payment', fn () => view('pages.static', [
 
 Route::get('/privacy', fn () => view('pages.static', [
     'title' => __('shop.static_privacy_title'),
-    'body' => __('shop.static_privacy_body').(\App\Support\MarketingTags::enabled() ? "\n\n".__('shop.static_privacy_analytics') : ''),
+    'body' => __('shop.static_privacy_body').(MarketingTags::enabled() ? "\n\n".__('shop.static_privacy_analytics') : ''),
 ]))->name('privacy');
 Route::get('/catalog/{slug}/care', [CatalogController::class, 'careIndex'])->name('catalog.care.index');
 Route::get('/catalog/{slug}/care/{articleSlug}', [CatalogController::class, 'careShow'])->name('catalog.care.show');
 Route::get('/catalog/{slug}', [CatalogController::class, 'show'])->name('catalog.show');
+Route::post('/catalog/{slug}/reviews', [ProductReviewController::class, 'store'])
+    ->middleware('throttle:5,1')
+    ->name('catalog.reviews.store');
+Route::delete('/catalog/{slug}/reviews/{review}', [ProductReviewController::class, 'destroy'])
+    ->middleware('auth')
+    ->name('catalog.reviews.destroy');
+Route::post('/catalog/{slug}/questions', [ProductQuestionController::class, 'store'])
+    ->middleware('throttle:5,1')
+    ->name('catalog.questions.store');
+Route::delete('/catalog/{slug}/questions/{question}', [ProductQuestionController::class, 'destroy'])
+    ->middleware('auth')
+    ->name('catalog.questions.destroy');
 
 Route::get('/cart', [CartController::class, 'index'])->name('cart.index');
 Route::post('/cart', [CartController::class, 'store'])->middleware('throttle:60,1')->name('cart.store');

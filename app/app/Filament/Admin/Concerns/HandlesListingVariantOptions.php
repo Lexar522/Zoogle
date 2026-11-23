@@ -6,6 +6,7 @@ use App\Models\OptionGroup;
 use App\Models\OptionValue;
 use App\Models\Product;
 use App\Support\RichTextSanitizer;
+use App\Support\StoragePublicPath;
 use Filament\Forms\Components\RichEditor\RichContentRenderer;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -549,7 +550,7 @@ trait HandlesListingVariantOptions
             if ($valueId <= 0 || ! isset($allowed[$valueId])) {
                 continue;
             }
-            $photos = \App\Support\StoragePublicPath::normalizeList($row['photos'] ?? []);
+            $photos = StoragePublicPath::normalizeList($row['photos'] ?? []);
             if ($photos === []) {
                 continue;
             }

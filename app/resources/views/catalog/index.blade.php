@@ -52,6 +52,24 @@
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) !!}
         </script>
     @endif
+    @if (($catalogSeo['breadcrumb'] ?? []) !== [])
+        <script type="application/ld+json">
+{!! json_encode([
+    '@context' => 'https://schema.org',
+    '@type' => 'BreadcrumbList',
+    'itemListElement' => array_map(
+        fn (array $crumb, int $index): array => [
+            '@type' => 'ListItem',
+            'position' => $index + 1,
+            'name' => $crumb['name'],
+            'item' => $crumb['url'],
+        ],
+        $catalogSeo['breadcrumb'],
+        array_keys($catalogSeo['breadcrumb']),
+    ),
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) !!}
+        </script>
+    @endif
 @endpush
 
 @section('header_bottom')

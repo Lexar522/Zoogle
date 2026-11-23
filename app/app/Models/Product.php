@@ -50,6 +50,7 @@ class Product extends Model
         'photo_meta',
         'variant_options',
         'published_at',
+        'exclude_from_merchant_feed',
     ];
 
     protected static function booted(): void
@@ -95,6 +96,7 @@ class Product extends Model
         'photo_meta' => 'array',
         'variant_options' => 'array',
         'published_at' => 'datetime',
+        'exclude_from_merchant_feed' => 'boolean',
     ];
 
     public function orderItems(): HasMany
@@ -114,6 +116,26 @@ class Product extends Model
             : 'animal_listing_id';
 
         return $this->hasMany(ProductVariant::class, $fk);
+    }
+
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(ProductReview::class);
+    }
+
+    public function questions(): HasMany
+    {
+        return $this->hasMany(ProductQuestion::class);
+    }
+
+    public function answeredQuestions(): HasMany
+    {
+        return $this->questions()->answered()->latest('answered_at')->latest('id');
+    }
+
+    public function approvedReviews(): HasMany
+    {
+        return $this->reviews()->approved()->latest('approved_at')->latest('id');
     }
 
     public function careArticles(): HasMany

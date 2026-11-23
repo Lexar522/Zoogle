@@ -74,8 +74,9 @@ class CheckoutController extends Controller
         $pickupEnabled = $shop->isPickupEnabled();
         $categoryRules = $this->categoryCheckoutRules->aggregateForRequest($request);
         $paymentSplit = $this->categoryCheckoutRules->paymentSplitForResolvedCartLines($items);
+        $deliveryTypes = $this->allowedDeliveryTypesForCheckout($categoryRules['requires_pickup_only'], $shop);
 
-        if ($categoryRules['requires_pickup_only'] && ! $pickupEnabled) {
+        if ($deliveryTypes === []) {
             return redirect()->route('catalog.index')->with(
                 'error',
                 __('shop.checkout_pickup_disabled_for_category'),
@@ -91,6 +92,7 @@ class CheckoutController extends Controller
             'liqPayConfigured' => app(OnlinePaymentSettings::class)->isConfigured(),
             'checkoutGoogleMapsKey' => app(GoogleMapsApiKey::class)->current(),
             'categoryRequiresPickupOnly' => $categoryRules['requires_pickup_only'],
+            'deliveryTypes' => $deliveryTypes,
             'categoryDefersOnlinePayment' => (bool) ($paymentSplit['defers_any'] ?? false),
             'pickupEnabled' => $pickupEnabled,
             'paymentSplit' => $paymentSplit,
@@ -120,7 +122,6 @@ class CheckoutController extends Controller
         }
 
         $categoryRules = $this->categoryCheckoutRules->aggregateForCart($cart);
-        $pickupEnabled = ShopIntegrationSetting::record()->isPickupEnabled();
         $npConfigured = app(NovaPoshtaClient::class)->isConfigured();
         $liqPayConfigured = app(OnlinePaymentSettings::class)->isConfigured();
         $deliveryType = $request->string('delivery_type')->toString();
@@ -153,7 +154,7 @@ class CheckoutController extends Controller
         }
         $allowedDeliveryTypes = $this->allowedDeliveryTypesForCheckout(
             $categoryRules['requires_pickup_only'],
-            $pickupEnabled,
+            ShopIntegrationSetting::record(),
         );
 
         if ($allowedDeliveryTypes === []) {
@@ -197,6 +198,10 @@ class CheckoutController extends Controller
             $rules['delivery_warehouse_ref'] = $npConfigured
                 ? ['required', 'string', 'size:36']
                 : ['nullable', 'string', 'max:36'];
+        }
+
+        if ($deliveryType === Order::DELIVERY_TAXI) {
+            $rules['delivery_address'] = ['required', 'string', 'max:500'];
         }
 
         if ($deliveryType === Order::DELIVERY_NOVA_POSHTA_COURIER) {
@@ -731,6 +736,19 @@ class CheckoutController extends Controller
             return $validated;
         }
 
+        if ($type === Order::DELIVERY_TAXI) {
+            $validated['delivery_city'] = null;
+            $validated['delivery_city_ref'] = null;
+            $validated['delivery_branch'] = null;
+            $validated['delivery_warehouse_ref'] = null;
+            $validated['delivery_street'] = null;
+            $validated['delivery_street_ref'] = null;
+            $validated['delivery_building'] = null;
+            $validated['delivery_flat'] = null;
+
+            return $validated;
+        }
+
         if ($type === Order::DELIVERY_NOVA_POSHTA_COURIER) {
             $validated['delivery_branch'] = null;
             $validated['delivery_warehouse_ref'] = null;
@@ -746,21 +764,23 @@ class CheckoutController extends Controller
     }
 
     /**
+     * Способи доставки в порядку показу на чекауті.
+     * Категорія «без Нової Пошти» (живі тварини) лишає тільки самовивіз і таксі.
+     *
      * @return list<string>
      */
-    private function allowedDeliveryTypesForCheckout(bool $requiresPickupOnly, bool $pickupEnabled): array
+    private function allowedDeliveryTypesForCheckout(bool $withoutNovaPoshta, ShopIntegrationSetting $shop): array
     {
-        if ($requiresPickupOnly) {
-            return $pickupEnabled ? [Order::DELIVERY_PICKUP] : [];
+        $types = [];
+        if ($shop->isPickupEnabled()) {
+            $types[] = Order::DELIVERY_PICKUP;
         }
-
-        $types = [
-            Order::DELIVERY_NOVA_POSHTA_WAREHOUSE,
-            Order::DELIVERY_NOVA_POSHTA_COURIER,
-        ];
-
-        if ($pickupEnabled) {
-            array_unshift($types, Order::DELIVERY_PICKUP);
+        if ($shop->isTaxiDeliveryEnabled()) {
+            $types[] = Order::DELIVERY_TAXI;
+        }
+        if (! $withoutNovaPoshta) {
+            $types[] = Order::DELIVERY_NOVA_POSHTA_WAREHOUSE;
+            $types[] = Order::DELIVERY_NOVA_POSHTA_COURIER;
         }
 
         return $types;

@@ -95,8 +95,8 @@ class OptionValueForm
                     ->label('Активне')
                     ->default(true),
                 Toggle::make('pickup_only_subtree')
-                    ->label('Уся гілка: лише самовивіз (без Нової Пошти)')
-                    ->helperText('Лише для кореневої категорії. Товари в підкатегоріях можна доставити лише самовивозом з магазину.')
+                    ->label('Уся гілка: без Нової Пошти (самовивіз або таксі)')
+                    ->helperText('Лише для кореневої категорії, напр. «Тварини». На чекауті лишаються тільки самовивіз і таксі-доставка по місту.')
                     ->default(false)
                     ->visible(fn (Get $get, ?Model $record): bool => self::isRootCategoryValueForm($get, $record)),
                 Toggle::make('defer_online_payment')
@@ -104,7 +104,23 @@ class OptionValueForm
                     ->helperText('На чекауті не буде LiqPay; після дзвінка ви зможете дозволити оплату в картці замовлення. Лише для кореневої категорії.')
                     ->default(false)
                     ->visible(fn (Get $get, ?Model $record): bool => self::isRootCategoryValueForm($get, $record)),
+                Toggle::make('exclude_from_merchant_feed')
+                    ->label('Не передавати в Google Merchant (вкладка «Покупки»)')
+                    ->helperText('Товари цієї категорії та всіх її підкатегорій не потрапляють у фід Google і Meta. Потрібно для живих тварин і живого корму — Google забороняє їх рекламувати. На сайті та в sitemap товари лишаються.')
+                    ->default(false)
+                    ->visible(fn (Get $get): bool => self::isCategoryValueForm($get)),
             ]);
+    }
+
+    private static function isCategoryValueForm(Get $get): bool
+    {
+        if (! DbSchema::hasColumn('option_values', 'exclude_from_merchant_feed')) {
+            return false;
+        }
+
+        $groupId = (int) ($get('option_group_id') ?? 0);
+
+        return $groupId > 0 && OptionGroup::query()->whereKey($groupId)->where('slug', 'category')->exists();
     }
 
     private static function isRootCategoryValueForm(Get $get, ?Model $record): bool

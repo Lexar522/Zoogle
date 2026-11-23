@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Models\OptionGroup;
+use App\Models\OptionValue;
 use Illuminate\Http\Request;
 
 /**
@@ -19,7 +21,8 @@ final class ShopSeo
      *     robots: string,
      *     og_title: string,
      *     og_description: string,
-     *     indexable: bool
+     *     indexable: bool,
+     *     breadcrumb: list<array{name: string, url: string}>
      * }
      */
     public static function catalog(Request $request, string $categoryName): array
@@ -51,7 +54,33 @@ final class ShopSeo
             'og_title' => $ogTitle,
             'og_description' => $ogDescription,
             'indexable' => $indexable,
+            'breadcrumb' => $hasCategory ? self::categoryBreadcrumb($categoryId) : [],
         ];
+    }
+
+    /**
+     * Хлібні крихти для BreadcrumbList: магазин → батьківські категорії → поточна (чисті URL без параметрів).
+     *
+     * @return list<array{name: string, url: string}>
+     */
+    public static function categoryBreadcrumb(int $categoryId): array
+    {
+        $groupId = OptionGroup::systemCategoryGroupIdForCatalog();
+        $chain = CatalogCategoryTree::ancestorsChainFromNode($categoryId, $groupId);
+        if ($chain === []) {
+            return [];
+        }
+
+        $byId = StorefrontOptionCatalog::valuesInGroup($groupId)->keyBy(fn (OptionValue $value): int => (int) $value->id);
+        $crumbs = [['name' => 'ZOOGLE', 'url' => route('home')]];
+        foreach ($chain as $id) {
+            $name = trim((string) mt($byId->get($id)?->name));
+            if ($name !== '') {
+                $crumbs[] = ['name' => $name, 'url' => route('catalog.index', ['category' => $id])];
+            }
+        }
+
+        return $crumbs;
     }
 
     public static function catalogIsIndexable(Request $request): bool

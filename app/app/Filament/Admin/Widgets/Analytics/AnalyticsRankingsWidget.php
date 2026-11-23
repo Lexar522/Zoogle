@@ -14,7 +14,7 @@ class AnalyticsRankingsWidget extends Widget
 
     protected string $view = 'filament.admin.widgets.analytics-rankings';
 
-    protected int | string | array $columnSpan = 'full';
+    protected int|string|array $columnSpan = 'full';
 
     /**
      * @return array<string, mixed>

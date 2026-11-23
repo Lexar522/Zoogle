@@ -16,7 +16,7 @@ class OrdersSummaryWidget extends Widget
 
     protected string $view = 'filament.admin.orders.orders-summary';
 
-    protected int | string | array $columnSpan = 'full';
+    protected int|string|array $columnSpan = 'full';
 
     /**
      * @return list<array{label: string, value: string, hint: string, tone: string, icon: Heroicon, url: ?string}>

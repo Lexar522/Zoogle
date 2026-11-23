@@ -11,6 +11,25 @@ use App\Models\ShopIntegrationSetting;
 class ShopHeaderContacts
 {
     /**
+     * Кольорова іконка контакту (як у шапці на комп'ютері).
+     */
+    public static function coloredIconUrl(string $kind): string
+    {
+        $heroicons = 'https://cdn.jsdelivr.net/npm/heroicons@2.1.5/24/outline';
+        $commons = 'https://upload.wikimedia.org/wikipedia/commons';
+
+        return match ($kind) {
+            'phone' => "{$heroicons}/phone.svg",
+            'email' => "{$commons}/7/7e/Gmail_icon_%282020%29.svg",
+            'instagram' => "{$commons}/9/95/Instagram_logo_2022.svg",
+            'tiktok' => "{$commons}/a/a6/Tiktok_icon.svg",
+            'viber' => asset('images/contacts/viber.svg'),
+            'whatsapp' => "{$commons}/6/6b/WhatsApp.svg",
+            default => 'https://telegram.org/img/t_logo.svg',
+        };
+    }
+
+    /**
      * Контакти для модалки PDP (відкладена оплата): телефон + месенджери (без email/Instagram).
      *
      * @return list<ContactItem>

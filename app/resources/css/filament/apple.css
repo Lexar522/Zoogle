@@ -523,45 +523,220 @@ html.dark .fi-body .fi-tabs:not(.fi-vertical) .fi-tabs-item.fi-active {
         display: none;
     }
 
-    /* Таблиці-картки: кожен рядок як у «Налаштуваннях» iPhone, підпис ліворуч, значення праворуч */
+    /* Таблиці-картки на телефоні:
+       фото ліворуч · назва жирним · ціна великим · мітки в один рядок · решта — короткі рядки «підпис: значення» */
     .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-row {
         position: relative;
-        padding-block: 8px;
+        display: flex;
+        flex-wrap: wrap;
+        align-content: flex-start;
+        align-items: center;
+        column-gap: 6px;
+        row-gap: 6px;
+        padding: 14px 16px;
+    }
+
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-row:has(.fi-ta-image img) {
+        min-height: 96px;
+        padding-left: 96px;
+    }
+
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell {
+        order: 4;
+        flex: 0 0 100%;
+        min-width: 0;
+        padding: 0;
     }
 
     .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell:has(> .fi-ta-cell-label) {
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        min-height: 30px;
-        padding: 3px 16px;
+        gap: 6px;
+        min-height: 0;
     }
 
     .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell-label {
         flex: 0 0 auto;
-        max-width: 45%;
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 400;
         color: var(--zo-secondary);
+    }
+
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell-label:not(:empty)::after {
+        content: ":";
     }
 
     .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell-content {
         display: flex;
         flex: 0 1 auto;
-        justify-content: flex-end;
+        justify-content: flex-start;
         min-width: 0;
-        text-align: right;
+        text-align: left;
     }
 
     .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell-content .fi-ta-text,
-    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell-content .fi-ta-col {
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell-content .fi-ta-col,
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell-content .fi-ta-icon {
         padding: 0;
     }
 
-    /* Галочка вибору не наїжджає на значення першого рядка */
-    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-selection-cell + .fi-ta-cell {
-        padding-right: 48px;
+    /* Значення з поясненням (ім'я + email, тварина + вид) — одним рядком через «·» */
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-text-has-descriptions {
+        display: block;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-text-has-descriptions > .fi-ta-text-item,
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-text-has-descriptions > .fi-ta-text-description {
+        display: inline;
+        margin: 0;
+    }
+
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-text-has-descriptions > .fi-ta-text-description::before {
+        content: " · ";
+        color: var(--zo-secondary);
+    }
+
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell .fi-icon.fi-size-lg {
+        width: 18px;
+        height: 18px;
+    }
+
+    /* Фото — велика мініатюра ліворуч */
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell:has(.fi-ta-image img) {
+        position: absolute;
+        top: 14px;
+        left: 16px;
+        width: 68px;
+        flex: none;
+    }
+
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell:has(.fi-ta-image img) .fi-ta-cell-label {
+        display: none;
+    }
+
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell:has(.fi-ta-image img) img {
+        width: 68px !important;
+        height: 68px !important;
+        border-radius: 14px;
+        object-fit: cover;
+    }
+
+    /* Друге фото в рядку (напр. фото опікуна) — маленьке, у рядку з підписом */
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell:has(.fi-ta-image img) ~ .fi-ta-cell:has(.fi-ta-image img) {
+        position: static;
+        width: auto;
+        flex: 0 0 100%;
+    }
+
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell:has(.fi-ta-image img) ~ .fi-ta-cell:has(.fi-ta-image img) .fi-ta-cell-label {
+        display: block;
+    }
+
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell:has(.fi-ta-image img) ~ .fi-ta-cell:has(.fi-ta-image img) img {
+        width: 28px !important;
+        height: 28px !important;
+        border-radius: 50%;
+    }
+
+    /* Колонки «лише з планшета/комп'ютера» (visibleFrom) на телефоні не показуємо */
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell[class*="sm:fi-visible"],
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell[class*="md:fi-visible"],
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell[class*="lg:fi-visible"],
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell[class*="xl:fi-visible"] {
+        display: none !important;
+    }
+
+    /* Порожнє фото не займає рядок */
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell:has(.fi-ta-image):not(:has(.fi-ta-image img)) {
+        display: none;
+    }
+
+    /* Назва — перша текстова колонка: жирно, без підпису, першим рядком */
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-row > .fi-ta-cell:first-child:not(:has(.fi-ta-image)),
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-selection-cell + .fi-ta-cell:not(:has(.fi-ta-image)),
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-row > .fi-ta-cell:first-child:has(.fi-ta-image) + .fi-ta-cell,
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-selection-cell + .fi-ta-cell:has(.fi-ta-image) + .fi-ta-cell {
+        order: 1;
+        padding-right: 36px;
+    }
+
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-row > .fi-ta-cell:first-child:not(:has(.fi-ta-image)) .fi-ta-cell-label,
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-selection-cell + .fi-ta-cell:not(:has(.fi-ta-image)) .fi-ta-cell-label,
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-row > .fi-ta-cell:first-child:has(.fi-ta-image) + .fi-ta-cell .fi-ta-cell-label,
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-selection-cell + .fi-ta-cell:has(.fi-ta-image) + .fi-ta-cell .fi-ta-cell-label {
+        display: none;
+    }
+
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-row > .fi-ta-cell:first-child:not(:has(.fi-ta-image)) .fi-ta-text-item,
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-selection-cell + .fi-ta-cell:not(:has(.fi-ta-image)) .fi-ta-text-item,
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-row > .fi-ta-cell:first-child:has(.fi-ta-image) + .fi-ta-cell .fi-ta-text,
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-selection-cell + .fi-ta-cell:has(.fi-ta-image) + .fi-ta-cell .fi-ta-text {
+        font-size: 15px;
+        font-weight: 600;
+        line-height: 1.3;
+        color: var(--zo-text);
+    }
+
+    /* Ціна / сума — великим жирним одразу під назвою, підпис не потрібен */
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell:has(.fi-numeric) {
+        order: 2;
+    }
+
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell:has(.fi-numeric) .fi-ta-cell-label {
+        display: none;
+    }
+
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell .fi-numeric {
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--zo-text);
+    }
+
+    /* Мітки (категорія, наявність, статус) — «таблетками» в один рядок */
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell:has(.fi-badge) {
+        order: 3;
+        flex: 0 0 auto;
+    }
+
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell:has(.fi-badge) .fi-ta-cell-label {
+        display: none;
+    }
+
+    /* Галочка вибору — у правому верхньому куті картки */
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-selection-cell {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        width: auto;
+        flex: none;
+    }
+
+    /* Кнопки дій — окремим рядком унизу картки */
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell:has(.fi-ta-actions) {
+        order: 5;
+        padding-top: 4px;
+    }
+
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-actions {
+        justify-content: flex-start;
+        gap: 14px;
+    }
+
+    /* Якщо єдина дія — «Змінити», вона зайва: уся картка й так відкриває запис */
+    .fi-body .fi-ta-table-stacked-on-mobile .fi-ta-cell:has(.fi-ta-actions > a.fi-ac-link-action:only-child[href$="/edit"]) {
+        display: none;
+    }
+
+    /* Фільтри над таблицею — на всю ширину, підписи не обрізаються */
+    .fi-body .fi-ta-header-toolbar .fi-ta-filters-above-content,
+    .fi-body .fi-ta-filters-above-content-ctn,
+    .fi-body .fi-ta-header-toolbar .fi-input-wrp {
+        width: 100%;
+        max-width: 100%;
     }
 
     .fi-body .fi-pagination {
@@ -983,4 +1158,181 @@ html.dark .fi-body .fi-tabs:not(.fi-vertical) .fi-tabs-item.fi-active {
     .zo-home__link strong {
         font-size: 15px;
     }
+}
+
+/* Головна: блок заявок на опіку, що чекають дії */
+.zo-attention__title {
+    margin: 0 0 12px;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--zo-text);
+}
+
+.zo-attention .zo-home__links {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.zo-attention__list {
+    display: grid;
+    gap: 6px;
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.zo-attention__row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    color: inherit;
+    text-decoration: none;
+    transition: background-color 0.15s ease;
+}
+
+.zo-attention__row:hover,
+.zo-attention__row:focus-visible {
+    background: rgba(0, 0, 0, 0.04);
+}
+
+.zo-attention__photo {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.zo-attention__photo--empty {
+    display: grid;
+    place-items: center;
+    background: #e8f5e9;
+    color: #2e7d32;
+    font-weight: 700;
+}
+
+.zo-attention__text {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.zo-attention__text strong,
+.zo-attention__text small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.zo-attention__text strong {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.zo-attention__text small {
+    font-size: 12px;
+    color: var(--zo-secondary);
+}
+
+.zo-attention__badges {
+    display: flex;
+    gap: 6px;
+}
+
+.zo-attention__badge {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.zo-attention__badge--pay {
+    background: #fff4e5;
+    color: #b25e00;
+}
+
+.zo-attention__badge--photo {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+/* Головна адмінки: блок останніх відгуків (ReviewsAttentionWidget) */
+.zo-review-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.zo-review-row .zo-attention__row {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.zo-review-row__stars {
+    flex: 0 0 auto;
+    color: #f5a623;
+    font-size: 14px;
+    letter-spacing: 1px;
+}
+
+.zo-review-row__stars span {
+    color: #d1d5db;
+}
+
+.zo-review-row__status--pending {
+    background: #fff4e5;
+    color: #b25e00;
+}
+
+.zo-review-row__status--approved {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.zo-review-row__status--rejected {
+    background: #f1f1f4;
+    color: #6b7280;
+}
+
+.zo-review-row__product {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(0, 122, 255, 0.08);
+    color: #007aff;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.zo-review-row__product:hover {
+    background: rgba(0, 122, 255, 0.14);
+}
+
+.zo-review-row__product-icon {
+    width: 14px;
+    height: 14px;
+}
+
+@media (max-width: 640px) {
+    .zo-review-row__stars {
+        display: none;
+    }
+}
+
+/* Головна адмінки: блок питань без відповіді (QuestionsAttentionWidget) */
+.zo-question-row__mark {
+    background: #fff1f0;
+    color: #d70015;
+}
+
+.zo-question-row__age {
+    background: #fff1f0;
+    color: #d70015;
+    white-space: nowrap;
 }

@@ -185,4 +185,10 @@ class ShopHeaderContactsTest extends TestCase
         $this->assertSame(['phone', 'email'], array_column($groups['direct'], 'kind'));
         $this->assertSame(['viber', 'whatsapp', 'instagram', 'tiktok'], array_column($groups['online'], 'kind'));
     }
+
+    public function test_colored_icon_points_to_the_messenger_logo(): void
+    {
+        $this->assertStringContainsString('viber.svg', ShopHeaderContacts::coloredIconUrl('viber'));
+        $this->assertStringContainsString('t_logo.svg', ShopHeaderContacts::coloredIconUrl('telegram'));
+    }
 }

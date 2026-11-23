@@ -832,8 +832,8 @@
         resultsEl.setAttribute('data-scroll-to-listing', shouldScroll ? '1' : '0');
     }
 
-    function preserveCatalogScrollY() {
-        var y = window.scrollY || 0;
+    function preserveCatalogScrollY(scrollY) {
+        var y = typeof scrollY === 'number' ? scrollY : (window.scrollY || 0);
         window.scrollTo({ top: y, left: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
         requestAnimationFrame(function () {
             window.scrollTo({ top: y, left: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
@@ -853,6 +853,7 @@
         }
         catalogFetchAbort = new AbortController();
         var signal = catalogFetchAbort.signal;
+        var scrollYBeforeFetch = window.scrollY || 0;
         resultsEl.classList.add('catalog-results--loading');
         fetch(url, { headers: FRAGMENT_HEADERS, credentials: 'same-origin', signal: signal })
             .then(function (r) {
@@ -884,7 +885,7 @@
                 if (scrollToCatalog) {
                     scrollToCatalogResults(fetchOptions.preferSubcategoryFilter === true);
                 } else {
-                    preserveCatalogScrollY();
+                    preserveCatalogScrollY(scrollYBeforeFetch);
                 }
                 var pageFromUrl = 1;
                 try {
@@ -988,7 +989,8 @@
         var filterChip = e.target.closest('a.catalog-toolbar__chip--filter');
         if (filterChip && filterChip.href && resultsEl.contains(filterChip)) {
             e.preventDefault();
-            fetchCatalog(filterChip.href, true, { scrollToCatalog: true });
+            // Зняли фільтр (×) — повертаємо до блоку фільтрів, як після вибору категорії
+            fetchCatalog(filterChip.href, true, { scrollToCatalog: true, preferSubcategoryFilter: true });
             return;
         }
         var chip = e.target.closest('[data-catalog-sort-preset]');
@@ -1202,10 +1204,8 @@
         });
         var base = resultsEl.getAttribute('data-catalog-base') || '/catalog';
         var qs = params.toString();
-        fetchCatalog(qs ? base + '?' + qs : base, true, {
-            scrollToCatalog: true,
-            preferSubcategoryFilter: isMobileCatalogViewport()
-        });
+        // Застосування фільтрів лишає екран на місці — не перекидає до товарів
+        fetchCatalog(qs ? base + '?' + qs : base, true, { scrollToCatalog: false });
     });
 
     function syncCatalogFromCurrentUrl() {

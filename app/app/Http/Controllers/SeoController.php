@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class SeoController extends Controller
 {
@@ -178,33 +179,64 @@ class SeoController extends Controller
             return [];
         }
 
-        $rows = Product::query()
+        $productIds = Product::query()
             ->where('is_available', true)
-            ->get(['category_value_id', 'category_parent_value_id']);
-        $ids = $rows
+            ->get(['category_value_id', 'category_parent_value_id'])
             ->flatMap(fn (Product $product): array => [
                 (int) $product->category_value_id,
                 (int) $product->category_parent_value_id,
-            ])
+            ]);
+        $leafIds = $productIds
+            ->merge($this->extraCategoryIdsOfAvailableProducts($table))
             ->filter(fn (int $id): bool => $id > 0)
-            ->unique()
-            ->values();
-        if ($ids->isEmpty()) {
+            ->unique();
+        if ($leafIds->isEmpty()) {
             return [];
         }
 
-        return OptionValue::query()
+        // Каталог проміжної категорії показує товари всіх підкатегорій, тож у sitemap іде весь шлях до кореня.
+        $nodes = OptionValue::query()
             ->where('option_group_id', $groupId)
-            ->where('is_active', true)
-            ->whereIn('id', $ids->all())
-            ->orderBy('id')
-            ->get(['id', 'updated_at'])
+            ->get(['id', 'parent_id', 'is_active', 'updated_at'])
+            ->keyBy('id');
+        $ids = [];
+        foreach ($leafIds as $id) {
+            while ($id > 0 && $nodes->has($id) && ! isset($ids[$id])) {
+                $ids[$id] = true;
+                $id = (int) ($nodes->get($id)->parent_id ?? 0);
+            }
+        }
+
+        return $nodes
+            ->filter(fn (OptionValue $category): bool => isset($ids[(int) $category->id]) && (bool) $category->is_active)
+            ->sortBy('id')
+            ->values()
             ->map(fn (OptionValue $category): array => $this->urlEntry(
                 route('catalog.index', ['category' => $category->id]),
                 'weekly',
                 '0.7',
                 $this->lastModified($category->updated_at),
             ))
+            ->all();
+    }
+
+    /**
+     * Додаткові категорії (product_categories), у яких товар теж показується у видачі.
+     *
+     * @return list<int>
+     */
+    private function extraCategoryIdsOfAvailableProducts(string $productsTable): array
+    {
+        if (! SchemaCache::hasTable('product_categories')) {
+            return [];
+        }
+
+        return DB::table('product_categories')
+            ->join($productsTable, $productsTable.'.id', '=', 'product_categories.product_id')
+            ->where($productsTable.'.is_available', true)
+            ->distinct()
+            ->pluck('product_categories.category_value_id')
+            ->map(fn ($id): int => (int) $id)
             ->all();
     }
 

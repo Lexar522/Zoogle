@@ -8,7 +8,7 @@
             <h1>{{ __('shop.account_favorites_h1') }}</h1>
         </div>
         @if ($products->isEmpty())
-            <p class="account-empty" style="margin:0;">{{ __('shop.account_favorites_empty') }}</p>
+            <p class="account-empty">{{ __('shop.account_favorites_empty') }}</p>
         @else
             <div class="account-fav-grid">
                 @foreach ($products as $product)
@@ -27,13 +27,13 @@
                         <div class="account-fav-card__body">
                             <p class="account-fav-card__title">{{ mt($product->title) }}</p>
                             @if ($product->price !== null)
-                                <p class="account-fav-card__price">{{ number_format((float) $product->price, 2) }} UAH</p>
+                                <p class="account-fav-card__price">{{ \App\Support\ShopPrice::amount((float) $product->price) }} ₴</p>
                             @endif
                         </div>
                     </a>
                 @endforeach
             </div>
-            <div style="margin-top:1.1rem;">{{ $products->links() }}</div>
+            <div class="account-pagination">{{ $products->links() }}</div>
         @endif
     </section>
 @endsection

@@ -11,6 +11,29 @@ use App\Models\Product;
  */
 final class CatalogTitleMatch
 {
+    private const TIER_EXACT = 0;
+
+    private const TIER_LEADING = 1;
+
+    private const TIER_PHRASE = 2;
+
+    private const TIER_WHOLE_WORDS = 3;
+
+    private const TIER_WORD_PREFIXES = 4;
+
+    private const TIER_TYPOS = 5;
+
+    private const TIER_INSIDE_WORD = 8;
+
+    /** Основа слова для порівняння відмінків: щонайменше 4 літери. */
+    private const MIN_STEM = 4;
+
+    /** Скільки літер наприкінці слова вважаємо закінченням. */
+    private const ENDING_LENGTH = 2;
+
+    /** Збіг лише за артикулом чи іншим полем — у кінці списку. */
+    public const RELEVANCE_LAST = 9999;
+
     /**
      * @return list<int>
      */
@@ -61,7 +84,8 @@ final class CatalogTitleMatch
             if (! is_string($text) || trim($text) === '') {
                 continue;
             }
-            $rawWords = preg_split('/[^\p{L}\p{N}]+/u', $text, -1, PREG_SPLIT_NO_EMPTY);
+            // Апостроф усередині слова («хом’яків») не розриває його на два
+            $rawWords = preg_split("/[^\\p{L}\\p{N}'’‘ʼ]+/u", $text, -1, PREG_SPLIT_NO_EMPTY);
             if (! is_array($rawWords)) {
                 continue;
             }
@@ -72,6 +96,7 @@ final class CatalogTitleMatch
                     if ($folded !== '' && $folded !== $prefix && isset($counts[$folded])) {
                         $counts[$folded]++;
                     }
+
                     continue;
                 }
                 $isPrefix = str_starts_with($folded, $prefix);
@@ -134,6 +159,82 @@ final class CatalogTitleMatch
     }
 
     /**
+     * Наскільки назва відповідає запиту для сортування результатів: менше — вище в списку. null — не підходить.
+     * Рівні: точна назва → назва починається з запиту → фраза в назві → цілі слова → початки слів → описки → частина слова.
+     */
+    public static function relevance(string $query, string $title): ?int
+    {
+        $queryWords = self::words($query);
+        $titleWords = self::words($title);
+        if ($queryWords === [] || $titleWords === []) {
+            return null;
+        }
+
+        $queryPhrase = implode(' ', $queryWords);
+        $titlePhrase = implode(' ', $titleWords);
+        $typoScore = self::score($query, $title);
+
+        $tier = match (true) {
+            $titlePhrase === $queryPhrase => self::TIER_EXACT,
+            str_starts_with($titlePhrase, $queryPhrase) => self::TIER_LEADING,
+            str_contains(' '.$titlePhrase, ' '.$queryPhrase) => self::TIER_PHRASE,
+            self::allWords($queryWords, $titleWords, fn (string $q, string $t): bool => $q === $t) => self::TIER_WHOLE_WORDS,
+            self::allWords($queryWords, $titleWords, fn (string $q, string $t): bool => str_starts_with($t, $q)) => self::TIER_WORD_PREFIXES,
+            $typoScore !== null => self::TIER_TYPOS,
+            str_contains($titlePhrase, $queryPhrase) => self::TIER_INSIDE_WORD,
+            default => null,
+        };
+        if ($tier === null) {
+            return null;
+        }
+
+        $firstPosition = self::firstMatchPosition($queryWords[0], $titleWords);
+        $extraWords = max(0, count($titleWords) - count($queryWords));
+
+        return $tier * 1000
+            + min(9, $tier === self::TIER_TYPOS ? (int) $typoScore : 0) * 100
+            + min(9, $firstPosition) * 10
+            + min(9, $extraWords);
+    }
+
+    /**
+     * @param  list<string>  $queryWords
+     * @param  list<string>  $titleWords
+     * @param  callable(string, string): bool  $fits
+     */
+    private static function allWords(array $queryWords, array $titleWords, callable $fits): bool
+    {
+        foreach ($queryWords as $queryWord) {
+            $found = false;
+            foreach ($titleWords as $titleWord) {
+                if ($fits($queryWord, $titleWord)) {
+                    $found = true;
+                    break;
+                }
+            }
+            if (! $found) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param  list<string>  $titleWords
+     */
+    private static function firstMatchPosition(string $queryWord, array $titleWords): int
+    {
+        foreach ($titleWords as $index => $titleWord) {
+            if (self::wordScore($queryWord, $titleWord) !== null) {
+                return $index;
+            }
+        }
+
+        return 9;
+    }
+
+    /**
      * @return array<int, string>
      */
     private static function titlesForTable(string $table): array
@@ -190,6 +291,15 @@ final class CatalogTitleMatch
             return null;
         }
 
+        // Інший відмінок чи число: «кролика» — «кроликів», «папуга» — «папуги». Основа однакова, різне лише закінчення.
+        $stemLength = max(self::MIN_STEM, $queryLength - self::ENDING_LENGTH);
+        if (
+            abs($queryLength - $titleLength) <= self::ENDING_LENGTH + 1
+            && mb_substr($queryWord, 0, $stemLength) === mb_substr($titleWord, 0, $stemLength)
+        ) {
+            return 1;
+        }
+
         $limit = $queryLength >= 8 ? 2 : 1;
         if (abs($queryLength - $titleLength) > $limit) {
             return null;
@@ -214,8 +324,13 @@ final class CatalogTitleMatch
             'ґ' => 'г',
             'ъ' => '',
             'ь' => '',
+            // Усі види апострофа: на телефоні українська клавіатура ставить «ʼ», у назвах товарів — «’»
             "'" => '',
             '’' => '',
+            '‘' => '',
+            'ʼ' => '',
+            'ʹ' => '',
+            '´' => '',
             '`' => '',
         ]);
         $collapsed = preg_replace('/(\p{L})\1+/u', '$1', $value);

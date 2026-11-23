@@ -20,6 +20,7 @@
     };
     $deliveryLabel = Order::deliveryTypeLabels()[$order->delivery_type] ?? (string) $order->delivery_type;
     $deliveryText = trim($order->deliverySummaryText());
+    $deliveryMapUrl = $order->deliveryMapUrl();
     $phone = trim((string) $order->customer_phone);
     $email = trim((string) $order->customer_email);
     $ttn = trim((string) $order->nova_poshta_ttn);
@@ -80,6 +81,9 @@
                 {{ $deliveryLabel }}
                 @if ($deliveryText !== '')
                     <span>{{ $deliveryText }}</span>
+                @endif
+                @if ($deliveryMapUrl !== null)
+                    <a href="{{ $deliveryMapUrl }}" target="_blank" rel="noopener">Точка на карті</a>
                 @endif
                 @if ($ttn !== '')
                     <span>ТТН {{ $ttn }}</span>

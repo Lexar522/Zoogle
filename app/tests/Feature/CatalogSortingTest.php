@@ -316,6 +316,41 @@ class CatalogSortingTest extends TestCase
     /**
      * @return list<string>
      */
+    public function test_search_results_put_the_best_match_first_instead_of_shuffling(): void
+    {
+        $root = $this->catalogRoot();
+        $titles = [
+            'Підставка під клітку для кролика',
+            'Ковпачок для клітки кролика',
+            'Клітка для кроликів і шиншил велика',
+            'Клітка для кролика з дахом',
+            'Поїлка для клітки кролика',
+            'Клітка для кролика',
+        ];
+        foreach ($titles as $i => $title) {
+            Product::query()->create([
+                'title' => $title,
+                'slug' => 'relevance-'.$i.'-'.uniqid(),
+                'product_type' => OptionGroup::CATALOG_PRODUCT_TYPE,
+                'category_parent_value_id' => $root->id,
+                'price' => 100 + $i,
+                'is_available' => true,
+                'variant_options' => [['option_group_id' => $root->option_group_id, 'option_value_ids' => [$root->id]]],
+            ]);
+        }
+
+        foreach (range(1, 3) as $attempt) {
+            $html = $this->get(route('catalog.index', ['q' => 'клітка для кролика']))->assertOk()->getContent();
+            $found = $this->shuffleTitles($html);
+            $this->assertSame('Клітка для кролика', $found[0] ?? null, 'спроба '.$attempt);
+            $this->assertSame('Клітка для кролика з дахом', $found[1] ?? null);
+        }
+
+        $suggest = $this->getJson(route('catalog.suggest', ['q' => 'клітка для кролика']))->assertOk();
+        $labels = array_column(array_filter($suggest->json('searches'), fn (array $row): bool => ($row['kind'] ?? '') !== 'word'), 'label');
+        $this->assertSame('Клітка для кролика', $labels[0] ?? null);
+    }
+
     private function shuffleTitles(string $html): array
     {
         preg_match_all('/product-card__title-text">([^<]+)/', $html, $matches);

@@ -21,7 +21,7 @@ class AdminHomeWidget extends Widget
 
     protected string $view = 'filament.admin.widgets.admin-home';
 
-    protected int | string | array $columnSpan = 'full';
+    protected int|string|array $columnSpan = 'full';
 
     public function greeting(): string
     {

@@ -97,6 +97,7 @@ class ManageShopIntegrations extends Page
             'pickup_lat' => $record?->pickup_lat,
             'pickup_lng' => $record?->pickup_lng,
             'pickup_enabled' => $record->isPickupEnabled(),
+            'taxi_delivery_enabled' => $record->isTaxiDeliveryEnabled(),
             'contact_items' => self::contactItemsFormState(),
             'online_payment_provider' => $record?->online_payment_provider ?? 'liqpay',
             'wayforpay_merchant_account' => $record?->wayforpay_merchant_account ?? '',
@@ -324,6 +325,7 @@ class ManageShopIntegrations extends Page
             $record->pickup_lat = ($latRaw !== null && $latRaw !== '') ? (float) $latRaw : null;
             $record->pickup_lng = ($lngRaw !== null && $lngRaw !== '') ? (float) $lngRaw : null;
             $record->pickup_enabled = (bool) ($data['pickup_enabled'] ?? true);
+            $record->taxi_delivery_enabled = (bool) ($data['taxi_delivery_enabled'] ?? true);
 
             $mapsKeyFromForm = $data['google_maps_api_key'] ?? null;
             $trimmedMaps = is_string($mapsKeyFromForm) ? trim($mapsKeyFromForm) : '';
@@ -352,7 +354,7 @@ class ManageShopIntegrations extends Page
         $hasAddr = is_string($record?->pickup_address) && trim($record->pickup_address) !== '';
         $hasCoords = $record?->pickup_lat !== null && $record?->pickup_lng !== null;
         $body = match (true) {
-            ! $pickupEnabled => 'Самовивіз вимкнено — на чекауті доступна лише доставка Новою Поштою.',
+            ! $pickupEnabled => 'Самовивіз вимкнено — на чекауті лишаються таксі-доставка (якщо увімкнена) і Нова Пошта.',
             $hasAddr && $hasCoords => 'Адреса та координати збережені — на чекауті буде текст і карта самовивозу.',
             $hasAddr => 'Адресу збережено; координати опційні для мітки на карті.',
             default => 'Дані самовивозу очищено або ще не заповнені.',
@@ -393,6 +395,7 @@ class ManageShopIntegrations extends Page
             'pickup_lat' => $record?->pickup_lat,
             'pickup_lng' => $record?->pickup_lng,
             'pickup_enabled' => $record->isPickupEnabled(),
+            'taxi_delivery_enabled' => $record->isTaxiDeliveryEnabled(),
             'contact_items' => self::contactItemsFormState(),
             'online_payment_provider' => $record?->online_payment_provider ?? 'liqpay',
             'wayforpay_merchant_account' => $record?->wayforpay_merchant_account ?? '',
@@ -835,7 +838,13 @@ class ManageShopIntegrations extends Page
                             ->dehydrated(false),
                         Toggle::make('pickup_enabled')
                             ->label('Самовивіз увімкнено')
-                            ->helperText('Якщо вимкнено, на чекауті залишається лише доставка Новою Поштою. Категорії «лише самовивіз» не можна оформити, поки самовивіз вимкнено.')
+                            ->helperText('Якщо вимкнено, самовивозу не буде на чекауті. Товари з категорій «без Нової Пошти» (тварини) тоді можна оформити лише таксі-доставкою.')
+                            ->default(true)
+                            ->inline(false)
+                            ->columnSpanFull(),
+                        Toggle::make('taxi_delivery_enabled')
+                            ->label('Таксі-доставка по місту')
+                            ->helperText('Покупець вписує адресу або ставить мітку на карті; поїздку оплачує за тарифом таксі. Разом із самовивозом — єдиний спосіб отримати тварин. Якщо вимкнути і самовивіз, і таксі, тварин оформити не вийде.')
                             ->default(true)
                             ->inline(false)
                             ->columnSpanFull(),

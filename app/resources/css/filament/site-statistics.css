@@ -608,3 +608,227 @@ html.dark .zs-segmented__item.is-active {
         margin-left: 0;
     }
 }
+
+/* Порівняно з попереднім періодом */
+.zs-compare__grid {
+    display: grid;
+    gap: var(--zo-gap);
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.zs-compare__item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    padding: 14px var(--zo-pad);
+}
+
+.zs-compare__label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--zs-secondary);
+}
+
+.zs-compare__value {
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+}
+
+.zs-compare__foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+}
+
+.zs-compare__prev {
+    font-size: 12px;
+    color: var(--zs-secondary);
+}
+
+.zs-delta {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.zs-delta--up {
+    background: rgba(52, 199, 89, 0.14);
+    color: #248a3d;
+}
+
+.zs-delta--down {
+    background: rgba(255, 59, 48, 0.12);
+    color: #d70015;
+}
+
+.zs-delta--flat {
+    background: var(--zs-fill);
+    color: var(--zs-secondary);
+}
+
+html.dark .zs-delta--up {
+    color: #30d158;
+}
+
+html.dark .zs-delta--down {
+    color: #ff453a;
+}
+
+/* Коли заходять і купують */
+.zs-heat-tips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.zs-heat-tip {
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--zs-fill);
+    font-size: 13px;
+    color: var(--zs-text);
+}
+
+.zs-heat-tip b {
+    font-weight: 600;
+    color: var(--zs-secondary);
+}
+
+.zs-heat {
+    display: grid;
+    grid-template-columns: 28px repeat(24, minmax(8px, 1fr));
+    gap: 3px;
+    overflow-x: auto;
+}
+
+.zs-heat__hour,
+.zs-heat__day {
+    font-size: 11px;
+    line-height: 1;
+    color: var(--zs-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.zs-heat__hour {
+    padding-bottom: 4px;
+}
+
+.zs-heat__day {
+    display: flex;
+    align-items: center;
+}
+
+.zs-heat__cell {
+    aspect-ratio: 1 / 1;
+    min-height: 10px;
+    border-radius: 4px;
+    background:
+        linear-gradient(rgba(0, 122, 255, var(--zs-heat, 0)), rgba(0, 122, 255, var(--zs-heat, 0))),
+        var(--zs-fill);
+}
+
+/* Доставка та оплата */
+.zs-split + .zs-split {
+    margin-top: 18px;
+}
+
+.zs-split__title {
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--zs-text);
+}
+
+.zs-split__note {
+    margin-top: 16px;
+    font-size: 13px;
+    color: var(--zs-secondary);
+}
+
+.zs-split__note b {
+    color: var(--zs-text);
+}
+
+/* Втрачений попит */
+.zs-lost__link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.zs-lost__link:hover {
+    color: #007aff;
+}
+
+.zs-lost__reason {
+    margin: 2px 0 4px 30px;
+    font-size: 12px;
+    color: #c93400;
+}
+
+html.dark .zs-lost__reason {
+    color: #ff9f0a;
+}
+
+/* Віртуальна опіка */
+.zs-mini-stats {
+    display: grid;
+    gap: var(--zo-gap);
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.zs-mini-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: var(--zs-fill);
+    color: inherit;
+    text-decoration: none;
+}
+
+.zs-mini-stat--link:hover {
+    background: rgba(0, 122, 255, 0.12);
+}
+
+.zs-mini-stat__value {
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+}
+
+.zs-mini-stat__label {
+    font-size: 12px;
+    line-height: 1.3;
+    color: var(--zs-secondary);
+}
+
+@media (max-width: 640px) {
+    .zs-compare__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .zs-compare__item {
+        padding: 12px;
+    }
+
+    .zs-compare__value {
+        font-size: 20px;
+    }
+
+    .zs-heat {
+        grid-template-columns: 24px repeat(24, 12px);
+    }
+}

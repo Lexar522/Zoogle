@@ -2,11 +2,16 @@
 
 namespace App\Filament\Admin\Pages;
 
+use App\Filament\Admin\Widgets\Analytics\AnalyticsComparisonWidget;
+use App\Filament\Admin\Widgets\Analytics\AnalyticsDeliveryWidget;
 use App\Filament\Admin\Widgets\Analytics\AnalyticsFunnelWidget;
+use App\Filament\Admin\Widgets\Analytics\AnalyticsHeatmapWidget;
 use App\Filament\Admin\Widgets\Analytics\AnalyticsHeroWidget;
+use App\Filament\Admin\Widgets\Analytics\AnalyticsLostDemandWidget;
 use App\Filament\Admin\Widgets\Analytics\AnalyticsOnlineChart;
 use App\Filament\Admin\Widgets\Analytics\AnalyticsRankingsWidget;
 use App\Filament\Admin\Widgets\Analytics\AnalyticsSalesChart;
+use App\Filament\Admin\Widgets\Analytics\AnalyticsSponsorshipWidget;
 use App\Filament\Admin\Widgets\Analytics\AnalyticsStatusWidget;
 use App\Filament\Admin\Widgets\Analytics\AnalyticsTrafficChart;
 use App\Services\ShopAnalytics;
@@ -96,11 +101,16 @@ class SiteStatistics extends Page
     {
         return [
             AnalyticsHeroWidget::class,
+            AnalyticsComparisonWidget::class,
             AnalyticsSalesChart::class,
             AnalyticsTrafficChart::class,
             AnalyticsFunnelWidget::class,
             AnalyticsStatusWidget::class,
+            AnalyticsHeatmapWidget::class,
+            AnalyticsDeliveryWidget::class,
+            AnalyticsLostDemandWidget::class,
             AnalyticsOnlineChart::class,
+            AnalyticsSponsorshipWidget::class,
             AnalyticsRankingsWidget::class,
         ];
     }

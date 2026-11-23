@@ -98,6 +98,8 @@
 
             <div class="site-header__zone site-header__zone--right site-header__top-actions">
                 <div class="site-header__top-actions-row">
+                @include('partials.shop-header-sponsorship-btn')
+                @include('partials.shop-header-charity-btn')
                 @auth
                     @php
                         $headerUser = Auth::user();
@@ -168,6 +170,7 @@
                 </div>
                 @include('partials.shop-header-care-btn')
             </div>
+            @include('partials.shop-mobile-actions')
         </div>
     </div>
     </div>

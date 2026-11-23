@@ -2,13 +2,7 @@
 <div class="site-header__compact-bar" data-site-header-compact-bar aria-hidden="true">
     <div class="container">
         <div class="site-header__row">
-            <div class="site-header__zone site-header__zone--left">
-                @if (! empty($hasShopHeaderContacts))
-                    <div class="site-header__contacts-google">
-                        @include('partials.shop-header-contacts', ['contactIconsColored' => true])
-                    </div>
-                @endif
-            </div>
+            <div class="site-header__zone site-header__zone--left"></div>
 
             <div class="site-header__zone site-header__zone--center">
                 <a href="{{ route('home') }}" class="site-logo" aria-label="{{ __('shop.logo_aria') }}">
@@ -98,6 +92,7 @@
                 </button>
                 </div>
             </div>
+            @include('partials.shop-mobile-actions')
         </div>
     </div>
 </div>

@@ -143,7 +143,7 @@ class CatalogProductCardTest extends TestCase
 
         $html = $this->catalogHtml($root);
         $this->assertMatchesRegularExpression(
-            '#catalog-toolbar__title-label">Рекомендовані</span>\s*<h1 class="catalog-toolbar__title">Каталог</h1>#u',
+            '#catalog-toolbar__title-label">Рекомендовані</span>\s*<span class="catalog-toolbar__title catalog-toolbar__title-sep" aria-hidden="true">/</span>\s*<h1 class="catalog-toolbar__title">Каталог</h1>#u',
             $html
         );
         $this->assertStringNotContainsString('>Радимо<', $html);

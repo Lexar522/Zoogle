@@ -80,7 +80,8 @@ class StorefrontSuggest
         }
 
         usort($titles, function (string $a, string $b) use ($query): int {
-            $rank = (CatalogTitleMatch::score($query, $a) ?? 99) <=> (CatalogTitleMatch::score($query, $b) ?? 99);
+            $rank = (CatalogTitleMatch::relevance($query, $a) ?? CatalogTitleMatch::RELEVANCE_LAST)
+                <=> (CatalogTitleMatch::relevance($query, $b) ?? CatalogTitleMatch::RELEVANCE_LAST);
             if ($rank !== 0) {
                 return $rank;
             }

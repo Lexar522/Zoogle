@@ -2,15 +2,15 @@
 
 namespace App\Filament\Admin\Pages;
 
+use App\Models\ProductCareArticle;
 use App\Models\ShopFooterBrand;
 use App\Models\ShopFooterColumn;
 use App\Models\ShopFooterFaqItem;
 use App\Models\ShopFooterLink;
 use App\Models\ShopInfoPage;
+use App\Support\RichTextSanitizer;
 use BackedEnum;
 use Filament\Actions\Action;
-use App\Models\ProductCareArticle;
-use App\Support\RichTextSanitizer;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\RichEditor;

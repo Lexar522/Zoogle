@@ -7,12 +7,15 @@ use App\Models\OptionValue;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\ShopIntegrationSetting;
+use App\Models\ShopMediaSetting;
 use App\Support\CatalogCategoryTree;
 use App\Support\GalleryPhotoIndex;
 use App\Support\ListingDefaultOptionPrice;
 use App\Support\ListingMedia;
 use App\Support\ListingOptionValuePrices;
+use App\Support\OptionGroupExclusivity;
 use App\Support\ShopHeaderContacts;
+use App\Support\StoragePublicPath;
 use App\Support\StorefrontOptionCatalog;
 use App\Support\VariantOptionsAllowlist;
 use Illuminate\Http\Request;
@@ -30,6 +33,9 @@ use Illuminate\Support\Str;
  */
 class ProductShowPageService
 {
+    /** Google показує близько 160 символів опису. */
+    private const META_DESCRIPTION_MAX = 160;
+
     public function __construct(
         private readonly VariantPricingService $variantPricing,
         private readonly ProductRecommendationsService $productRecommendations,
@@ -153,8 +159,6 @@ class ProductShowPageService
             ? array_map(fn (array $row): float => round((float) ($row['price'] ?? 0) + $defaultOptionsAddon, 2), $variantsPayload)
             : [$displayEffective];
         $pdpOfferLowPrice = min($offerPrices);
-        $pdpOfferHighPrice = max($offerPrices);
-        $pdpOfferCount = max(1, $variantsPayload !== [] ? count($variantsPayload) : 1);
 
         $checkoutRules = $this->categoryCheckoutRules->aggregateForProductIds([(int) $listing->id]);
         $pdpDefersOnlinePayment = $checkoutRules['defers_online_payment'] || $listing->defersOnlinePayment();
@@ -194,7 +198,7 @@ class ProductShowPageService
             'needsExplicitChoice' => $needsExplicitVariantChoice,
             'optionsPreselectedFromVariant' => $optionsPreselectedFromVariant,
             'storageBase' => rtrim(asset('storage'), '/'),
-            'optimizeImages' => \App\Models\ShopMediaSetting::optimizeImagesEnabled(),
+            'optimizeImages' => ShopMediaSetting::optimizeImagesEnabled(),
             'needsBareVariantPicker' => $needsBareVariantPicker,
             'pdpDefersOnlinePayment' => $pdpDefersOnlinePayment,
             'pdpDeferModalContacts' => $pdpDeferModalContacts,
@@ -238,7 +242,6 @@ class ProductShowPageService
             'catalogVariantIdForScript' => $catalogVariantIdForScript,
             'storefrontPreferredVariantId' => $catalogVariantIdForScript,
             'storefrontDefaultVariantId' => $catalogVariantIdForScript,
-            'pdpOfferCount' => $pdpOfferCount,
             'matchedVariantId' => $catalogVariantIdForScript,
             // SSR ціна з урахуванням преселекту (щоб збігалась із JS після ensureDefaultOptionSelection).
             'listingBasePrice' => $displayEffective,
@@ -250,10 +253,9 @@ class ProductShowPageService
             'filters' => $nav['filters'],
             'catalogCategoryGroupId' => $categoryGroupId,
             'productShowConfig' => $productShowConfig,
-            'pdpMetaDescription' => $this->buildPdpMetaDescription($listing, $displayEffective, $listingBaseCompareAtForScript, $categoryDisplayForPage),
+            'pdpMetaDescription' => $this->buildPdpMetaDescription($listing, $displayEffective, $listingBaseCompareAtForScript),
             'pdpOgImageUrl' => $this->resolvePdpOgImageUrl($galleryItems),
             'pdpOfferLowPrice' => $pdpOfferLowPrice,
-            'pdpOfferHighPrice' => $pdpOfferHighPrice,
             'recommendedProducts' => $recommendedProducts,
             'recommendedListingQuotes' => $recommendedListingQuotes,
             'careArticles' => $careArticles,
@@ -392,7 +394,7 @@ class ProductShowPageService
         return null;
     }
 
-    private function buildPdpMetaDescription(Product $listing, float $minPrice, ?float $compareAt, ?string $categoryName = null): string
+    private function buildPdpMetaDescription(Product $listing, float $minPrice, ?float $compareAt): string
     {
         $short = $listing->short_description;
         $long = $listing->description;
@@ -404,17 +406,16 @@ class ProductShowPageService
         if ($compareAt !== null && $compareAt > $minPrice) {
             $priceLine .= ' '.__('shop.pdp_meta_compare_hint');
         }
-        $base = trim(implode(' ', $parts));
-        $categoryName = trim((string) $categoryName);
-        $haystack = mb_strtolower($base.' '.(string) $listing->title);
-        if ($categoryName !== '' && ! str_contains($haystack, mb_strtolower($categoryName))) {
-            $base = trim($categoryName.'. '.$base);
-        }
+        $base = trim(preg_replace('/\s+/u', ' ', implode(' ', $parts)) ?? '');
         if ($base === '') {
             $base = trim((string) $listing->title);
         }
 
-        return Str::limit(trim($base.' '.$priceLine), 160);
+        // Ціна завжди вміщується: обрізаємо лише текст опису. Назву підкатегорії («Горизонтальні»)
+        // окремо не дописуємо — без контексту вона виглядає в Google як обірване речення.
+        $textLimit = max(40, self::META_DESCRIPTION_MAX - mb_strlen($priceLine) - 1);
+
+        return trim(Str::limit($base, $textLimit).' '.$priceLine);
     }
 
     /**
@@ -646,8 +647,8 @@ class ProductShowPageService
     private function variantPhotoPaths(ProductVariant $variant): array
     {
         return collect(is_array($variant->photos) ? $variant->photos : [])
-            ->map(fn ($path) => \App\Support\StoragePublicPath::normalizeFileUploadState($path)
-                ?? (is_string($path) ? \App\Support\StoragePublicPath::normalize($path) : null))
+            ->map(fn ($path) => StoragePublicPath::normalizeFileUploadState($path)
+                ?? (is_string($path) ? StoragePublicPath::normalize($path) : null))
             ->filter(fn (?string $path): bool => is_string($path) && $path !== '')
             ->values()
             ->all();
@@ -950,8 +951,8 @@ class ProductShowPageService
                 }
 
                 return collect($photoRow['photos'] ?? [])
-                    ->map(fn ($path) => \App\Support\StoragePublicPath::normalizeFileUploadState($path)
-                        ?? (is_string($path) ? \App\Support\StoragePublicPath::normalize($path) : null))
+                    ->map(fn ($path) => StoragePublicPath::normalizeFileUploadState($path)
+                        ?? (is_string($path) ? StoragePublicPath::normalize($path) : null))
                     ->filter(fn (?string $path): bool => is_string($path) && $path !== '')
                     ->values()
                     ->all();
@@ -1045,7 +1046,7 @@ class ProductShowPageService
             'name' => $this->mtLine((string) $group->name),
             'selection_mode' => $selectionMode,
             'value_type' => $catalogValueType,
-            'exclusivity_key' => \App\Support\OptionGroupExclusivity::keyFromName((string) $group->name),
+            'exclusivity_key' => OptionGroupExclusivity::keyFromName((string) $group->name),
             'default_option_value_id' => $this->defaultOptionValueIdFromListing($listing, $groupId, $allowedValueIds),
             'values' => $values->map(function (OptionValue $v) use ($variantRows, $groupId): array {
                 $addon = ListingOptionValuePrices::priceAddonForValue($variantRows, $groupId, (int) $v->id);
@@ -1119,7 +1120,7 @@ class ProductShowPageService
                 ? trim((string) $block['exclusivity_key'])
                 : '';
             if ($exclusivityKey === '') {
-                $exclusivityKey = (string) (\App\Support\OptionGroupExclusivity::keyFromName((string) ($block['name'] ?? '')) ?? '');
+                $exclusivityKey = (string) (OptionGroupExclusivity::keyFromName((string) ($block['name'] ?? '')) ?? '');
             }
             if ($exclusivityKey !== '' && isset($claimedExclusivityKeys[$exclusivityKey])) {
                 // У сімʼї «Розмір: …» преселектимо лише першу групу — не всі одразу.

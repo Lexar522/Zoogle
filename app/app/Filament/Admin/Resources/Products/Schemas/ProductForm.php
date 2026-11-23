@@ -196,6 +196,11 @@ class ProductForm
                             ->helperText('Для товару без варіантів. Порожньо — кількість не рахується. На нулі товар стає «Немає в наявності».'),
                         DateTimePicker::make('published_at')
                             ->label('Опубліковано'),
+                        Toggle::make('exclude_from_merchant_feed')
+                            ->label('Не передавати в Google Merchant (жива тварина / живий корм)')
+                            ->helperText('Google забороняє рекламувати живих тварин і живий корм. Товар лишається на сайті й у пошуку Google, але не потрапляє у вкладку «Покупки» та каталог Meta. Для цілої гілки увімкніть той самий перемикач у категорії.')
+                            ->default(false)
+                            ->visible(fn (): bool => DbSchema::hasColumn((new Product)->getTable(), 'exclude_from_merchant_feed')),
                     ]),
                 Section::make('Фото товару')
                     ->description('Базова галерея товару. Якщо для кольору задані свої фото — на вітрині вони матимуть пріоритет.')

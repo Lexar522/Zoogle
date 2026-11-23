@@ -3,10 +3,10 @@
 namespace App\Filament\Admin\Concerns;
 
 use App\Models\Product;
+use App\Support\CatalogProductsTable;
 use App\Support\ListingMedia;
 use App\Support\StoragePublicPath;
 use Illuminate\Support\Facades\Schema;
-use App\Support\CatalogProductsTable;
 
 /**
  * Метадані кадрування галереї (focus_x / focus_y, тип медіа).

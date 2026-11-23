@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Support\StorefrontMemo;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Crypt;
 
 class ShopIntegrationSetting extends Model
 {
@@ -15,6 +16,7 @@ class ShopIntegrationSetting extends Model
         'pickup_lat',
         'pickup_lng',
         'pickup_enabled',
+        'taxi_delivery_enabled',
         'contact_phone',
         'contact_email',
         'contact_instagram',
@@ -36,12 +38,18 @@ class ShopIntegrationSetting extends Model
             'pickup_lat' => 'float',
             'pickup_lng' => 'float',
             'pickup_enabled' => 'boolean',
+            'taxi_delivery_enabled' => 'boolean',
         ];
     }
 
     public function isPickupEnabled(): bool
     {
         return (bool) ($this->pickup_enabled ?? true);
+    }
+
+    public function isTaxiDeliveryEnabled(): bool
+    {
+        return (bool) ($this->taxi_delivery_enabled ?? true);
     }
 
     public static function record(): self
@@ -69,12 +77,29 @@ class ShopIntegrationSetting extends Model
         }
 
         try {
-            $value = decrypt($raw);
-
-            return is_string($value) && trim($value) !== '' ? trim($value) : null;
+            // Каст «encrypted» зберігає рядок без серіалізації — розшифровуємо так само
+            $value = Crypt::decryptString($raw);
         } catch (DecryptException) {
             return null;
         }
+
+        $value = self::unwrapLegacySerialized($value);
+
+        return trim($value) !== '' ? trim($value) : null;
+    }
+
+    /**
+     * Старі значення могли бути збережені через encrypt() — тоді всередині серіалізований рядок «s:N:"…";».
+     */
+    private static function unwrapLegacySerialized(string $value): string
+    {
+        if (preg_match('/^s:\d+:".*";$/s', $value) !== 1) {
+            return $value;
+        }
+
+        $unserialized = @unserialize($value, ['allowed_classes' => false]);
+
+        return is_string($unserialized) ? $unserialized : $value;
     }
 
     public function hasEncryptedRaw(string $attribute): bool
@@ -89,4 +114,3 @@ class ShopIntegrationSetting extends Model
         return $this->readEncrypted($attribute) !== null;
     }
 }
-
