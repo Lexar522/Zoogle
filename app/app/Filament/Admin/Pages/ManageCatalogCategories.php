@@ -5,9 +5,11 @@ namespace App\Filament\Admin\Pages;
 use App\Filament\Admin\Resources\OptionGroups\OptionGroupResource;
 use App\Filament\Admin\Resources\OptionGroups\Schemas\OptionGroupForm;
 use App\Models\OptionGroup;
+use App\Models\OptionValue;
 use App\Support\CatalogCategoryTree;
 use BackedEnum;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
 use Filament\Pages\Concerns\CanUseDatabaseTransactions;
 use Filament\Pages\Page;
@@ -66,6 +68,10 @@ class ManageCatalogCategories extends Page
     #[Locked]
     public ?OptionGroup $record = null;
 
+    /** Коренева рубрика, чию гілку показує форма (?branch=ID). Перемикання — через перезавантаження сторінки. */
+    #[Locked]
+    public ?int $branch = null;
+
     /**
      * Livewire викликає boot() і при відкритті сторінки, і при кожному збереженні форми.
      */
@@ -112,7 +118,32 @@ class ManageCatalogCategories extends Page
 
         abort_unless(OptionGroupResource::canEdit($this->record), 403);
 
+        $this->branch = $this->resolveBranch(request()->integer('branch'));
+
         $this->fillForm();
+    }
+
+    /**
+     * @return array<int, string> id => назва, у порядку сортування
+     */
+    private function rootCategoryOptions(): array
+    {
+        return OptionValue::query()
+            ->where('option_group_id', $this->record?->id)
+            ->whereNull('parent_id')
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get(['id', 'name'])
+            ->mapWithKeys(fn (OptionValue $root): array => [(int) $root->id => (string) mt($root->name)])
+            ->all();
+    }
+
+    /** Невідома чи вже видалена гілка → перша коренева рубрика. */
+    private function resolveBranch(int $requested): ?int
+    {
+        $rootIds = array_keys($this->rootCategoryOptions());
+
+        return in_array($requested, $rootIds, true) ? $requested : ($rootIds[0] ?? null);
     }
 
     protected function fillForm(): void
@@ -134,7 +165,7 @@ class ManageCatalogCategories extends Page
      */
     protected function mutateFormDataBeforeFill(array $data): array
     {
-        return $data;
+        return [...$data, 'branch_switch' => $this->branch];
     }
 
     /**
@@ -246,9 +277,12 @@ class ManageCatalogCategories extends Page
         return 'Збережено';
     }
 
+    /** Якщо обрану гілку щойно видалили — відкриваємо першу наявну. */
     protected function getRedirectUrl(): ?string
     {
-        return null;
+        $branch = $this->resolveBranch((int) $this->branch);
+
+        return $branch === $this->branch ? null : static::getUrl(['branch' => $branch]);
     }
 
     public function defaultForm(Schema $schema): Schema
@@ -264,9 +298,25 @@ class ManageCatalogCategories extends Page
     {
         return $schema
             ->components([
-                Section::make('Дерево категорій')
-                    ->description('Кореневі рубрики та підкатегорії (до '.CatalogCategoryTree::MAX_DEPTH.' рівнів).')
-                    ->schema([OptionGroupForm::catalogCategoriesRepeater()])
+                Section::make('Кореневі категорії')
+                    ->description('Назви, порядок і правила доставки, оплати та Google Merchant для цілої гілки.')
+                    ->schema([OptionGroupForm::catalogRootCategoriesRepeater()])
+                    ->collapsible()
+                    ->columnSpanFull(),
+                Section::make('Підкатегорії')
+                    ->description('Показуємо одну гілку за раз (до '.CatalogCategoryTree::MAX_DEPTH.' рівнів), щоб сторінка відкривалася швидко. Збережіть зміни перед перемиканням гілки.')
+                    ->schema($this->branch === null ? [] : [
+                        Select::make('branch_switch')
+                            ->label('Гілка')
+                            ->options(fn (): array => $this->rootCategoryOptions())
+                            ->selectablePlaceholder(false)
+                            ->native(false)
+                            ->live()
+                            ->dehydrated(false)
+                            ->afterStateUpdated(fn ($state) => $this->redirect(static::getUrl(['branch' => (int) $state]))),
+                        OptionGroupForm::catalogBranchRepeater($this->branch),
+                    ])
+                    ->visible($this->branch !== null)
                     ->columnSpanFull(),
             ]);
     }

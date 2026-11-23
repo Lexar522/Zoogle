@@ -180,48 +180,81 @@ class OptionGroupForm
             ]);
     }
 
-    public static function catalogCategoriesRepeater(): Repeater
+    /**
+     * Лише кореневі рубрики, без підкатегорій: гілки редагуються по одній ({@see catalogBranchRepeater()}).
+     * Усе дерево в одній формі важило ~30 КБ HTML на категорію і вантажилося секундами.
+     */
+    public static function catalogRootCategoriesRepeater(): Repeater
     {
-        $hasParentColumn = DbSchema::hasColumn('option_values', 'parent_id');
-
-        return Repeater::make('categories')
-            ->label('Категорії')
+        $repeater = Repeater::make('categories')
             ->relationship('values', function ($query) {
                 if (DbSchema::hasColumn('option_values', 'parent_id')) {
                     $query->whereNull('parent_id');
                 }
-            })
+            });
+
+        return self::configureCategoryRepeater(
+            $repeater,
+            'Кореневі категорії',
+            'Додати кореневу категорію',
+            [...self::categoryIdentityFields('Назва категорії', 'Слаг'), ...self::categoryRootCheckoutTogglesForRepeaterItem()],
+        );
+    }
+
+    /**
+     * Підкатегорії однієї кореневої рубрики (рівень 2 і глибше). Нові елементи прив'язуються до цієї рубрики.
+     */
+    public static function catalogBranchRepeater(int $rootId): Repeater
+    {
+        $repeater = Repeater::make('branch')
+            ->relationship('values', fn ($query) => $query->where('parent_id', $rootId))
+            ->mutateRelationshipDataBeforeCreateUsing(fn (array $data): array => [...$data, 'parent_id' => $rootId]);
+
+        return self::configureCategoryRepeater($repeater, 'Підкатегорія (рівень 2)', 'Додати рівень 2', self::categorySubtreeSchemaForLevel(2));
+    }
+
+    /**
+     * @param  list<Component|Repeater|Hidden|TextInput|Toggle>  $schema
+     */
+    private static function configureCategoryRepeater(Repeater $repeater, string $label, string $addActionLabel, array $schema): Repeater
+    {
+        return $repeater
+            ->label($label)
             ->orderColumn('sort_order')
             ->reorderable()
             ->defaultItems(0)
-            ->addActionLabel('Додати категорію')
+            ->addActionLabel($addActionLabel)
             ->collapsed()
             ->itemLabel(fn (array $state): ?string => $state['name'] ?? null)
-            ->schema(array_merge(
-                [
-                    Hidden::make('option_group_id')
-                        ->default(fn (Get $get): ?int => self::optionGroupIdFromFormRoot($get))
-                        ->dehydrated(true),
-                    TextInput::make('name')
-                        ->label('Назва категорії')
-                        ->required()
-                        ->live(onBlur: true)
-                        ->afterStateUpdated(function (?string $state, callable $set): void {
-                            if (blank($state)) {
-                                return;
-                            }
-
-                            $set('slug', Str::slug($state));
-                        }),
-                    TextInput::make('slug')
-                        ->label('Слаг')
-                        ->required(),
-                ],
-                self::categoryRootCheckoutTogglesForRepeaterItem(),
-                $hasParentColumn ? self::categorySubtreeBelowRoot() : [],
-            ))
+            ->schema($schema)
             ->columns(2)
             ->columnSpanFull();
+    }
+
+    /**
+     * @return list<Hidden|TextInput>
+     */
+    private static function categoryIdentityFields(string $nameLabel, string $slugLabel): array
+    {
+        return [
+            Hidden::make('option_group_id')
+                ->default(fn (Get $get): ?int => self::optionGroupIdFromFormRoot($get))
+                ->dehydrated(true),
+            TextInput::make('name')
+                ->label($nameLabel)
+                ->required()
+                ->live(onBlur: true)
+                ->afterStateUpdated(function (?string $state, callable $set): void {
+                    if (blank($state)) {
+                        return;
+                    }
+
+                    $set('slug', Str::slug($state));
+                }),
+            TextInput::make('slug')
+                ->label($slugLabel)
+                ->required(),
+        ];
     }
 
     /**
@@ -259,52 +292,9 @@ class OptionGroupForm
     /**
      * @return list<Component>
      */
-    private static function categorySubtreeBelowRoot(): array
-    {
-        $nextLevel = 2;
-        $repeater = Repeater::make('children')
-            ->label('Підкатегорія (рівень '.$nextLevel.')')
-            ->relationship('children')
-            ->orderColumn('sort_order')
-            ->reorderable()
-            ->defaultItems(0)
-            ->addActionLabel('Додати рівень '.$nextLevel)
-            ->collapsed()
-            ->itemLabel(fn (array $state): ?string => $state['name'] ?? null)
-            ->schema(self::categorySubtreeSchemaForLevel($nextLevel))
-            ->columns(2)
-            ->columnSpanFull();
-
-        return [$repeater];
-    }
-
-    /**
-     * @return list<Component>
-     */
     private static function categorySubtreeSchemaForLevel(int $level): array
     {
-        $nameLabel = $level === 1 ? 'Назва категорії' : 'Назва (рівень '.$level.')';
-        $slugLabel = $level === 1 ? 'Слаг' : 'Слаг (рівень '.$level.')';
-
-        $schema = [
-            Hidden::make('option_group_id')
-                ->default(fn (Get $get): ?int => self::optionGroupIdFromFormRoot($get))
-                ->dehydrated(true),
-            TextInput::make('name')
-                ->label($nameLabel)
-                ->required()
-                ->live(onBlur: true)
-                ->afterStateUpdated(function (?string $state, callable $set): void {
-                    if (blank($state)) {
-                        return;
-                    }
-
-                    $set('slug', Str::slug($state));
-                }),
-            TextInput::make('slug')
-                ->label($slugLabel)
-                ->required(),
-        ];
+        $schema = self::categoryIdentityFields('Назва (рівень '.$level.')', 'Слаг (рівень '.$level.')');
 
         if (DbSchema::hasColumn('option_values', 'exclude_from_merchant_feed')) {
             $schema[] = Toggle::make('exclude_from_merchant_feed')
@@ -319,18 +309,12 @@ class OptionGroupForm
         }
 
         $childLevel = $level + 1;
-        $schema[] = Repeater::make('children')
-            ->label('Підкатегорія (рівень '.$childLevel.')')
-            ->relationship('children')
-            ->orderColumn('sort_order')
-            ->reorderable()
-            ->defaultItems(0)
-            ->addActionLabel('Додати рівень '.$childLevel)
-            ->collapsed()
-            ->itemLabel(fn (array $state): ?string => $state['name'] ?? null)
-            ->schema(self::categorySubtreeSchemaForLevel($childLevel))
-            ->columns(2)
-            ->columnSpanFull();
+        $schema[] = self::configureCategoryRepeater(
+            Repeater::make('children')->relationship('children'),
+            'Підкатегорія (рівень '.$childLevel.')',
+            'Додати рівень '.$childLevel,
+            self::categorySubtreeSchemaForLevel($childLevel),
+        );
 
         return $schema;
     }
