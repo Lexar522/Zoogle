@@ -35,6 +35,12 @@ class ManageCatalogCategories extends Page
 {
     use CanUseDatabaseTransactions;
 
+    /**
+     * Усе дерево категорій рендериться однією формою з вкладеними repeater'ами: ~0,35 МБ на категорію.
+     * Типових для хостингу 128 МБ на кілька сотень категорій не вистачає (помилка 500 у v1.1.81).
+     */
+    private const MEMORY_LIMIT_BYTES = 512 * 1024 * 1024;
+
     protected static ?string $slug = 'catalog-categories';
 
     public static function canAccess(): bool
@@ -59,6 +65,44 @@ class ManageCatalogCategories extends Page
 
     #[Locked]
     public ?OptionGroup $record = null;
+
+    /**
+     * Livewire викликає boot() і при відкритті сторінки, і при кожному збереженні форми.
+     */
+    public function boot(): void
+    {
+        self::ensureMemoryLimit();
+    }
+
+    /** Лише піднімає ліміт: «без обмеження» (-1) чи вже більший ліміт лишаються як є. */
+    private static function ensureMemoryLimit(): void
+    {
+        $current = self::iniBytes((string) ini_get('memory_limit'));
+        if ($current < 0 || $current >= self::MEMORY_LIMIT_BYTES) {
+            return;
+        }
+
+        if (ini_set('memory_limit', (string) self::MEMORY_LIMIT_BYTES) === false) {
+            report(new \RuntimeException('Не вдалося підняти memory_limit для сторінки категорій (зараз '.ini_get('memory_limit').').'));
+        }
+    }
+
+    private static function iniBytes(string $value): int
+    {
+        $value = trim($value);
+        if ($value === '' || $value === '-1') {
+            return -1;
+        }
+
+        $number = (int) $value;
+
+        return match (strtolower(substr($value, -1))) {
+            'g' => $number * 1024 ** 3,
+            'm' => $number * 1024 ** 2,
+            'k' => $number * 1024,
+            default => $number,
+        };
+    }
 
     public function mount(): void
     {
