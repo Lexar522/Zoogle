@@ -35,6 +35,20 @@ class ShopMarketingSeoTest extends TestCase
             ->assertSee('product:price:amount', false);
     }
 
+    /** Клітки «під замовлення» без ціни: Google не має бачити Offer з ціною 0.00 (недійсні елементи в Search Console). */
+    public function test_product_without_price_has_no_offer_markup_but_keeps_breadcrumbs(): void
+    {
+        $product = $this->product(price: 0);
+
+        $this->get(route('catalog.show', $product->slug))
+            ->assertOk()
+            ->assertSee('<meta name="robots" content="index,follow">', false)
+            ->assertDontSee('"@type":"Product"', false)
+            ->assertDontSee('"@type":"Offer"', false)
+            ->assertDontSee('product:price:amount', false)
+            ->assertSee('"@type":"BreadcrumbList"', false);
+    }
+
     public function test_product_meta_description_keeps_price_and_skips_bare_category(): void
     {
         $product = $this->product();
@@ -178,7 +192,7 @@ class ShopMarketingSeoTest extends TestCase
         $this->assertStringNotContainsString('Disallow: /catalog/', $robots);
     }
 
-    private function product(bool $photo = true): Product
+    private function product(bool $photo = true, float $price = 900): Product
     {
         $group = OptionGroup::query()->firstOrCreate(
             ['product_type' => OptionGroup::CATALOG_PRODUCT_TYPE, 'slug' => 'category'],
@@ -200,7 +214,7 @@ class ShopMarketingSeoTest extends TestCase
             'product_type' => OptionGroup::CATALOG_PRODUCT_TYPE,
             'category_parent_value_id' => $category->id,
             'category_value_id' => $category->id,
-            'price' => 900,
+            'price' => $price,
             'is_available' => true,
             'stock_status' => Product::STOCK_IN_STOCK,
             'photos' => $photos,

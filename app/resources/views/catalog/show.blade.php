@@ -26,16 +26,20 @@
         ];
 
         $schemaLowPrice = number_format((float) ($pdpOfferLowPrice ?? $listingBasePrice ?? 0), 2, '.', '');
+        // Товар «під замовлення» без ціни: Offer з 0.00 Google вважає недійсним, тому ціну не показуємо.
+        $schemaHasPrice = (float) $schemaLowPrice > 0;
         // Звіт «Товари в продавців» (безкоштовні оголошення) приймає лише Offer, AggregateOffer там — помилка.
         // Тому завжди Offer з найнижчою ціною: саме її передає фід Merchant (найдешевший варіант).
-        $schemaProduct['offers'] = [
-            '@type' => 'Offer',
-            'url' => route('catalog.show', $listing->slug),
-            'priceCurrency' => 'UAH',
-            'price' => $schemaLowPrice,
-            'itemCondition' => 'https://schema.org/NewCondition',
-            'availability' => $schemaAvailability,
-        ];
+        if ($schemaHasPrice) {
+            $schemaProduct['offers'] = [
+                '@type' => 'Offer',
+                'url' => route('catalog.show', $listing->slug),
+                'priceCurrency' => 'UAH',
+                'price' => $schemaLowPrice,
+                'itemCondition' => 'https://schema.org/NewCondition',
+                'availability' => $schemaAvailability,
+            ];
+        }
 
         if (! empty($categoryDisplayForPage)) {
             $schemaProduct['category'] = (string) $categoryDisplayForPage;
@@ -115,14 +119,19 @@
             ),
         ];
     @endphp
+    {{-- Product без offers і відгуків Google позначає помилкою, тож без ціни лишаються лише хлібні крихти --}}
+    @if (isset($schemaProduct['offers']) || isset($schemaProduct['aggregateRating']))
     <script type="application/ld+json">
 {!! json_encode($schemaProduct, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) !!}
     </script>
+    @endif
     <script type="application/ld+json">
 {!! json_encode($schemaBreadcrumb, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) !!}
     </script>
+    @if ($schemaHasPrice)
     <meta property="product:price:amount" content="{{ $schemaLowPrice }}">
     <meta property="product:price:currency" content="UAH">
+    @endif
     {{-- Facebook / Instagram: зв'язок сторінки з каталогом товарів (id як у фіді) --}}
     <meta property="product:availability" content="{{ $schemaAvailability === 'https://schema.org/InStock' ? 'in stock' : ($schemaAvailability === 'https://schema.org/PreOrder' ? 'preorder' : 'out of stock') }}">
     <meta property="product:condition" content="new">
