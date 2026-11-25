@@ -7,6 +7,7 @@ use App\Models\OptionValue;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Support\ListingOptionValuePrices;
+use App\Support\OptionLabel;
 use App\Support\StorefrontMemo;
 use App\Support\StorefrontOptionCatalog;
 use App\Support\VariantOptionsAllowlist;
@@ -500,7 +501,7 @@ class ListingOptionSelectionService
                 continue;
             }
 
-            $label = trim(($row['group_name'] !== '' ? $row['group_name'].': ' : '').$row['value_name']);
+            $label = OptionLabel::join($row['group_name'], (string) $row['value_name']);
             $row['label'] = $label !== '' ? $label : (string) $row['value_name'];
             $items[] = $row;
         }
@@ -538,7 +539,7 @@ class ListingOptionSelectionService
             if ($groupName === '' || $valueName === '') {
                 continue;
             }
-            $parts[] = $groupName.': '.$valueName;
+            $parts[] = OptionLabel::join($groupName, $valueName);
         }
 
         return $parts;

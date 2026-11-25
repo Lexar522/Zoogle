@@ -7,6 +7,7 @@ use App\Models\OptionValue;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Services\ListingOptionSelectionService;
+use App\Support\OptionLabel;
 use App\Support\VariantOptionsAllowlist;
 use Filament\Forms\Components\Select;
 use Filament\Schemas\Components\Section;
@@ -321,7 +322,8 @@ final class BundleItemOptionFields
         foreach (self::optionBlocks($product) as $block) {
             $groupName = trim((string) ($block['name'] ?? ''));
             foreach (self::optionsForBlock($block) as $id => $label) {
-                $options[$id] = $groupName !== '' ? e($groupName).': '.$label : $label;
+                // $label уже HTML (опції з allowHtml), тож екрануємо лише назву групи
+                $options[$id] = OptionLabel::join(e($groupName), $label);
             }
         }
 
@@ -473,7 +475,7 @@ final class BundleItemOptionFields
                 continue;
             }
 
-            $parts[] = $groupName !== '' ? $groupName.': '.$valueName : $valueName;
+            $parts[] = OptionLabel::join($groupName, $valueName);
         }
 
         $label = implode(', ', $parts);

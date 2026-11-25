@@ -44,7 +44,6 @@
     $deliveryTypeLocked = count($deliveryTypes) === 1;
     $taxiEnabled = in_array(\App\Models\Order::DELIVERY_TAXI, $deliveryTypes, true);
     $showTaxiMap = $deliveryTypeCurrent === \App\Models\Order::DELIVERY_TAXI;
-    $shopHasCoords = is_numeric($pickupDisplay['lat'] ?? null) && is_numeric($pickupDisplay['lng'] ?? null);
     $showPickupMapPanel = $pickupHasMap && $deliveryTypeCurrent === \App\Models\Order::DELIVERY_PICKUP;
     $showNpWarehouseMap = $novaPoshtaConfigured && $deliveryTypeCurrent === \App\Models\Order::DELIVERY_NOVA_POSHTA_WAREHOUSE;
     $showNpCourierMapApi = $novaPoshtaConfigured && $deliveryTypeCurrent === \App\Models\Order::DELIVERY_NOVA_POSHTA_COURIER;
@@ -356,8 +355,7 @@
                     npWh: @json(\App\Models\Order::DELIVERY_NOVA_POSHTA_WAREHOUSE),
                     npCourier: @json(\App\Models\Order::DELIVERY_NOVA_POSHTA_COURIER),
                     taxi: @json(\App\Models\Order::DELIVERY_TAXI),
-                    shopLat: @json($shopHasCoords ? (float) $pickupDisplay['lat'] : null),
-                    shopLng: @json($shopHasCoords ? (float) $pickupDisplay['lng'] : null),
+                    taxiCity: @json(config('shop.taxi_city')),
                     pickupHasMap: {{ $pickupHasMap ? 'true' : 'false' }},
                     pickupEnabled: {{ $pickupEnabled ? 'true' : 'false' }},
                     pickupLat: @json($pickupHasMap ? (float) $pickupDisplay['lat'] : null),
@@ -488,6 +486,10 @@
                     }
                     var ta = getCourierAddressTextarea();
                     var addr = ta && ta.value ? ta.value.trim() : '';
+                    /* Таксі — по місту: «Хрещатик 1» шукаємо в Києві, а не будь-де в Україні */
+                    if (taxiActive() && cfg.taxiCity && cfg.taxiCity.name && addr.toLowerCase().indexOf(String(cfg.taxiCity.name).toLowerCase()) === -1) {
+                        city = cfg.taxiCity.name;
+                    }
                     addr = addr.replace(/\s+/g, ' ');
                     addr = addr.replace(/,\s*Україна\s*$/i, '').replace(/,\s*Ukraine\s*$/i, '').trim();
                     city = city.replace(/\s+,?\s*Україна\s*$/i, '').replace(/\s+,?\s*Ukraine\s*$/i, '').trim();
@@ -601,10 +603,11 @@
                             startLng = ln0;
                             z = 15;
                         }
-                    } else if (taxiActive() && cfg.shopLat != null && cfg.shopLng != null) {
-                        startLat = cfg.shopLat;
-                        startLng = cfg.shopLng;
-                        z = 12;
+                    } else if (taxiActive() && cfg.taxiCity) {
+                        /* Таксі возить лише по місту (Київ) — карта одразу на ньому, а не на всій Україні */
+                        startLat = cfg.taxiCity.lat;
+                        startLng = cfg.taxiCity.lng;
+                        z = cfg.taxiCity.zoom || 12;
                     } else if (npCityLat != null && npCityLng != null) {
                         startLat = npCityLat;
                         startLng = npCityLng;
@@ -1721,7 +1724,8 @@
                     if (!btn) return;
                     e.preventDefault();
                     e.stopPropagation();
-                    var inCourier = !!(btn.closest('#courier-map') || btn.closest('#courier-map-manual'));
+                    /* Таксі малюється тією ж картою адреси (courierLeafletMarker), лише в контейнері #taxi-map */
+                    var inCourier = !!(btn.closest('#courier-map') || btn.closest('#courier-map-manual') || btn.closest('#taxi-map'));
                     if (inCourier) {
                         if (cfg.useGoogleMaps && courierGoogleInfoWindow) {
                             courierGoogleInfoWindow.close();

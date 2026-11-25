@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\ListingPhotoDerivative;
+use App\Support\OptionLabel;
 use App\Support\SchemaCache;
 use App\Support\StoragePublicPath;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -124,7 +125,7 @@ class OrderItem extends Model
                 continue;
             }
             $groupName = trim((string) ($group?->name ?? ''));
-            $parts[] = $groupName !== '' ? $groupName.': '.$value->name : (string) $value->name;
+            $parts[] = OptionLabel::join($groupName, (string) $value->name);
         }
 
         if ($parts === []) {

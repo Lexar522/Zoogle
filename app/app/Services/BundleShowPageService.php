@@ -6,6 +6,7 @@ use App\Models\Bundle;
 use App\Models\OptionGroup;
 use App\Models\OptionValue;
 use App\Support\ListingOptionValuePrices;
+use App\Support\OptionLabel;
 use App\Support\StorefrontOptionCatalog;
 
 class BundleShowPageService
@@ -237,7 +238,7 @@ class BundleShowPageService
                 continue;
             }
 
-            $label = trim(($row['group_name'] !== '' ? $row['group_name'].': ' : '').$row['value_name']);
+            $label = OptionLabel::join((string) $row['group_name'], (string) $row['value_name']);
             $row['label'] = $label !== '' ? $label : $row['value_name'];
             $items[] = $row;
         }

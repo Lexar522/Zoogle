@@ -10,6 +10,7 @@ use App\Models\OptionValue;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Support\ListingPhotoUpload;
+use App\Support\OptionLabel;
 use App\Support\VariantOptionsAllowlist;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
@@ -222,7 +223,7 @@ class ProductVariantsRelationManager extends RelationManager
                                 continue;
                             }
 
-                            $parts[] = $groupName.': '.$valueName;
+                            $parts[] = OptionLabel::join($groupName, $valueName);
                         }
 
                         return implode(', ', $parts);

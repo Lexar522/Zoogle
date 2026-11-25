@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\PromotionTarget;
 use App\Support\CatalogProductsTable;
+use App\Support\OptionLabel;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -251,7 +252,7 @@ final class PromotionTargetLabels
             $g = OptionGroup::query()->whereKey($gid)->value('name');
             $name = OptionValue::query()->whereKey($vid)->value('name');
             if ($g && $name) {
-                $optParts[] = $g.': '.$name;
+                $optParts[] = OptionLabel::join((string) $g, (string) $name);
             }
         }
         if ($optParts !== []) {
