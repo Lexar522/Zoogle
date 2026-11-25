@@ -235,7 +235,7 @@
     @include('partials.shop-mobile-menu')
 
     <div class="site-shell">
-        <div class="container site-main">
+        <main id="main-content" class="container site-main">
             @if (session('success'))
                 <div class="alert success" role="status">{{ session('success') }}</div>
             @endif
@@ -255,7 +255,7 @@
             @else
                 @yield('content')
             @endif
-        </div>
+        </main>
     </div>
 
     @include('partials.shop-footer')

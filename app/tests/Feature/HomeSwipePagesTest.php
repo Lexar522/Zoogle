@@ -13,9 +13,10 @@ class HomeSwipePagesTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_home_lists_are_split_into_swipe_pages_of_four_with_dots(): void
+    /** Хіти й рекомендовані: по 8 товарів на сторінку (телефон і комп'ютер), далі — стрілки й точки. */
+    public function test_home_lists_are_split_into_pages_of_eight_with_dots(): void
     {
-        foreach (range(1, 6) as $i) {
+        foreach (range(1, 10) as $i) {
             ShopHomeListItem::query()->create([
                 'list' => ShopHomeListItem::LIST_BESTSELLERS,
                 'product_id' => $this->product("Хіт {$i}")->id,
@@ -26,17 +27,20 @@ class HomeSwipePagesTest extends TestCase
         $html = (string) $this->get(route('home'))->assertOk()->getContent();
         $hits = $this->between($html, 'home-hits-heading', '</section>');
 
+        $this->assertStringContainsString('home-product-carousel--paged', $hits);
         $this->assertSame(2, substr_count($hits, 'class="home-product-carousel__page"'));
-        $this->assertSame(6, substr_count($hits, 'class="home-product-carousel__cell"'));
+        $this->assertSame(10, substr_count($hits, 'class="home-product-carousel__cell"'));
         $this->assertSame(2, substr_count($hits, 'data-carousel-page-dot'));
         $this->assertStringContainsString('data-carousel-page-prev', $hits);
         $this->assertStringContainsString('data-carousel-page-next', $hits);
-        $this->assertLessThan(strpos($hits, 'Хіт 5'), strpos($hits, 'Хіт 4'));
+        $firstPage = explode('class="home-product-carousel__page"', $hits)[1];
+        $this->assertStringContainsString('Хіт 8', $firstPage);
+        $this->assertStringNotContainsString('Хіт 9', $firstPage);
     }
 
-    public function test_four_or_fewer_products_have_no_page_dots(): void
+    public function test_eight_or_fewer_products_have_no_page_dots(): void
     {
-        foreach (range(1, 3) as $i) {
+        foreach (range(1, 8) as $i) {
             ShopHomeListItem::query()->create([
                 'list' => ShopHomeListItem::LIST_BESTSELLERS,
                 'product_id' => $this->product("Хіт {$i}")->id,

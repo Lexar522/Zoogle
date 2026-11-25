@@ -189,12 +189,12 @@ class ManageHomeProductLists extends Page
     public function form(Schema $schema): Schema
     {
         $productSelect = static function (): Select {
-            // Повний список у options + searchable() — фільтрація в інтерфейсі Filament (надійніше за лише getSearchResultsUsing у Livewire).
+            // Каталог шукаємо на сервері: повний список у кожному рядку робив сторінку в кілька МБ і гальмував адмінку.
             return Select::make('product_id')
                 ->label('Товар')
                 ->searchable()
-                ->helperText('Пошук лише за назвою: введіть частину назви або оберіть зі списку (до 2000 товарів за алфавітом).')
-                ->options(fn (): array => ProductAdminSelectSearch::titleChoices())
+                ->helperText('Введіть частину назви або артикул товару.')
+                ->getSearchResultsUsing(fn (string $search): array => ProductAdminSelectSearch::search($search))
                 ->getOptionLabelUsing(fn ($value): ?string => ProductAdminSelectSearch::titleForId((int) $value))
                 ->native(false);
         };

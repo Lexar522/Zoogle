@@ -170,6 +170,7 @@ return [
     'footer_admin' => 'Панель адміністратора',
 
     'footer_copyright' => 'Всі права захищені.',
+    'footer_site_version' => 'Версія :version · оновлено :date',
 
     'footer_social_block_title' => 'Зв’язок і соцмережі',
     'footer_info_block_title' => 'Інформація',
@@ -562,7 +563,6 @@ return [
     'reviews_body_placeholder' => 'Що сподобалось, як товар у користуванні, чи підійшов улюбленцю…',
     'reviews_submit' => 'Надіслати відгук',
     'reviews_sent' => "Дякуємо! Відгук з'явиться на сайті після перевірки.",
-    'reviews_moderation_note' => "Відгуки публікуються після перевірки. На сайті видно лише ім'я.",
     'reviews_average_aria' => 'Оцінка :rating з 5',
     'reviews_delete' => 'Видалити відгук',
     'reviews_delete_confirm' => 'Видалити цей відгук назавжди?',

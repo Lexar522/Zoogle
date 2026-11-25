@@ -307,13 +307,28 @@
     display: none !important;
 }
 
-/* Хіти / рекомендовані: товари згруповані сторінками по 4.
-   Комп'ютер — сторінки «розчиняються» в звичайній сітці; телефон — свайп сторінками 2×2. */
+/* Хіти / рекомендовані (по 8) і схожі товари (по 4) згруповані сторінками.
+   Комп'ютер — сторінки «розчиняються» в звичайній сітці; телефон — свайп сторінками у 2 колонки. */
 .home-product-carousel__page {
     display: contents;
 }
 .home-product-carousel__dots {
     display: none;
+}
+/* Хіти й рекомендовані на комп'ютері: видно одну сторінку (8 товарів у звичайній сітці), стрілки й точки
+   перемикають сторінки без прокрутки — інакше контейнер прокрутки обрізав би тінь і підйом карток. */
+@media (min-width: 769px) {
+    .home-product-carousel--paged:not([data-pages-ready]) .home-product-carousel__page:not(:first-child),
+    .home-product-carousel--paged .home-product-carousel__page[hidden] {
+        display: none !important;
+    }
+    .home-product-carousel.home-product-carousel--paged .home-product-carousel__dots {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        margin-top: 14px;
+    }
 }
 @media (max-width: 768px) {
     .home-product-carousel.home-product-carousel--mobile-feed .home-product-carousel__viewport {
@@ -355,47 +370,59 @@
         gap: 14px;
         margin-top: 12px;
     }
-    .home-product-carousel__dot-list {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-    }
-    .home-product-carousel__page-arrow {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 38px;
-        height: 38px;
-        padding: 0;
-        border: 1px solid #e4e7ec;
-        border-radius: 50%;
-        background: #fff;
-        color: #1d1d1f;
-        cursor: pointer;
-        box-shadow: 0 6px 14px rgba(15, 23, 42, 0.1);
-        transition: opacity 0.2s ease, transform 0.15s ease;
-        -webkit-tap-highlight-color: transparent;
-    }
-    .home-product-carousel__page-arrow:active {
-        transform: scale(0.94);
-    }
-    .home-product-carousel__page-arrow:disabled {
-        opacity: 0.35;
-        cursor: default;
-        box-shadow: none;
-    }
-    .home-product-carousel__dot {
-        width: 9px;
-        height: 9px;
-        padding: 0;
-        border: 0;
-        border-radius: 999px;
-        background: #c7c7cc;
-        cursor: pointer;
-        transition: width 0.2s ease, background-color 0.2s ease;
-    }
-    .home-product-carousel__dot[aria-current="true"] {
-        width: 24px;
-        background: #ef3829;
-    }
+}
+
+/* Стрілки й точки під сторінками (видимість задають правила для телефону й --paged вище) */
+.home-product-carousel__dot-list {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+}
+.home-product-carousel__page-arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border: 1px solid #e4e7ec;
+    border-radius: 50%;
+    background: #fff;
+    color: #1d1d1f;
+    cursor: pointer;
+    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.1);
+    transition: opacity 0.2s ease, transform 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+.home-product-carousel__page-arrow:active {
+    transform: scale(0.94);
+}
+.home-product-carousel__page-arrow:disabled {
+    opacity: 0.35;
+    cursor: default;
+    box-shadow: none;
+}
+/* Кнопка 24px заввишки (область дотику), видима точка — ::before */
+.home-product-carousel__dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 4px;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+}
+.home-product-carousel__dot::before {
+    content: '';
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: #c7c7cc;
+    transition: width 0.2s ease, background-color 0.2s ease;
+}
+.home-product-carousel__dot[aria-current="true"]::before {
+    width: 24px;
+    background: #ef3829;
 }

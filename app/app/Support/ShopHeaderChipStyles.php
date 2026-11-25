@@ -82,7 +82,7 @@ final class ShopHeaderChipStyles
             $out[$i] = [
                 'accent' => $slot['accent'],
                 'tint' => $slot['tint'],
-                'text' => $slot['accent'],
+                'text' => ReadableColor::onWhite($slot['accent']),
                 'hover_bg' => $slot['accent'],
                 'hover_text' => '#ffffff',
                 'active_bg' => $slot['accent'],
@@ -281,7 +281,12 @@ final class ShopHeaderChipStyles
 
             $accent = self::nullableColor($slot['accent'] ?? null) ?? $defaults['accent'];
             $tint = self::nullableColor($slot['tint'] ?? null) ?? $defaults['tint'];
-            $text = self::nullableColor($slot['text'] ?? null) ?? $accent;
+            // Текст, не обраний окремо (порожній або той самий, що акцент, — так його раніше заповнювала форма),
+            // — читабельний темніший відтінок акценту: яскравий жовтий чи блакитний на білому ледь видно.
+            $text = self::nullableColor($slot['text'] ?? null);
+            if ($text === null || strcasecmp($text, $accent) === 0) {
+                $text = ReadableColor::onWhite($accent);
+            }
             $hoverBg = self::nullableColor($slot['hover_bg'] ?? null) ?? $accent;
             $hoverText = self::nullableColor($slot['hover_text'] ?? null) ?? '#ffffff';
             $activeBg = self::nullableColor($slot['active_bg'] ?? null) ?? $accent;

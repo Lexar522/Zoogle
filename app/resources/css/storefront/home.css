@@ -39,10 +39,10 @@
     line-height: 1.15;
 }
 .home-shop-panel.home-shop-panel--hits .home-shop-panel__title {
-    color: var(--color-cta);
+    color: var(--color-cta-ink);
 }
 .home-shop-panel.home-shop-panel--recommended .home-shop-panel__title {
-    color: var(--color-buy);
+    color: var(--color-buy-ink);
 }
 .home-shop-panel__lead {
     margin: 0.35rem 0 0;
@@ -66,11 +66,11 @@
     box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
 }
 .home-section-badge--popular {
-    background: var(--color-cta);
+    background: var(--color-cta-ink);
     box-shadow: 0 10px 24px rgba(var(--color-cta-rgb), 0.28);
 }
 .home-section-badge--recommended {
-    background: var(--color-buy);
+    background: var(--color-buy-ink);
     box-shadow: 0 10px 24px rgba(var(--color-buy-rgb), 0.28);
 }
 .home-shop-panel.home-shop-panel--premium {
@@ -232,13 +232,13 @@
     filter: saturate(1.08) brightness(1.02);
 }
 .home-page .product-card__badge--hit {
-    background: var(--color-cta);
+    background: var(--color-cta-ink);
     box-shadow:
         0 10px 22px rgba(var(--color-cta-rgb), 0.3),
         0 0 0 1px rgba(255, 255, 255, 0.2) inset;
 }
 .home-page .product-card__badge--recommended {
-    background: var(--color-buy);
+    background: var(--color-buy-ink);
     box-shadow:
         0 10px 22px rgba(var(--color-buy-rgb), 0.3),
         0 0 0 1px rgba(255, 255, 255, 0.2) inset;

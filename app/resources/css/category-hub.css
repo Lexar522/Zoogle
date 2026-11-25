@@ -2007,6 +2007,13 @@
     --hub-chip-bg-5: rgba(51, 152, 59, 0.12);
     --hub-chip-color-6: #ee3c2b;
     --hub-chip-bg-6: rgba(238, 60, 43, 0.12);
+    /* Темніші відтінки для тексту (контраст ≥ 4.5, App\Support\ReadableColor): яскравий колір лишається на рамках і фоні */
+    --hub-chip-ink-1: #3069c4;
+    --hub-chip-ink-2: #cc2e21;
+    --hub-chip-ink-3: #8d6501;
+    --hub-chip-ink-4: #306ac7;
+    --hub-chip-ink-5: #297b30;
+    --hub-chip-ink-6: #ca3325;
     --hub-chip-shadow-sort:
         0 12px 24px rgba(15, 23, 42, 0.08),
         0 4px 10px rgba(15, 23, 42, 0.04);
@@ -2445,7 +2452,7 @@
 .catalog-category-hub [data-hub-chip-color="1"] {
     --hub-chip-accent: var(--hub-chip-color-1);
     --hub-chip-tint: var(--hub-chip-bg-1);
-    --hub-chip-text: var(--hub-chip-text-1, var(--hub-chip-color-1));
+    --hub-chip-text: var(--hub-chip-text-1, var(--hub-chip-ink-1));
     --hub-chip-hover-bg: var(--hub-chip-hover-bg-1, var(--hub-chip-color-1));
     --hub-chip-hover-text: var(--hub-chip-hover-text-1, #ffffff);
     --hub-chip-active-bg: var(--hub-chip-active-bg-1, var(--hub-chip-color-1));
@@ -2455,7 +2462,7 @@
 .catalog-category-hub [data-hub-chip-color="2"] {
     --hub-chip-accent: var(--hub-chip-color-2);
     --hub-chip-tint: var(--hub-chip-bg-2);
-    --hub-chip-text: var(--hub-chip-text-2, var(--hub-chip-color-2));
+    --hub-chip-text: var(--hub-chip-text-2, var(--hub-chip-ink-2));
     --hub-chip-hover-bg: var(--hub-chip-hover-bg-2, var(--hub-chip-color-2));
     --hub-chip-hover-text: var(--hub-chip-hover-text-2, #ffffff);
     --hub-chip-active-bg: var(--hub-chip-active-bg-2, var(--hub-chip-color-2));
@@ -2465,7 +2472,7 @@
 .catalog-category-hub [data-hub-chip-color="3"] {
     --hub-chip-accent: var(--hub-chip-color-3);
     --hub-chip-tint: var(--hub-chip-bg-3);
-    --hub-chip-text: var(--hub-chip-text-3, var(--hub-chip-color-3));
+    --hub-chip-text: var(--hub-chip-text-3, var(--hub-chip-ink-3));
     --hub-chip-hover-bg: var(--hub-chip-hover-bg-3, var(--hub-chip-color-3));
     --hub-chip-hover-text: var(--hub-chip-hover-text-3, #ffffff);
     --hub-chip-active-bg: var(--hub-chip-active-bg-3, var(--hub-chip-color-3));
@@ -2475,7 +2482,7 @@
 .catalog-category-hub [data-hub-chip-color="4"] {
     --hub-chip-accent: var(--hub-chip-color-4);
     --hub-chip-tint: var(--hub-chip-bg-4);
-    --hub-chip-text: var(--hub-chip-text-4, var(--hub-chip-color-4));
+    --hub-chip-text: var(--hub-chip-text-4, var(--hub-chip-ink-4));
     --hub-chip-hover-bg: var(--hub-chip-hover-bg-4, var(--hub-chip-color-4));
     --hub-chip-hover-text: var(--hub-chip-hover-text-4, #ffffff);
     --hub-chip-active-bg: var(--hub-chip-active-bg-4, var(--hub-chip-color-4));
@@ -2485,7 +2492,7 @@
 .catalog-category-hub [data-hub-chip-color="5"] {
     --hub-chip-accent: var(--hub-chip-color-5);
     --hub-chip-tint: var(--hub-chip-bg-5);
-    --hub-chip-text: var(--hub-chip-text-5, var(--hub-chip-color-5));
+    --hub-chip-text: var(--hub-chip-text-5, var(--hub-chip-ink-5));
     --hub-chip-hover-bg: var(--hub-chip-hover-bg-5, var(--hub-chip-color-5));
     --hub-chip-hover-text: var(--hub-chip-hover-text-5, #ffffff);
     --hub-chip-active-bg: var(--hub-chip-active-bg-5, var(--hub-chip-color-5));
@@ -2495,7 +2502,7 @@
 .catalog-category-hub [data-hub-chip-color="6"] {
     --hub-chip-accent: var(--hub-chip-color-6);
     --hub-chip-tint: var(--hub-chip-bg-6);
-    --hub-chip-text: var(--hub-chip-text-6, var(--hub-chip-color-6));
+    --hub-chip-text: var(--hub-chip-text-6, var(--hub-chip-ink-6));
     --hub-chip-hover-bg: var(--hub-chip-hover-bg-6, var(--hub-chip-color-6));
     --hub-chip-hover-text: var(--hub-chip-hover-text-6, #ffffff);
     --hub-chip-active-bg: var(--hub-chip-active-bg-6, var(--hub-chip-color-6));
@@ -2529,7 +2536,7 @@
 
 .catalog-filters.catalog-filters--in-header .catalog-category-list--hub-rest > li > .catalog-category-list__row--top .catalog-category-list__link,
 .catalog-filters.catalog-filters--in-header .catalog-category-hub__panel-head .catalog-category-list__row--top .catalog-category-list__link {
-    color: var(--hub-chip-accent);
+    color: var(--hub-chip-text, var(--hub-chip-accent));
     background: transparent;
     box-shadow: none;
     border-color: transparent;
@@ -2651,7 +2658,7 @@
 .catalog-filters.catalog-filters--in-header .catalog-category-hub__panel:not(.catalog-category-hub__panel--subs-collapsed) .catalog-category-hub__panel-head .catalog-category-list__row--top:not(:has(> .catalog-category-list__link.is-active)) {
     background: var(--hub-chip-tint);
     border: 0;
-    color: var(--hub-chip-accent);
+    color: var(--hub-chip-text, var(--hub-chip-accent));
 }
 
 .catalog-filters.catalog-filters--in-header .catalog-category-list--hub-rest > li > .catalog-category-list__link.is-active:hover,
@@ -2674,7 +2681,7 @@
 }
 
 .catalog-filters.catalog-filters--in-header .catalog-category-hub__panel:not(.catalog-category-hub__panel--subs-collapsed) .catalog-category-hub__panel-head .catalog-category-list__row--top .catalog-category-list__link:not(.is-active) {
-    color: var(--hub-chip-accent);
+    color: var(--hub-chip-text, var(--hub-chip-accent));
     font-weight: 700;
 }
 
@@ -2692,7 +2699,7 @@
 .catalog-filters.catalog-filters--in-header .catalog-category-hub__panel-head .catalog-category-list__row--top .catalog-category-list__expand {
     background: var(--hub-chip-tint);
     border-color: var(--hub-chip-accent);
-    color: var(--hub-chip-accent);
+    color: var(--hub-chip-text, var(--hub-chip-accent));
     box-shadow: none;
 }
 
@@ -2713,7 +2720,7 @@
 .catalog-filters.catalog-filters--in-header .catalog-category-hub__panel:not(.catalog-category-hub__panel--subs-collapsed) .catalog-category-hub__panel-head .catalog-category-list__row--top:not(:has(> .catalog-category-list__link.is-active)):not(:hover):not(:focus-within) .catalog-category-list__expand {
     background: var(--hub-chip-tint);
     border-color: var(--hub-chip-accent);
-    color: var(--hub-chip-accent);
+    color: var(--hub-chip-text, var(--hub-chip-accent));
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
 }
 
@@ -2721,7 +2728,7 @@
 .catalog-filters.catalog-filters--in-header .catalog-category-hub__panel-head .catalog-category-list__row--top:has(> .catalog-category-list__link.is-active) .catalog-category-list__expand {
     background: #ffffff;
     border-color: var(--hub-chip-accent);
-    color: var(--hub-chip-accent);
+    color: var(--hub-chip-text, var(--hub-chip-accent));
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
 }
 
@@ -2752,7 +2759,7 @@
     background: var(--hub-chip-tint);
     border: 0;
     box-shadow: var(--hub-chip-shadow-sort);
-    color: var(--hub-chip-accent);
+    color: var(--hub-chip-text, var(--hub-chip-accent));
 }
 
 /* Розгорнуті L1 (is-panel-open / бокова панель з підкатегоріями): hover — суцільний accent як sort chips */
@@ -2895,7 +2902,7 @@
 .catalog-filters.catalog-filters--in-header .catalog-category-hub__panel-head .catalog-category-list__expand[aria-expanded="false"] {
     background: var(--hub-chip-tint);
     border-color: var(--hub-chip-accent);
-    color: var(--hub-chip-accent);
+    color: var(--hub-chip-text, var(--hub-chip-accent));
     box-shadow: none;
 }
 
@@ -2907,7 +2914,7 @@
 .catalog-filters.catalog-filters--in-header .catalog-category-hub__panel-head .catalog-category-list__row--top:has(.catalog-category-list__expand:hover) .catalog-category-list__expand {
     background: var(--hub-chip-tint);
     border-color: var(--hub-chip-accent);
-    color: var(--hub-chip-accent);
+    color: var(--hub-chip-text, var(--hub-chip-accent));
     box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
     outline: none;
 }

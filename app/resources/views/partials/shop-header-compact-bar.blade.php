@@ -7,7 +7,8 @@
             <div class="site-header__zone site-header__zone--center">
                 <a href="{{ route('home') }}" class="site-logo" aria-label="{{ __('shop.logo_aria') }}">
                     <img
-                        src="{{ asset('images/zoogle-logo-new.png') }}"
+                        src="{{ asset('images/zoogle-logo-new-506.webp') }}"
+                        srcset="{{ asset('images/zoogle-logo-new-506.webp') }} 506w, {{ asset('images/zoogle-logo-new-1012.webp') }} 1012w"
                         alt=""
                         class="site-logo__img"
                         width="1484"

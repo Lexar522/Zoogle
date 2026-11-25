@@ -119,7 +119,8 @@
                 'alt' => '',
                 'catalogCard' => true,
                 'deferSrc' => \App\Models\ShopMediaSetting::optimizeImagesEnabled() && $eagerImage >= 4,
-                'fetchpriority' => \App\Models\ShopMediaSetting::optimizeImagesEnabled() && $eagerImage === 0 ? 'high' : null,
+                // Вище за картки може стояти банер — тоді найбільший елемент екрана він, а не фото картки.
+                'fetchpriority' => \App\Models\ShopMediaSetting::optimizeImagesEnabled() && $eagerImage === 0 && ($cardImageHighPriority ?? true) ? 'high' : null,
             ])
         </div>
     @else

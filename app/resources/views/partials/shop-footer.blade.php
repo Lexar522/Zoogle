@@ -275,6 +275,9 @@
     <div class="site-footer__bottom">
         <div class="container site-footer__bottom-inner">
             <span>&copy; {{ date('Y') }} ZOOGLE. {{ __('shop.footer_copyright') }}</span>
+            @if (request()->routeIs('home') && ($siteVersion = \App\Support\SiteRelease::version()) !== null)
+                <span class="site-footer__version">{{ __('shop.footer_site_version', ['version' => $siteVersion, 'date' => \App\Support\SiteRelease::deployedAt()?->format('d.m.Y') ?? '—']) }}</span>
+            @endif
         </div>
     </div>
 </footer>

@@ -41,6 +41,8 @@
         var autoTimer = null;
         var AUTO_INTERVAL_MS = 5000;
         var wasScrollable = false;
+        /** 'grid' | 'carousel' | null — щоб resize не скидав прокрутку, якщо режим не змінився */
+        var currentMode = null;
 
         function measureLoopWidth() {
             if (!track) return;
@@ -387,6 +389,12 @@
         }
 
         function enterGridMode() {
+            /* На телефоні адресний рядок ховається під час гортання сторінки й шле resize:
+               без цієї перевірки свайп-сторінки «Хітів» щоразу поверталися на першу */
+            if (currentMode === 'grid') {
+                return;
+            }
+            currentMode = 'grid';
             stopAutoAdvance();
             if (smoothAnimRaf !== null) {
                 cancelAnimationFrame(smoothAnimRaf);
@@ -405,6 +413,7 @@
         }
 
         function enterCarouselMode() {
+            currentMode = 'carousel';
             buildLoopSlides();
             ensureTrackLongEnoughForLoop();
             measureLoopWidth();

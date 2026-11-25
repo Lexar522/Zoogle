@@ -50,10 +50,10 @@
                 @foreach ($reviews as $review)
                     <li class="pdp-review">
                         <div class="pdp-review__meta">
+                            <strong class="pdp-review__name">{{ $review->publicName() }}</strong>
                             <span class="pdp-stars pdp-stars--sm" role="img" aria-label="{{ __('shop.reviews_average_aria', ['rating' => $review->rating]) }}">
                                 <span class="pdp-stars__fill" style="width: {{ $review->rating / \App\Models\ProductReview::RATING_MAX * 100 }}%"></span>
                             </span>
-                            <strong class="pdp-review__name">{{ $review->publicName() }}</strong>
                             @if ($review->is_verified_buyer)
                                 <span class="pdp-review__verified">✓ {{ __('shop.reviews_verified') }}</span>
                             @endif
@@ -80,6 +80,14 @@
                     <label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label>
                 </div>
 
+                <label class="pdp-reviews__field">
+                    <span>{{ __('shop.reviews_name') }}</span>
+                    <input type="text" name="author_name" maxlength="80" required value="{{ $reviewOld('author_name', auth()->user()?->name) }}" autocomplete="given-name">
+                    @if ($reviewErrors->has('author_name'))
+                        <span class="pdp-reviews__error">{{ $reviewErrors->first('author_name') }}</span>
+                    @endif
+                </label>
+
                 <fieldset class="pdp-reviews__rating">
                     <legend>{{ __('shop.reviews_rating') }}</legend>
                     <div class="pdp-rate">
@@ -96,14 +104,6 @@
                 </fieldset>
 
                 <label class="pdp-reviews__field">
-                    <span>{{ __('shop.reviews_name') }}</span>
-                    <input type="text" name="author_name" maxlength="80" required value="{{ $reviewOld('author_name', auth()->user()?->name) }}" autocomplete="given-name">
-                    @if ($reviewErrors->has('author_name'))
-                        <span class="pdp-reviews__error">{{ $reviewErrors->first('author_name') }}</span>
-                    @endif
-                </label>
-
-                <label class="pdp-reviews__field">
                     <span>{{ __('shop.reviews_body') }}</span>
                     <textarea name="body" rows="4" maxlength="2000" required placeholder="{{ __('shop.reviews_body_placeholder') }}">{{ $reviewOld('body') }}</textarea>
                     @if ($reviewErrors->has('body'))
@@ -111,7 +111,6 @@
                     @endif
                 </label>
 
-                <p class="pdp-reviews__note">{{ __('shop.reviews_moderation_note') }}</p>
                 <button type="submit" class="pdp-reviews__submit">{{ __('shop.reviews_submit') }}</button>
             </form>
         </details>

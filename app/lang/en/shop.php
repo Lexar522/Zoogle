@@ -170,6 +170,7 @@ return [
     'footer_admin' => 'Admin panel',
 
     'footer_copyright' => 'All rights reserved.',
+    'footer_site_version' => 'Version :version · updated :date',
 
     'footer_social_block_title' => 'Contact & social',
     'footer_info_block_title' => 'Information',
@@ -561,7 +562,6 @@ return [
     'reviews_body_placeholder' => 'What you liked, how it works in use, did it suit your pet…',
     'reviews_submit' => 'Send review',
     'reviews_sent' => 'Thank you! Your review will appear after moderation.',
-    'reviews_moderation_note' => 'Reviews are published after moderation. Only your first name is shown.',
     'reviews_average_aria' => 'Rated :rating out of 5',
     'reviews_delete' => 'Delete review',
     'reviews_delete_confirm' => 'Delete this review permanently?',

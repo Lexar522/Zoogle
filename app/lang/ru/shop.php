@@ -170,6 +170,7 @@ return [
     'footer_admin' => 'Панель администратора',
 
     'footer_copyright' => 'Все права защищены.',
+    'footer_site_version' => 'Версия :version · обновлено :date',
 
     'footer_social_block_title' => 'Связь и соцсети',
     'footer_info_block_title' => 'Информация',
@@ -561,7 +562,6 @@ return [
     'reviews_body_placeholder' => 'Что понравилось, как товар в использовании, подошёл ли питомцу…',
     'reviews_submit' => 'Отправить отзыв',
     'reviews_sent' => 'Спасибо! Отзыв появится на сайте после проверки.',
-    'reviews_moderation_note' => 'Отзывы публикуются после проверки. На сайте видно только имя.',
     'reviews_average_aria' => 'Оценка :rating из 5',
     'reviews_delete' => 'Удалить отзыв',
     'reviews_delete_confirm' => 'Удалить этот отзыв навсегда?',

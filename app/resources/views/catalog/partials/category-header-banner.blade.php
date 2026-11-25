@@ -8,11 +8,10 @@
     $hasSlides = count($headerBanners) > 0;
 @endphp
 
-@once
-@push('styles')
+{{-- Ключ спільний із головною: там цей CSS уже входить у home-page.css --}}
+@pushOnce('styles', 'storefront-header-banner-css')
 @vite('resources/css/storefront/header-banner.css')
-@endpush
-@endonce
+@endPushOnce
 
 @if (! $hasSlides)
     <a
@@ -55,6 +54,7 @@
                                     src="{{ $slide['imageUrl'] }}"
                                     alt="{{ $alt }}"
                                     loading="{{ $index === 0 ? 'eager' : 'lazy' }}"
+                                    @if ($index === 0) fetchpriority="high" @endif
                                     decoding="async"
                                     draggable="false"
                                 >
@@ -71,6 +71,7 @@
                                     src="{{ $slide['imageUrl'] }}"
                                     alt="{{ $alt }}"
                                     loading="{{ $index === 0 ? 'eager' : 'lazy' }}"
+                                    @if ($index === 0) fetchpriority="high" @endif
                                     decoding="async"
                                     draggable="false"
                                 >

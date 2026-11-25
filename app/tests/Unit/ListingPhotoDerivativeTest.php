@@ -55,6 +55,33 @@ class ListingPhotoDerivativeTest extends TestCase
         $this->assertStringContainsString('shot.card.webp', ListingPhotoDerivative::cardUrlForPath('products/1/photos/shot.jpg'));
     }
 
+    /** Телефон бере копію 320px замість 640px: картка там лише ~170px завширшки. */
+    public function test_card_copy_comes_with_small_copy_for_phones(): void
+    {
+        if (! function_exists('imagewebp') || ! function_exists('imagecreatefromjpeg')) {
+            $this->markTestSkipped('GD webp/jpeg недоступний');
+        }
+
+        $image = imagecreatetruecolor(1200, 800);
+        $tmp = tempnam(sys_get_temp_dir(), 'zoogle-jpg');
+        imagejpeg($image, $tmp, 90);
+        imagedestroy($image);
+        Storage::disk('public')->put('products/1/photos/small.jpg', (string) file_get_contents($tmp));
+        @unlink($tmp);
+
+        $this->assertSame('', ListingPhotoDerivative::thumbUrlForPath('products/1/photos/small.jpg'), 'Без копії srcset не потрібен');
+
+        ListingPhotoDerivative::ensureForStoredPath('products/1/photos/small.jpg');
+
+        $thumb = 'products/1/photos/small.thumb.webp';
+        $this->assertTrue(Storage::disk('public')->exists($thumb));
+        $this->assertTrue(ListingPhotoDerivative::isDerivativePath($thumb));
+        $info = getimagesize(Storage::disk('public')->path($thumb));
+        $this->assertIsArray($info);
+        $this->assertSame(320, max($info[0], $info[1]));
+        $this->assertStringContainsString('small.thumb.webp', ListingPhotoDerivative::thumbUrlForPath('products/1/photos/small.jpg'));
+    }
+
     public function test_switch_off_serves_original_instead_of_card_copy(): void
     {
         if (! function_exists('imagewebp') || ! function_exists('imagecreatefromjpeg')) {

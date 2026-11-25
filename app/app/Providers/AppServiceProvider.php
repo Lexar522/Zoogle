@@ -10,7 +10,9 @@ use App\Services\CartDrawerService;
 use App\Support\ShopFooterViewData;
 use App\Support\ShopHeaderContacts;
 use App\Support\StorefrontViewCache;
+use Filament\Forms\Components\Repeater;
 use Filament\Pages\BasePage;
+use Filament\Resources\Pages\Page as ResourcePage;
 use Filament\Schemas\Components\Section;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -41,7 +43,12 @@ class AppServiceProvider extends ServiceProvider
         // На телефоні таблиці адмінки йдуть картками, а «Зберегти» завжди під рукою.
         Table::configureUsing(fn (Table $table): Table => $table->stackedOnMobile());
         BasePage::stickyFormActions();
-        Section::configureUsing(fn (Section $section): Section => $section->collapsible());
+        Section::configureUsing(fn (Section $section): Section => $section
+            ->collapsible()
+            ->collapsed(fn (Section $component, $livewire): bool => self::opensCollapsed($component, $livewire)));
+        // Згорнутий рядок показує лише заголовок, тому без itemLabel він був би порожньою смужкою.
+        Repeater::configureUsing(fn (Repeater $repeater): Repeater => $repeater
+            ->collapsed(fn (Repeater $component): bool => $component->hasItemLabels()));
 
         Relation::enforceMorphMap([
             'user' => User::class,
@@ -59,5 +66,17 @@ class AppServiceProvider extends ServiceProvider
             $view->with('hasShopHeaderContacts', $shopHeaderContactItems !== []);
             $view->with('shopFooter', ShopFooterViewData::forRequest());
         });
+    }
+
+    /**
+     * Сторінки налаштувань (головна, футер, інтеграції…) відкриваються згорнутими — так вони малюються швидше.
+     * Форми товарів, замовлень і модалки лишаються розгорнутими: там заповнюють усі поля підряд.
+     * Секцію без заголовка не згортаємо — її не було б чим розгорнути.
+     */
+    private static function opensCollapsed(Section $section, mixed $livewire): bool
+    {
+        return filled($section->getHeading())
+            && $livewire instanceof BasePage
+            && ! $livewire instanceof ResourcePage;
     }
 }

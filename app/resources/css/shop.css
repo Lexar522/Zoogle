@@ -21,6 +21,9 @@
             --color-buy: #339a39;
             --color-buy-hover: #2d8630;
             --color-buy-rgb: 51, 154, 57;
+            /* Ті самі червоний і зелений, трохи темніші — для тексту на білому й білого тексту на них (контраст ≥ 4.5) */
+            --color-cta-ink: #dc3426;
+            --color-buy-ink: #2c8632;
             --color-accent: #feb400;
             --color-accent-rgb: 254, 180, 0;
             --contact-phone: #ef3829;
@@ -607,6 +610,9 @@
             position: relative;
             z-index: 2;
             flex-shrink: 0;
+            /* Мінімальна область дотику 24×24 (PageSpeed: «Області дотику мають недостатній розмір») */
+            min-width: 24px;
+            min-height: 24px;
         }
         .site-header__search-icon-btn:hover {
             color: #202124;
@@ -5188,6 +5194,7 @@
             flex: 0 0 auto;
             display: inline-flex;
             align-items: center;
+            min-height: 24px;
             line-height: 0;
             text-decoration: none;
         }
@@ -5651,12 +5658,14 @@
         .site-footer__bottom {
             border-top: none;
             padding: 10px 0;
-            color: var(--muted, #667085);
+            /* Трохи темніше за --muted: на сірому тлі футера #667085 давав контраст 4.4 замість 4.5 */
+            color: #5d6679;
             font-size: 0.78rem;
             font-weight: 600;
             background: transparent;
         }
-        .site-footer__bottom-inner { display: flex; justify-content: center; text-align: center; }
+        .site-footer__bottom-inner { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 12px; text-align: center; }
+        .site-footer__version { font-weight: 500; opacity: 0.75; }
 
         /* Компактний хаб (≤1199): на планшеті/вузькому десктопі — по центру як home (80vw) */
         @media (max-width: 1199px) and (min-width: 769px) {
@@ -7166,17 +7175,19 @@ body {
     display: none;
 }
 
+/* Без overflow: hidden — інакше рамка обраного кольору й збільшення при наведенні обрізались.
+   Довгий підпис скорочує сам .product-card__colors-label (min-width: 0 + ellipsis). */
 .product-card__meta {
     display: flex;
     align-items: center;
-    gap: 5px;
-    height: 16px;
+    /* 14px кружечок + 10px проміжок = 24px між центрами: мінімум для дотику пальцем */
+    gap: 10px;
+    height: 20px;
     min-width: 0;
-    overflow: hidden;
 }
 .product-card__color-dot {
-    width: 11px;
-    height: 11px;
+    width: 14px;
+    height: 14px;
     flex: 0 0 auto;
     padding: 0;
     border: 0;
@@ -7186,7 +7197,15 @@ body {
     box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.22);
     cursor: pointer;
     pointer-events: auto;
+    position: relative;
     transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+/* Невидима зона натискання 24×24 навколо кружечка */
+.product-card__color-dot::before {
+    content: '';
+    position: absolute;
+    inset: -5px;
+    border-radius: 50%;
 }
 .product-card__color-dot.is-active {
     box-shadow:

@@ -16,6 +16,7 @@ export default defineConfig({
                 'resources/css/storefront/header-banner.css',
                 'resources/css/storefront/home.css',
                 'resources/css/storefront/home-carousel.css',
+                'resources/css/storefront/home-page.css',
                 'resources/css/storefront/order-track.css',
                 'resources/css/storefront/product-show.css',
                 'resources/js/app.js',

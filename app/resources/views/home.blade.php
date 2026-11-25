@@ -9,6 +9,13 @@
 @section('og_description', $homeSeo['og_description'])
 @section('canonical_url', route('home'))
 
+{{-- Один файл стилів замість трьох; ключі не дають банеру й каруселі підключити свої копії. --}}
+@pushOnce('styles', 'storefront-header-banner-css')
+@vite('resources/css/storefront/home-page.css')
+@endPushOnce
+@pushOnce('styles', 'storefront-home-carousel-css')
+@endPushOnce
+
 @push('meta')
     @php
         $homeSameAs = [];
@@ -58,9 +65,6 @@
     @include('catalog.partials.category-filters', ['inHeader' => true])
 @endsection
 
-@push('styles')
-@vite('resources/css/storefront/home.css')
-@endpush
 
 @section('content')
     <div class="home-page">
@@ -92,7 +96,7 @@
                 <p class="home-shop-panel__empty">{{ __('shop.home_hits_empty') }}</p>
             @else
                 <div
-                    class="home-product-carousel home-product-carousel--mobile-feed home-product-carousel--show-excerpt"
+                    class="home-product-carousel home-product-carousel--mobile-feed home-product-carousel--paged home-product-carousel--show-excerpt"
                     data-home-carousel
                     role="region"
                     data-carousel-roledescription="{{ __('shop.aria_carousel') }}"
@@ -111,6 +115,7 @@
                     </button>
                     @include('home.partials.product-swipe-pages', [
                         'products' => $hitsProducts,
+                        'perPage' => 8,
                         'badge' => __('shop.home_badge_hit'),
                         'badgeClass' => 'hit',
                     ])
@@ -143,7 +148,7 @@
                 <p class="home-shop-panel__empty">{{ __('shop.home_rec_empty') }}</p>
             @else
                 <div
-                    class="home-product-carousel home-product-carousel--mobile-feed home-product-carousel--show-excerpt"
+                    class="home-product-carousel home-product-carousel--mobile-feed home-product-carousel--paged home-product-carousel--show-excerpt"
                     data-home-carousel
                     role="region"
                     data-carousel-roledescription="{{ __('shop.aria_carousel') }}"
@@ -162,6 +167,7 @@
                     </button>
                     @include('home.partials.product-swipe-pages', [
                         'products' => $recommendedProducts,
+                        'perPage' => 8,
                         'badge' => __('shop.home_badge_recommended'),
                         'badgeClass' => 'recommended',
                     ])

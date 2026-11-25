@@ -43,6 +43,11 @@
         }
     }
     $defer = $optimizeCard && filter_var($deferSrc, FILTER_VALIDATE_BOOLEAN) && $displayUrl !== '';
+    // Телефон бере копію 320px, комп'ютер і чіткі екрани — 640px (лише коли обидві копії вже є).
+    $smallUrl = $optimizeCard ? (string) ($item['card_small_url'] ?? '') : '';
+    $srcset = $smallUrl !== '' && $displayUrl !== '' && $smallUrl !== $displayUrl
+        ? $smallUrl.' 320w, '.$displayUrl.' 640w'
+        : '';
     $priority = is_string($fetchpriority) ? $fetchpriority : '';
 @endphp
 
@@ -52,6 +57,10 @@
             @if ($id) id="{{ $id }}" @endif
             class="{{ trim($class.' product-card__photo'.($defer ? ' product-card__photo--pending' : '')) }}"
             @if ($defer) data-src="{{ $displayUrl }}" @else src="{{ $displayUrl }}" @endif
+            @if ($srcset !== '')
+                @if ($defer) data-srcset="{{ $srcset }}" @else srcset="{{ $srcset }}" @endif
+                sizes="(max-width: 768px) 50vw, 300px"
+            @endif
             alt="{{ $alt }}"
             style="{{ $style }}"
             width="640"

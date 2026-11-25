@@ -43,6 +43,31 @@ class MediaOptimizationSwitchTest extends TestCase
         $this->assertStringNotContainsString('src="http://example.test/storage/products/1/photos/a.jpg"', $html);
     }
 
+    public function test_catalog_card_offers_small_copy_through_srcset(): void
+    {
+        if (! Schema::hasTable('shop_media_settings')) {
+            $this->markTestSkipped('Таблиця shop_media_settings ще не мігрована');
+        }
+
+        ShopMediaSetting::forgetOptimizeImagesCache();
+        $item = [
+            'path' => 'products/1/photos/a.jpg',
+            'url' => 'http://example.test/storage/products/1/photos/a.jpg',
+            'card_url' => 'http://example.test/storage/products/1/photos/a.card.webp',
+            'card_small_url' => 'http://example.test/storage/products/1/photos/a.thumb.webp',
+            'type' => 'image',
+        ];
+        $srcset = 'http://example.test/storage/products/1/photos/a.thumb.webp 320w, http://example.test/storage/products/1/photos/a.card.webp 640w';
+
+        $eager = view('catalog.partials.product-gallery-media', ['item' => $item, 'catalogCard' => true])->render();
+        $deferred = view('catalog.partials.product-gallery-media', ['item' => $item, 'catalogCard' => true, 'deferSrc' => true])->render();
+
+        $this->assertStringContainsString('srcset="'.$srcset.'"', $eager);
+        $this->assertStringContainsString('sizes="', $eager);
+        $this->assertStringContainsString('data-srcset="'.$srcset.'"', $deferred);
+        $this->assertStringNotContainsString(' srcset="', $deferred);
+    }
+
     public function test_catalog_card_uses_original_immediately_when_optimization_is_off(): void
     {
         if (! Schema::hasTable('shop_media_settings')) {

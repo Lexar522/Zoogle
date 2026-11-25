@@ -1,5 +1,6 @@
-{{-- Товари блоку сторінками по 4: на телефоні сторінка = сітка 2×2 і гортається свайпом, на комп'ютері сторінки «розчиняються» в звичайній сітці. --}}
-@php($swipePages = $products->values()->chunk(4))
+{{-- Товари блоку сторінками ($perPage, типово 4): на телефоні сторінка — сітка у 2 колонки, гортається свайпом.
+     На комп'ютері сторінки «розчиняються» в звичайній сітці, а з класом --paged (хіти й рекомендовані на головній) теж гортаються. --}}
+@php($swipePages = $products->values()->chunk(max(1, (int) ($perPage ?? 4))))
 <div class="home-product-carousel__viewport" tabindex="0">
     <div class="home-product-carousel__track">
         @foreach ($swipePages as $pageIndex => $pageProducts)
@@ -11,6 +12,7 @@
                             'listingQuotes' => $listingQuotes ?? [],
                             'bundleQuotes' => [],
                             'cardImagePriority' => $cardIndex,
+                            'cardImageHighPriority' => false,
                             'homeCardBadge' => $badge ?? null,
                             'homeCardBadgeClass' => $badgeClass ?? null,
                         ])

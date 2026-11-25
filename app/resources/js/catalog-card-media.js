@@ -130,6 +130,15 @@
         img.classList.remove('product-card__photo--pending');
     }
 
+    /** srcset раніше за src: інакше браузер встигне почати вантажити копію 640px навіть на телефоні */
+    function loadDeferredSource(img, dataSrc) {
+        const dataSrcset = img.getAttribute('data-srcset');
+        if (dataSrcset) {
+            img.setAttribute('srcset', dataSrcset);
+        }
+        img.setAttribute('src', dataSrc);
+    }
+
     function bindDeferredCardPhoto(img) {
         if (!img) {
             return;
@@ -166,7 +175,7 @@
             }
 
             img.addEventListener('load', () => revealCardPhoto(img), { once: true });
-            img.setAttribute('src', dataSrc);
+            loadDeferredSource(img, dataSrc);
         };
 
         if (!('IntersectionObserver' in window)) {
@@ -258,7 +267,7 @@
             }
             img.loading = 'eager';
             img.addEventListener('load', () => revealCardPhoto(img), { once: true });
-            img.setAttribute('src', dataSrc);
+            loadDeferredSource(img, dataSrc);
         });
     }
 
@@ -305,6 +314,12 @@
         }
         if (!img.dataset.cardOriginalSrc) {
             img.dataset.cardOriginalSrc = img.getAttribute('src');
+            // Поки є srcset, браузер ігнорує новий src — знімаємо його на час показу кольору
+            const srcset = img.getAttribute('srcset');
+            if (srcset) {
+                img.dataset.cardOriginalSrcset = srcset;
+                img.removeAttribute('srcset');
+            }
         }
         card.querySelectorAll('.product-card__color-dot.is-active').forEach((el) => el.classList.remove('is-active'));
         dot.classList.add('is-active');
@@ -314,6 +329,10 @@
     function restoreCardPhoto(card) {
         const img = card.querySelector('.product-card__media img');
         if (img && img.dataset.cardOriginalSrc) {
+            if (img.dataset.cardOriginalSrcset) {
+                img.setAttribute('srcset', img.dataset.cardOriginalSrcset);
+                delete img.dataset.cardOriginalSrcset;
+            }
             img.setAttribute('src', img.dataset.cardOriginalSrc);
             delete img.dataset.cardOriginalSrc;
         }

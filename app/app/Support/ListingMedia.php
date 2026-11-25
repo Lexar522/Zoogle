@@ -225,6 +225,7 @@ final class ListingMedia
             'path' => $normalizedPath,
             'url' => $url,
             'card_url' => ListingPhotoDerivative::cardUrlForPath($normalizedPath),
+            'card_small_url' => ListingPhotoDerivative::thumbUrlForPath($normalizedPath),
             'type' => $entry['type'],
             'focus_x' => $entry['focus_x'],
             'focus_y' => $entry['focus_y'],
