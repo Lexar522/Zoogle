@@ -71,7 +71,7 @@
             bootLeaflet(el) {
                 if (typeof L === 'undefined' || !el || this.map) return;
                 const start = this.readCoords();
-                this.map = L.map(el, { scrollWheelZoom: false }).setView([start.lat, start.lng], 14);
+                this.map = L.map(el, { scrollWheelZoom: true }).setView([start.lat, start.lng], 14);
                 el.addEventListener('wheel', function (e) { e.preventDefault(); }, { passive: false });
                 // Адмінка теж віддає Referrer-Policy: no-referrer, а OpenStreetMap без Referer блокує плитки (403)
                 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {

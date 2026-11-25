@@ -725,7 +725,7 @@
                         return;
                     }
                     var st2 = courierMapReadStart();
-                    courierLeafletMap = L.map(el, { scrollWheelZoom: false }).setView([st2.lat, st2.lng], st2.z);
+                    courierLeafletMap = L.map(el, { scrollWheelZoom: true }).setView([st2.lat, st2.lng], st2.z);
                     el.addEventListener('wheel', function (e) { e.preventDefault(); }, { passive: false });
                     osmTileLayer('&copy; OpenStreetMap').addTo(courierLeafletMap);
                     courierLeafletMarker = L.marker([st2.lat, st2.lng], {
@@ -1144,7 +1144,7 @@
                         return;
                     }
                     if (typeof L === 'undefined') return;
-                    pickupMap = L.map(el, { scrollWheelZoom: false }).setView([cfg.pickupLat, cfg.pickupLng], 15);
+                    pickupMap = L.map(el, { scrollWheelZoom: true }).setView([cfg.pickupLat, cfg.pickupLng], 15);
                     pickupMap.getContainer().addEventListener('wheel', function (e) {
                         e.preventDefault();
                     }, { passive: false });
@@ -1188,8 +1188,8 @@
                     }
 
                     if (typeof L === 'undefined') return;
-                    npMap = L.map(el, { scrollWheelZoom: false }).setView([49.0, 31.0], 6);
-                    /* scrollWheelZoom вимкнено — інакше wheel піднімає/опускає всю сторінку */
+                    npMap = L.map(el, { scrollWheelZoom: true }).setView([49.0, 31.0], 6);
+                    /* Колесо над картою масштабує її, а сторінку не прокручує */
                     npMap.getContainer().addEventListener('wheel', function (e) {
                         e.preventDefault();
                     }, { passive: false });
