@@ -14,15 +14,14 @@ final class ListingPhotoDerivative
 {
     public const CARD_MAX_EDGE = 640;
 
-    /** Копія для телефона: картка там ~170px, тож 640px — учетверо більше пікселів, ніж треба. */
-    public const THUMB_MAX_EDGE = 320;
-
     public const BANNER_MAX_WIDTH = 1600;
 
     public const WEBP_QUALITY = 75;
 
     public static function isDerivativePath(string $path): bool
     {
+        // thumb — копії 320px з версії 1.1.85 (прибрані: картка з object-fit: cover розтягувала їх і мутніла).
+        // Лишаються у списку, щоб shop:make-photo-derivatives не робив копій із цих файлів, поки вони є на сервері.
         return (bool) preg_match('/\.(?:card|thumb|poster|banner)\.webp$/i', str_replace('\\', '/', $path));
     }
 
@@ -76,21 +75,6 @@ final class ListingPhotoDerivative
         }
 
         return '';
-    }
-
-    /** URL копії 320px для srcset картки; порожньо, поки копії немає (тоді лишається одна картка 640px). */
-    public static function thumbUrlForPath(?string $path): string
-    {
-        $normalized = StoragePublicPath::normalize($path);
-        if ($normalized === null
-            || ! ShopMediaSetting::optimizeImagesEnabled()
-            || ListingMedia::typeForPath($normalized) !== ListingMedia::TYPE_IMAGE) {
-            return '';
-        }
-
-        $derivative = self::derivativeRelativePath($normalized, 'thumb');
-
-        return self::isUsable($derivative) ? (PublicStorageUrl::forPath($derivative) ?? '') : '';
     }
 
     /** Порожній файл лишається після обірваного запису й дає білу картку. */
@@ -155,56 +139,32 @@ final class ListingPhotoDerivative
             return null;
         }
 
+        if (is_file($destAbsolute) && filesize($destAbsolute) > 0 && filemtime($destAbsolute) >= filemtime($sourceAbsolute)) {
+            return $relative;
+        }
+
         $dir = dirname($destAbsolute);
         if (! is_dir($dir) && ! @mkdir($dir, 0775, true) && ! is_dir($dir)) {
             return null;
         }
 
-        if (! self::isFresh($destAbsolute, $sourceAbsolute)
-            && ! self::writeDerivative($path, $sourceAbsolute, $destAbsolute, self::maxEdgeFor($kind), $relative)) {
-            return null;
-        }
-
-        if ($kind === 'card') {
-            $thumbRelative = self::derivativeRelativePath($path, 'thumb');
-            $thumbAbsolute = $disk->path($thumbRelative);
-            if (! self::isFresh($thumbAbsolute, $sourceAbsolute)) {
-                // Без копії 320px картка просто лишається на 640px, тож невдача тут не скасовує основну копію.
-                self::writeDerivative($path, $sourceAbsolute, $thumbAbsolute, self::THUMB_MAX_EDGE, $thumbRelative);
-            }
-        }
-
-        return $relative;
-    }
-
-    private static function isFresh(string $destAbsolute, string $sourceAbsolute): bool
-    {
-        return is_file($destAbsolute) && filesize($destAbsolute) > 0 && filemtime($destAbsolute) >= filemtime($sourceAbsolute);
-    }
-
-    /** null — без обмеження розміру (банер обмежується шириною окремо). */
-    private static function maxEdgeFor(string $kind): ?int
-    {
-        return $kind === 'banner' ? null : self::CARD_MAX_EDGE;
-    }
-
-    private static function writeDerivative(string $path, string $sourceAbsolute, string $destAbsolute, ?int $maxEdge, string $relative): bool
-    {
         try {
             $written = ListingMedia::isVideoPath($path)
                 ? self::writePosterFromVideo($sourceAbsolute, $destAbsolute)
-                : self::writeScaledWebp($sourceAbsolute, $destAbsolute, $maxEdge);
+                : self::writeScaledWebp($sourceAbsolute, $destAbsolute, $kind === 'banner');
         } catch (Throwable $e) {
-            Log::warning('ListingPhotoDerivative failed: '.$e->getMessage(), ['path' => $path, 'copy' => $relative]);
+            Log::warning('ListingPhotoDerivative failed: '.$e->getMessage(), ['path' => $path]);
 
-            return false;
+            return null;
         }
 
-        if ($written) {
-            StorefrontMemo::forget('photo-derivative.'.$relative);
+        if (! $written) {
+            return null;
         }
 
-        return $written;
+        StorefrontMemo::forget('photo-derivative.'.$relative);
+
+        return $relative;
     }
 
     private static function writePosterFromVideo(string $sourceAbsolute, string $destAbsolute): bool
@@ -229,14 +189,13 @@ final class ListingPhotoDerivative
             return false;
         }
 
-        $ok = self::writeScaledWebp($frame, $destAbsolute, self::CARD_MAX_EDGE);
+        $ok = self::writeScaledWebp($frame, $destAbsolute, false);
         @unlink($frame);
 
         return $ok;
     }
 
-    /** $maxEdge === null — банер: обмежується лише шириною BANNER_MAX_WIDTH. */
-    private static function writeScaledWebp(string $sourceAbsolute, string $destAbsolute, ?int $maxEdge): bool
+    private static function writeScaledWebp(string $sourceAbsolute, string $destAbsolute, bool $banner): bool
     {
         $ext = strtolower(pathinfo($sourceAbsolute, PATHINFO_EXTENSION));
         $image = self::loadImage($sourceAbsolute, $ext);
@@ -252,7 +211,7 @@ final class ListingPhotoDerivative
             return false;
         }
 
-        [$targetW, $targetH] = self::targetSize($width, $height, $maxEdge);
+        [$targetW, $targetH] = self::targetSize($width, $height, $banner);
         $canvas = imagecreatetruecolor($targetW, $targetH);
         if ($canvas === false) {
             imagedestroy($image);
@@ -284,9 +243,9 @@ final class ListingPhotoDerivative
     /**
      * @return array{0: int, 1: int}
      */
-    private static function targetSize(int $width, int $height, ?int $maxEdge): array
+    private static function targetSize(int $width, int $height, bool $banner): array
     {
-        if ($maxEdge === null) {
+        if ($banner) {
             if ($width <= self::BANNER_MAX_WIDTH) {
                 return [$width, $height];
             }
@@ -297,11 +256,11 @@ final class ListingPhotoDerivative
         }
 
         $long = max($width, $height);
-        if ($long <= $maxEdge) {
+        if ($long <= self::CARD_MAX_EDGE) {
             return [$width, $height];
         }
 
-        $scale = $maxEdge / $long;
+        $scale = self::CARD_MAX_EDGE / $long;
 
         return [
             max(1, (int) round($width * $scale)),

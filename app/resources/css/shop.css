@@ -5664,8 +5664,7 @@
             font-weight: 600;
             background: transparent;
         }
-        .site-footer__bottom-inner { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 12px; text-align: center; }
-        .site-footer__version { font-weight: 500; opacity: 0.75; }
+        .site-footer__bottom-inner { display: flex; justify-content: center; text-align: center; }
 
         /* Компактний хаб (≤1199): на планшеті/вузькому десктопі — по центру як home (80vw) */
         @media (max-width: 1199px) and (min-width: 769px) {

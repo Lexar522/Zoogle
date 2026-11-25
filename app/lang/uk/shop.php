@@ -170,7 +170,6 @@ return [
     'footer_admin' => 'Панель адміністратора',
 
     'footer_copyright' => 'Всі права захищені.',
-    'footer_site_version' => 'Версія :version · оновлено :date',
 
     'footer_social_block_title' => 'Зв’язок і соцмережі',
     'footer_info_block_title' => 'Інформація',

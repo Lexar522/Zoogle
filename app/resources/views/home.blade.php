@@ -115,7 +115,8 @@
                     </button>
                     @include('home.partials.product-swipe-pages', [
                         'products' => $hitsProducts,
-                        'perPage' => 8,
+                        'perPage' => 4,
+                        'desktopGroup' => 2,
                         'badge' => __('shop.home_badge_hit'),
                         'badgeClass' => 'hit',
                     ])
@@ -167,7 +168,8 @@
                     </button>
                     @include('home.partials.product-swipe-pages', [
                         'products' => $recommendedProducts,
-                        'perPage' => 8,
+                        'perPage' => 4,
+                        'desktopGroup' => 2,
                         'badge' => __('shop.home_badge_recommended'),
                         'badgeClass' => 'recommended',
                     ])

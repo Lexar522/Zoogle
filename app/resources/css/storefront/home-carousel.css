@@ -315,11 +315,12 @@
 .home-product-carousel__dots {
     display: none;
 }
-/* Хіти й рекомендовані на комп'ютері: видно одну сторінку (8 товарів у звичайній сітці), стрілки й точки
-   перемикають сторінки без прокрутки — інакше контейнер прокрутки обрізав би тінь і підйом карток. */
+/* Хіти й рекомендовані на комп'ютері: видно дві телефонні сторінки разом (8 товарів у звичайній сітці), стрілки й точки
+   перемикають їх без прокрутки — інакше контейнер прокрутки обрізав би тінь і підйом карток. */
 @media (min-width: 769px) {
-    .home-product-carousel--paged:not([data-pages-ready]) .home-product-carousel__page:not(:first-child),
-    .home-product-carousel--paged .home-product-carousel__page[hidden] {
+    .home-product-carousel--paged:not([data-pages-ready]) .home-product-carousel__page:nth-child(n + 3),
+    .home-product-carousel--paged .home-product-carousel__page[hidden],
+    .home-product-carousel--paged .home-product-carousel__dot[data-desktop-extra] {
         display: none !important;
     }
     .home-product-carousel.home-product-carousel--paged .home-product-carousel__dots {
@@ -328,6 +329,34 @@
         justify-content: center;
         gap: 14px;
         margin-top: 14px;
+    }
+    /* 5–8 товарів: на комп'ютері це одна сторінка, гортати нічого */
+    .home-product-carousel.home-product-carousel--paged .home-product-carousel__dots--phone-only {
+        display: none;
+    }
+
+    /* Перегортання: старі картки їдуть убік гортання й гаснуть, нові в'їжджають з іншого боку одна за одною.
+       Тривалості — PAGE_OUT_MS / PAGE_IN_MS у public/js/storefront/home-swipe-pages.js */
+    .home-product-carousel--paged.is-page-out .home-product-carousel__page:not([hidden]) .home-product-carousel__cell {
+        opacity: 0;
+        transform: translateX(calc(var(--page-dir, 1) * -32px));
+        transition: opacity 0.16s ease-in, transform 0.16s ease-in;
+    }
+    .home-product-carousel--paged.is-page-in .home-product-carousel__page:not([hidden]) .home-product-carousel__cell {
+        animation: home-product-page-in 0.36s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    .home-product-carousel--paged.is-page-in .home-product-carousel__cell:nth-child(2) { animation-delay: 0.04s; }
+    .home-product-carousel--paged.is-page-in .home-product-carousel__cell:nth-child(3) { animation-delay: 0.08s; }
+    .home-product-carousel--paged.is-page-in .home-product-carousel__cell:nth-child(4) { animation-delay: 0.12s; }
+}
+@keyframes home-product-page-in {
+    from {
+        opacity: 0;
+        transform: translateX(calc(var(--page-dir, 1) * 40px));
+    }
+    to {
+        opacity: 1;
+        transform: none;
     }
 }
 @media (max-width: 768px) {

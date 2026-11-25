@@ -97,6 +97,10 @@ class AdminPanelProvider extends PanelProvider
                 }
             )
             ->renderHook(
+                PanelsRenderHook::SIDEBAR_FOOTER,
+                fn (): string => view('filament.hooks.site-release')->render()
+            )
+            ->renderHook(
                 TablesRenderHook::TOOLBAR_SEARCH_BEFORE,
                 fn (): string => view('filament.admin.resources.products.list-products-table-search-row-start')->render(),
                 scopes: ListProducts::class,

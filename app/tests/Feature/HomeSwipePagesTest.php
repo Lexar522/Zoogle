@@ -13,46 +13,60 @@ class HomeSwipePagesTest extends TestCase
 {
     use RefreshDatabase;
 
-    /** Хіти й рекомендовані: по 8 товарів на сторінку (телефон і комп'ютер), далі — стрілки й точки. */
-    public function test_home_lists_are_split_into_pages_of_eight_with_dots(): void
+    /**
+     * Хіти й рекомендовані: на телефоні сторінка — 4 товари (2×2), на комп'ютері — дві такі сторінки разом (8 товарів).
+     * 10 товарів: телефону 3 сторінки й 3 точки, комп'ютеру — 2 сторінки, третя точка на ньому прихована.
+     */
+    public function test_home_lists_have_pages_of_four_on_phone_and_eight_on_desktop(): void
     {
-        foreach (range(1, 10) as $i) {
-            ShopHomeListItem::query()->create([
-                'list' => ShopHomeListItem::LIST_BESTSELLERS,
-                'product_id' => $this->product("Хіт {$i}")->id,
-                'sort_order' => $i,
-            ]);
-        }
+        $this->bestsellers(10);
 
         $html = (string) $this->get(route('home'))->assertOk()->getContent();
         $hits = $this->between($html, 'home-hits-heading', '</section>');
 
         $this->assertStringContainsString('home-product-carousel--paged', $hits);
-        $this->assertSame(2, substr_count($hits, 'class="home-product-carousel__page"'));
+        $this->assertStringContainsString('data-desktop-group="2"', $hits);
+        $this->assertSame(3, substr_count($hits, 'class="home-product-carousel__page"'));
         $this->assertSame(10, substr_count($hits, 'class="home-product-carousel__cell"'));
-        $this->assertSame(2, substr_count($hits, 'data-carousel-page-dot'));
-        $this->assertStringContainsString('data-carousel-page-prev', $hits);
+        $this->assertSame(3, substr_count($hits, 'data-carousel-page-dot='));
+        $this->assertSame(1, substr_count($hits, 'data-desktop-extra'), 'Третя точка — лише для телефона');
+        $this->assertStringNotContainsString('home-product-carousel__dots--phone-only', $hits);
         $this->assertStringContainsString('data-carousel-page-next', $hits);
         $firstPage = explode('class="home-product-carousel__page"', $hits)[1];
-        $this->assertStringContainsString('Хіт 8', $firstPage);
-        $this->assertStringNotContainsString('Хіт 9', $firstPage);
+        $this->assertStringContainsString('Хіт 4', $firstPage);
+        $this->assertStringNotContainsString('Хіт 5', $firstPage);
     }
 
-    public function test_eight_or_fewer_products_have_no_page_dots(): void
+    public function test_five_to_eight_products_page_only_on_phone(): void
     {
-        foreach (range(1, 8) as $i) {
-            ShopHomeListItem::query()->create([
-                'list' => ShopHomeListItem::LIST_BESTSELLERS,
-                'product_id' => $this->product("Хіт {$i}")->id,
-                'sort_order' => $i,
-            ]);
-        }
+        $this->bestsellers(6);
+
+        $hits = $this->between((string) $this->get(route('home'))->getContent(), 'home-hits-heading', '</section>');
+
+        $this->assertSame(2, substr_count($hits, 'class="home-product-carousel__page"'));
+        $this->assertStringContainsString('home-product-carousel__dots--phone-only', $hits);
+    }
+
+    public function test_four_or_fewer_products_have_no_page_dots(): void
+    {
+        $this->bestsellers(4);
 
         $hits = $this->between((string) $this->get(route('home'))->getContent(), 'home-hits-heading', '</section>');
 
         $this->assertSame(1, substr_count($hits, 'class="home-product-carousel__page"'));
         $this->assertStringNotContainsString('data-carousel-page-dot', $hits);
         $this->assertStringNotContainsString('data-carousel-page-next', $hits);
+    }
+
+    private function bestsellers(int $count): void
+    {
+        foreach (range(1, $count) as $i) {
+            ShopHomeListItem::query()->create([
+                'list' => ShopHomeListItem::LIST_BESTSELLERS,
+                'product_id' => $this->product("Хіт {$i}")->id,
+                'sort_order' => $i,
+            ]);
+        }
     }
 
     public function test_product_page_related_items_use_the_same_swipe_pages(): void

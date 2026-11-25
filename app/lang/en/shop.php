@@ -170,7 +170,6 @@ return [
     'footer_admin' => 'Admin panel',
 
     'footer_copyright' => 'All rights reserved.',
-    'footer_site_version' => 'Version :version · updated :date',
 
     'footer_social_block_title' => 'Contact & social',
     'footer_info_block_title' => 'Information',
