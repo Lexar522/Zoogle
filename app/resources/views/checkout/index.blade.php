@@ -329,6 +329,16 @@
         <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
         <script>
             (function () {
+                /* Сайт віддає Referrer-Policy: no-referrer (SetNoReferrerPolicy — заради фото на хостингу),
+                   а сервери OpenStreetMap без Referer відповідають 403 «Access blocked». Для плиток Referer вмикаємо окремо. */
+                function osmTileLayer(attribution) {
+                    return L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: attribution,
+                        maxZoom: 19,
+                        referrerPolicy: 'strict-origin-when-cross-origin'
+                    });
+                }
+
                 {{-- Лише рядки, які читає цей скрипт: повний словник shop.* важив 82 КБ на кожній сторінці. --}}
                 var T = {!! json_encode(\Illuminate\Support\Arr::only((array) trans('shop'), ['checkout_city_first', 'checkout_loading', 'checkout_region_first', 'js_address_fail', 'js_address_on_map', 'js_address_resolving', 'js_cities_load_fail', 'js_close', 'js_delivery', 'js_map_drag_hint', 'js_np_brand', 'js_np_heading_branch', 'js_np_key_invalid', 'js_np_selected_hint', 'js_regions_load_fail', 'js_select_city', 'js_select_region', 'js_select_warehouse', 'js_warehouses_load_fail']), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) !!};
                 var cfg = {
@@ -714,10 +724,7 @@
                     var st2 = courierMapReadStart();
                     courierLeafletMap = L.map(el, { scrollWheelZoom: false }).setView([st2.lat, st2.lng], st2.z);
                     el.addEventListener('wheel', function (e) { e.preventDefault(); }, { passive: false });
-                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                        attribution: '&copy; OpenStreetMap',
-                        maxZoom: 19
-                    }).addTo(courierLeafletMap);
+                    osmTileLayer('&copy; OpenStreetMap').addTo(courierLeafletMap);
                     courierLeafletMarker = L.marker([st2.lat, st2.lng], {
                         draggable: true,
                         icon: L.icon({
@@ -1138,10 +1145,7 @@
                     pickupMap.getContainer().addEventListener('wheel', function (e) {
                         e.preventDefault();
                     }, { passive: false });
-                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-                        maxZoom: 19,
-                    }).addTo(pickupMap);
+                    osmTileLayer('&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>').addTo(pickupMap);
                     L.marker([cfg.pickupLat, cfg.pickupLng]).addTo(pickupMap);
                 }
 
@@ -1186,10 +1190,7 @@
                     npMap.getContainer().addEventListener('wheel', function (e) {
                         e.preventDefault();
                     }, { passive: false });
-                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-                        maxZoom: 19
-                    }).addTo(npMap);
+                    osmTileLayer('&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>').addTo(npMap);
                     npMarkersLayer = L.layerGroup().addTo(npMap);
                 }
 

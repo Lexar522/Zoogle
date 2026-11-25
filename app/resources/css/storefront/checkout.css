@@ -22,8 +22,12 @@
     align-self: stretch;
 }
 .checkout-page .checkout-delivery-row > .checkout-delivery__card--map {
-    flex: 1 1 0;
+    /* Карта бере ~45% рядка, а не лише залишок біля форми (була ~250px завширшки) */
+    flex: 1 1 45%;
     min-height: 0;
+}
+.checkout-page .checkout-delivery-row > .checkout-delivery__card--info {
+    flex: 1 1 55%;
 }
 .checkout-page .checkout-delivery-row--single {
     flex-direction: column;
@@ -80,7 +84,7 @@
 .checkout-delivery__card--map .np-map {
     flex: 1 1 auto;
     width: 100%;
-    min-height: 0 !important;
+    min-height: clamp(300px, 45vh, 440px) !important;
     height: 100%;
 }
 .checkout-delivery__card--map .np-checkout-map-col > .muted {

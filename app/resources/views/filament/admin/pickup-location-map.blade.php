@@ -73,9 +73,11 @@
                 const start = this.readCoords();
                 this.map = L.map(el, { scrollWheelZoom: false }).setView([start.lat, start.lng], 14);
                 el.addEventListener('wheel', function (e) { e.preventDefault(); }, { passive: false });
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                // Адмінка теж віддає Referrer-Policy: no-referrer, а OpenStreetMap без Referer блокує плитки (403)
+                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     attribution: '&copy; OpenStreetMap',
                     maxZoom: 19,
+                    referrerPolicy: 'strict-origin-when-cross-origin',
                 }).addTo(this.map);
                 this.marker = L.marker([start.lat, start.lng], { draggable: true }).addTo(this.map);
                 this.marker.on('dragend', () => {
