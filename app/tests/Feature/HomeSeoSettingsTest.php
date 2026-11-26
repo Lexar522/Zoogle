@@ -26,7 +26,10 @@ class HomeSeoSettingsTest extends TestCase
     {
         $this->actingAsAdmin();
 
-        $this->get('/admin/home-seo')->assertOk();
+        $this->get('/admin/home-seo')
+            ->assertOk()
+            ->assertSee('Як сайт виглядає в пошуку Google')
+            ->assertSee('Як посилання на сайт виглядає в Telegram, Viber, Facebook');
 
         Livewire::test(ManageHomeSeo::class)
             ->set('data.home_title', 'Зоомагазин ZOOGLE — екзотичні тварини та аксесуари')
@@ -42,6 +45,29 @@ class HomeSeoSettingsTest extends TestCase
             ->assertSee('<title>Зоомагазин ZOOGLE — екзотичні тварини та аксесуари</title>', false)
             ->assertSee('<meta name="description" content="Клітки, корм і аксесуари для гризунів, птахів і рептилій. Доставка по Україні.">', false)
             ->assertSee('property="og:description" content="Клітки, корм і аксесуари для гризунів, птахів і рептилій. Доставка по Україні."', false);
+    }
+
+    public function test_link_preview_texts_change_only_messenger_card(): void
+    {
+        $this->actingAsAdmin();
+
+        Livewire::test(ManageHomeSeo::class)
+            ->set('data.home_title', 'Зоомагазин ZOOGLE у Києві')
+            ->set('data.home_description', 'Опис для Google.')
+            ->set('data.home_og_title', 'ZOOGLE — екзотичні тварини')
+            ->set('data.home_og_description', 'Клітки та корм. Доставка таксі по Києву.')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        auth()->logout();
+        ShopSeoSetting::forgetResolvedCache();
+
+        $this->get(route('home'))
+            ->assertOk()
+            ->assertSee('<title>Зоомагазин ZOOGLE у Києві</title>', false)
+            ->assertSee('<meta name="description" content="Опис для Google.">', false)
+            ->assertSee('<meta property="og:title" content="ZOOGLE — екзотичні тварини">', false)
+            ->assertSee('<meta property="og:description" content="Клітки та корм. Доставка таксі по Києву.">', false);
     }
 
     public function test_too_long_description_is_rejected(): void

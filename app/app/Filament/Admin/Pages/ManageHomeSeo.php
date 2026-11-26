@@ -23,7 +23,7 @@ use Throwable;
 use UnitEnum;
 
 /**
- * Текст, який Google показує для головної сторінки: заголовок і опис під посиланням.
+ * Текст, який Google показує для головної сторінки, і картка посилання в Telegram, Viber, Facebook.
  *
  * @property-read Schema $form
  */
@@ -33,9 +33,9 @@ class ManageHomeSeo extends Page
 
     protected static ?string $slug = 'home-seo';
 
-    protected static ?string $title = 'Google: головна сторінка';
+    protected static ?string $title = 'Головна в Google і месенджерах';
 
-    protected static ?string $navigationLabel = 'Google: головна';
+    protected static ?string $navigationLabel = 'Google і посилання';
 
     protected static string|UnitEnum|null $navigationGroup = 'Налаштування';
 
@@ -47,6 +47,9 @@ class ManageHomeSeo extends Page
     private const TITLE_RECOMMENDED = 60;
 
     private const DESCRIPTION_RECOMMENDED = 160;
+
+    /** Telegram показує картку в кілька рядків — довший текст обріже. */
+    private const LINK_DESCRIPTION_RECOMMENDED = 200;
 
     /**
      * @var array<string, mixed>|null
@@ -74,6 +77,8 @@ class ManageHomeSeo extends Page
         return [
             'home_title' => $row?->home_title,
             'home_description' => $row?->home_description,
+            'home_og_title' => $row?->home_og_title,
+            'home_og_description' => $row?->home_og_description,
         ];
     }
 
@@ -85,8 +90,10 @@ class ManageHomeSeo extends Page
 
             $row = ShopSeoSetting::query()->orderBy('id')->first() ?? new ShopSeoSetting;
             $row->fill([
-                'home_title' => trim((string) ($data['home_title'] ?? '')) ?: null,
-                'home_description' => trim(preg_replace('/\s+/u', ' ', (string) ($data['home_description'] ?? ''))) ?: null,
+                'home_title' => self::cleanLine($data['home_title'] ?? null),
+                'home_description' => self::cleanLine($data['home_description'] ?? null),
+                'home_og_title' => self::cleanLine($data['home_og_title'] ?? null),
+                'home_og_description' => self::cleanLine($data['home_og_description'] ?? null),
             ])->save();
         } catch (Throwable $exception) {
             $this->rollBackDatabaseTransaction();
@@ -98,10 +105,16 @@ class ManageHomeSeo extends Page
         Notification::make()
             ->success()
             ->title('Збережено')
-            ->body('Google оновить текст у пошуку, коли наступного разу відвідає сайт (зазвичай за кілька днів).')
+            ->body('Google оновить текст у пошуку за кілька днів. Telegram пам’ятає стару картку — нова з’явиться, коли кеш посилання оновиться.')
             ->send();
 
         $this->form->fill($this->loadFormData());
+    }
+
+    /** Переноси рядків і зайві пробіли в мета-тегах лише заважають. */
+    private static function cleanLine(mixed $value): ?string
+    {
+        return trim((string) preg_replace('/\s+/u', ' ', (string) $value)) ?: null;
     }
 
     public function defaultForm(Schema $schema): Schema
@@ -129,6 +142,21 @@ class ManageHomeSeo extends Page
                             ->placeholder(__('shop.home_meta_description', [], 'uk'))
                             ->helperText('Найкраще 120–'.self::DESCRIPTION_RECOMMENDED.' символів: що продаєте і чому у вас. Google іноді підбирає свій фрагмент тексту зі сторінки.'),
                     ]),
+                Section::make('Як посилання на сайт виглядає в Telegram, Viber, Facebook')
+                    ->description('Порожнє поле — береться текст для Google вище.')
+                    ->schema([
+                        TextInput::make('home_og_title')
+                            ->label('Заголовок картки')
+                            ->maxLength(ShopSeoSetting::TITLE_MAX)
+                            ->placeholder(__('shop.home_og_title', [], 'uk'))
+                            ->helperText('Жирний рядок під назвою сайту. Коротко, до '.self::TITLE_RECOMMENDED.' символів.'),
+                        Textarea::make('home_og_description')
+                            ->label('Текст картки')
+                            ->rows(3)
+                            ->maxLength(ShopSeoSetting::DESCRIPTION_MAX)
+                            ->placeholder(__('shop.home_og_description', [], 'uk'))
+                            ->helperText('Рядок під заголовком, до '.self::LINK_DESCRIPTION_RECOMMENDED.' символів.'),
+                    ]),
             ]);
     }
 
@@ -147,7 +175,7 @@ class ManageHomeSeo extends Page
 
     public function getTitle(): string|Htmlable
     {
-        return static::$title ?? 'Google: головна сторінка';
+        return static::$title ?? 'Головна в Google і месенджерах';
     }
 
     public function content(Schema $schema): Schema
